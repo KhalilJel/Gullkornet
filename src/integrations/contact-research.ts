@@ -170,7 +170,16 @@ function extractEvidence(html: string): { headline?: string; serviceEvidence?: s
   const text = stripHtml(html);
   const sentenceCandidates = text.split(/[.!?]\s+/).map((s) => s.trim()).filter((s) => s.length >= 30 && s.length <= 220);
   const serviceTerms = /regnskap|regnskapsfør|bokfør|lønn|årsoppgjør|økonomirådgivning|rådgivning|skatt|mva|accounting|bookkeeping/i;
-  const serviceEvidence = sentenceCandidates.find((s) => serviceTerms.test(s));
+  const serviceEvidence = sentenceCandidates.find((s) => serviceTerms.test(s))
+    ?? (() => {
+      const metaDescription = html.match(/<meta\\b[^>]*name\\s*=\\s*["']?description\\b[^>]*>/i)?.[0];
+      const contentMatch = metaDescription?.match(/\\bcontent\\s*=\\s*["']([^"']*)["']/i)
+        ?? metaDescription?.match(/\\bcontent\\s*=\\s*([^\\s>]+)/i);
+      const description = contentMatch?.[1] ? stripHtml(contentMatch[1]) : "";
+      return description.length >= 35 && description.length <= 220 && serviceTerms.test(description)
+        ? description
+        : undefined;
+    })();
   return { headline, serviceEvidence };
 }
 
