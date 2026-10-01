@@ -39,6 +39,8 @@ function decodeText(value: string): string {
     .replace(/&#39;|&apos;/gi, "'")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([\da-f]+);/gi, (_, code: string) => String.fromCodePoint(parseInt(code, 16)))
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -48,6 +50,7 @@ function stripHtml(value: string): string {
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
     .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, " ")
+    .replace(/<(nav|header|footer|aside|button|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
     .replace(/<[^>]+>/g, " "));
 }
 
@@ -168,9 +171,9 @@ export function extractPublicEmails(html: string, sourceUrl: string): PublicEmai
 export function extractEvidence(html: string): { headline?: string; serviceEvidence?: string } {
   const headline = getTagText(html, "h1");
   const text = stripHtml(html);
-  const sentenceCandidates = text.split(/[.!?]\s+/).map((s) => s.trim()).filter((s) => s.length >= 30 && s.length <= 220);
+  const sentenceCandidates = text.split(/[.!?]\s+/).map((s) => s.trim()).filter((s) => s.length >= 35 && s.length <= 220);
   const serviceTerms = /regnskap|regnskapsfør|bokfør|lønn|årsoppgjør|økonomirådgivning|rådgivning|skatt|mva|accounting|bookkeeping/i;
-  const serviceEvidence = sentenceCandidates.find((s) => serviceTerms.test(s))
+  const serviceEvidence = sentenceCandidates.find((s) => serviceTerms.test(s) && isUsefulServiceEvidence(s))
     ?? (() => {
       const metaDescription = html.match(/<meta\b[^>]*name\s*=\s*["']?description\b[^>]*>/i)?.[0];
       const contentMatch = metaDescription?.match(/\bcontent\s*=\s*["']([^"']*)["']/i)
@@ -191,8 +194,10 @@ function isUsefulServiceEvidence(value?: string): value is string {
   if (!value || value.trim().length < 35) return false;
   const serviceTerms = /regnskap|regnskapsfør|bokfør|lønn|årsoppgjør|økonomirådgivning|rådgivning|skatt|mva|accounting|bookkeeping/i;
   if (!serviceTerms.test(value)) return false;
-  const navigationTerms = value.match(/\b(hjem|søk|kontakt oss|kontakt|om oss|tjenester|meny|personvern|cookies|logg inn)\b/gi) ?? [];
-  return navigationTerms.length < 3;
+  const navigationTerms = value.match(/\b(hjem|søk|kontakt oss|kontakt|om oss|tjenester|meny|personvern|cookies|logg inn|skip to content|finn oss|åpningstider|nyttige linker|ansatte)\b/gi) ?? [];
+  const phoneNumbers = value.match(/(?:\+?\d[\d\s().-]{7,}\d)/g) ?? [];
+  const decodedEntityNoise = /&#(?:x[\da-f]+|\d+);/i.test(value);
+  return navigationTerms.length < 2 && phoneNumbers.length === 0 && !decodedEntityNoise && !/\b(?:followers|likes)\b/i.test(value);
 }
 
 export function createPersonalizedDraft(candidate: GoogleCandidate, title?: string, headline?: string, serviceEvidence?: string, audit?: WebsiteAudit): {
@@ -201,11 +206,17 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   const company = candidate.companyName.trim();
   const normalizedHeadline = headline ? normalizeEvidence(headline) : "";
   const normalizedCompany = normalizeEvidence(company);
-  const genericHeadline = /^(om oss|kontakt|kontakt oss|hjem|forside|velkommen|tjenester|om meg|om firmaet|om virksomheten|about us|contact us|services|home|startside)$/i;
+  const genericHeadline = /^(om oss|kontakt|kontakt oss|hjem|forside|velkommen|tjenester|om meg|om firmaet|om virksomheten|about us|contact us|services|home|startside|skip to content|søk|meny)$/i;
+  const navigationHeadline = /skip to content|\b(finn oss|åpningstider|nyttige linker|personvern|cookies|logg inn)\b/i;
+  const spacedLetterHeadline = /^(?:[A-Z]\s+){4,}[A-Z]/i;
+  const encodedHeadline = /&#(?:x[\da-f]+|\d+);/i;
   const usefulHeadline = headline?.trim()
     && headline.trim().length >= 24
     && normalizedHeadline !== normalizedCompany
     && !genericHeadline.test(headline.trim())
+    && !navigationHeadline.test(headline.trim())
+    && !spacedLetterHeadline.test(headline.trim())
+    && !encodedHeadline.test(headline.trim())
     ? headline.trim()
     : undefined;
   const usefulServiceEvidence = isUsefulServiceEvidence(serviceEvidence) ? serviceEvidence.trim() : undefined;

@@ -175,3 +175,30 @@ test("uses a relevant meta description as fallback service evidence", () => {
   const result = extractEvidence('<html><head><meta name="description" content="Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo."></head><body><nav>Hjem Kontakt</nav></body></html>');
   assert.equal(result.serviceEvidence, "Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo.");
 });
+
+
+test("stripHtml excludes navigation noise and decodes HTML entities in service evidence", () => {
+  const result = extractEvidence('<html><body><nav>Hjem Kontakt Finn oss 66 96 53 00</nav><main><p>Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo.</p></main><footer>Personvern Cookies</footer></body></html>');
+  assert.equal(result.serviceEvidence, "Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo.");
+});
+
+test("spaced-letter and navigation headings do not create personalized drafts", () => {
+  for (const headline of ["C I F E R O A S - F O R S I D E", "Skip to content 66 96 53 00 post@example.no Finn oss Ansatte"]) {
+    const result = createPersonalizedDraft(
+      { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
+      "Eksempel",
+      headline,
+      undefined,
+      {
+        companyName: "Eksempel Regnskap AS",
+        websiteUrl: "https://example.no",
+        checkedAt: "2026-10-01T00:00:00.000Z",
+        status: "AUDITED",
+        flags: ["MISSING_META_DESCRIPTION"],
+        metaDescription: undefined
+      }
+    );
+    assert.equal(result.draftBody, undefined);
+    assert.equal(result.subject, undefined);
+  }
+});
