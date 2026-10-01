@@ -198,7 +198,8 @@ function isUsefulServiceEvidence(value?: string): value is string {
   const phoneNumbers = value.match(/(?:\+?\d[\d\s().-]{7,}\d)/g) ?? [];
   const decodedEntityNoise = /&#(?:x[\da-f]+|\d+);/i.test(value);
   const markupResidue = /\{\{[^}]+\}\}|\bdata-[\w-]+\s*=|[<>]/i.test(value);
-  return navigationTerms.length === 0 && phoneNumbers.length === 0 && !decodedEntityNoise && !markupResidue && !/\b(?:followers|likes)\b/i.test(value);
+  const spacedLetterNoise = /(?:\b[A-Z]\s+){3,}[A-Z]\b/i.test(value);
+  return navigationTerms.length === 0 && phoneNumbers.length === 0 && !decodedEntityNoise && !markupResidue && !spacedLetterNoise && !/\b(?:followers|likes)\b/i.test(value);
 }
 
 export function createPersonalizedDraft(candidate: GoogleCandidate, title?: string, headline?: string, serviceEvidence?: string, audit?: WebsiteAudit): {
