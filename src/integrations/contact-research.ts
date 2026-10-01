@@ -111,7 +111,7 @@ async function fetchHtml(rawUrl: string): Promise<{ html: string; finalUrl: stri
 }
 
 function getTagText(html: string, tag: string): string | undefined {
-  const match = html.match(new RegExp("<" + tag + "\\b[^>]*>([\\s\\S]*?)<\\/" + tag + ">", "i"));
+  const match = html.match(new RegExp("<" + tag + "\b[^>]*>([\\s\\S]*?)<\\/" + tag + ">", "i"));
   const value = match?.[1] ? stripHtml(match[1]).slice(0, 220) : "";
   return value || undefined;
 }
@@ -175,7 +175,7 @@ function extractEvidence(html: string): { headline?: string; serviceEvidence?: s
 }
 
 function normalizeEvidence(value: string): string {
-  return value.toLocaleLowerCase("nb-NO").replace(/[^\\p{L}\\p{N}]+/gu, " ").trim();
+  return value.toLocaleLowerCase("nb-NO").replace(/[^\p{L}\\p{N}]+/gu, " ").trim();
 }
 
 function isUsefulServiceEvidence(value?: string): value is string {
@@ -209,9 +209,8 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
     return { notes };
   }
   const cleanEvidence = evidence.replace(/[\r\n"]/g, "").slice(0, 180);
-  const company = candidate.companyName.trim();
   const subject = "En idé til nettsiden til " + company;
-  const observedDetail = headline
+  const observedDetail = usefulHeadline
     ? "overskriften «" + cleanEvidence + "»"
     : "beskrivelsen deres «" + cleanEvidence + "»";
   const auditImprovement = audit?.flags.includes("MISSING_META_DESCRIPTION")
