@@ -7,6 +7,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
+    "discover:registry": "tsx src/cli/discover-registry.ts",
     "import:leads": "tsx src/cli/import-leads.ts",
     "report:leads": "tsx src/cli/report-leads.ts"
   },
