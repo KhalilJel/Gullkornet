@@ -43,6 +43,20 @@ test("imports and qualifies valid lead records", async () => {
   assert.equal(store.value[0]?.fitScore, 100);
 });
 
+test("imports raw candidates as NEW until website research is documented", async () => {
+  const store = new MemoryLeadStore();
+  const summary = await importLeadRecords([{
+    companyName: "Candidate Regnskap AS",
+    city: "Oslo",
+    industry: "Regnskapsbyrå"
+  }], store);
+
+  assert.equal(summary.imported, 1);
+  assert.equal(summary.qualified, 0);
+  assert.equal(summary.notQualified, 1);
+  assert.equal(store.value[0]?.status, "NEW");
+});
+
 test("rejects malformed records without saving them", async () => {
   const store = new MemoryLeadStore();
   const summary = await importLeadRecords([{ companyName: "X", contactEmail: "not-an-email" }], store);
