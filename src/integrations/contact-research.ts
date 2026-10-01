@@ -198,7 +198,8 @@ function isUsefulServiceEvidence(value?: string): value is string {
   const phoneNumbers = value.match(/(?:\+?\d[\d\s().-]{7,}\d)/g) ?? [];
   const decodedEntityNoise = /&#(?:x[\da-f]+|\d+);/i.test(value);
   const markupResidue = /\{\{[^}]+\}\}|\bdata-[\w-]+\s*=|[<>]/i.test(value);
-  return navigationTerms.length === 0 && phoneNumbers.length === 0 && !decodedEntityNoise && !markupResidue && !/\b(?:followers|likes)\b/i.test(value);
+  const spacedLetterNoise = /(?:\b[A-Z]\s+){3,}[A-Z]\b/i.test(value);
+  return navigationTerms.length === 0 && phoneNumbers.length === 0 && !decodedEntityNoise && !markupResidue && !spacedLetterNoise && !/\b(?:followers|likes)\b/i.test(value);
 }
 
 export function createPersonalizedDraft(candidate: GoogleCandidate, title?: string, headline?: string, serviceEvidence?: string, audit?: WebsiteAudit): {
@@ -210,7 +211,7 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   const genericHeadline = /^(om oss|kontakt|kontakt oss|hjem|forside|velkommen|tjenester|om meg|om firmaet|om virksomheten|about us|contact us|services|home|startside|skip to content|søk|meny)$/i;
   const navigationHeadline = /\b(hjem|forside|meny|søk|kontakt oss|om oss|tjenester|skip to content|hopp rett til innholdet|hopp til innholdet|finn oss|åpningstider|nyttige linker|personvern|cookies|logg inn)\b/i;
   const markupHeadline = /\{\{[^}]+\}\}|\bdata-[\w-]+\s*=|[<>]|&#(?:x[\da-f]+|\d+);/i;
-  const spacedLetterHeadline = /^(?:[A-Z]\s+){4,}[A-Z]/i;
+  const spacedLetterHeadline = /(?:\b[A-Z]\s+){3,}[A-Z]\b/i;
   const encodedHeadline = /&#(?:x[\da-f]+|\d+);/i;
   const usefulHeadline = headline?.trim()
     && headline.trim().length >= 24

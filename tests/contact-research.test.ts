@@ -233,3 +233,14 @@ test("does not create drafts from navigation-heavy or markup-contaminated headli
     assert.equal(result.subject, undefined);
   }
 });
+
+
+test("rejects spaced-letter navigation residue inside otherwise relevant service evidence", () => {
+  const result = extractEvidence('<html><body><h1>C I F E R O A S - F O R S I D E</h1><main><p>C I F E R O A S - F O R S I D E Varjag Regnskap AS endrer nå navn til Cifero AS.</p></main></body></html>');
+  assert.equal(result.serviceEvidence, undefined);
+});
+
+test("rejects Norwegian skip-to-content phrases from service evidence", () => {
+  const result = extractEvidence('<html><body><main><p>Hopp rett til innholdet. Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo.</p></main></body></html>');
+  assert.equal(result.serviceEvidence, "Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo.");
+});
