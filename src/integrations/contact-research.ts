@@ -208,33 +208,34 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
       : "No reliable page-specific headline or service statement was extracted; no personalized draft generated.");
     return { notes };
   }
-  const cleanEvidence = evidence.replace(/[\r\n"]/g, "").slice(0, 180);
+  const rawEvidence = evidence.replace(/[\r\n"]/g, "").trim();
+  const maxEvidenceLength = 110;
+  const cleanEvidence = rawEvidence.length <= maxEvidenceLength
+    ? rawEvidence
+    : rawEvidence.slice(0, maxEvidenceLength - 1).replace(/\s+\S*$/, "") + "…";
   const subject = "En idé til nettsiden til " + company;
   const observedDetail = usefulHeadline
     ? "overskriften «" + cleanEvidence + "»"
-    : "beskrivelsen deres «" + cleanEvidence + "»";
-  const auditImprovement = audit?.flags.includes("MISSING_META_DESCRIPTION")
-    ? "hvordan nettsiden presenteres i søkeresultater med en tydelig metabeskrivelse"
+    : "beskrivelsen «" + cleanEvidence + "»";
+  const improvementArea = audit?.flags.includes("MISSING_META_DESCRIPTION")
+    ? "gjøre søkeresultatet tydeligere ved å forklare regnskapstjenestene deres kort"
     : audit?.flags.includes("NO_OBVIOUS_CONTACT_PATH")
-      ? "hvor enkelt det er for besøkende å finne veien til kontakt"
+      ? "gjøre kontaktmuligheten lettere å finne for besøkende som vil spørre om hjelp"
       : audit?.flags.includes("MISSING_TITLE")
-        ? "hvordan nettsiden presenteres i søkeresultater med en mer beskrivende sidetittel"
+        ? "gi siden en mer beskrivende tittel i søkeresultater"
         : audit?.flags.includes("MISSING_VIEWPORT_META")
-          ? "hvordan nettsiden tilpasses mobilbesøkende"
-          : undefined;
-  const improvementArea = auditImprovement ?? (usefulServiceEvidence
-    ? "hvordan dere presenterer " + cleanEvidence.replace(/[.!?]+$/, "")
-    : "hvordan nettsiden presenterer tilbudet deres");
+          ? "gjøre siden enklere å lese og bruke på mobil"
+          : "gjøre tjenestene deres lettere å forstå ved første besøk";
   const draftBody = [
     "Hei!",
     "",
-    "Jeg tok en titt på nettsiden deres og la spesielt merke til " + observedDetail + ".",
+    "Jeg så på nettsiden deres og la merke til " + observedDetail + ".",
     "",
-    "Det ga meg en idé. Jeg tror det kan være en konkret mulighet til å forbedre " + improvementArea + ", slik at potensielle kunder raskere ser hva dere kan hjelpe dem med.",
+    "Jeg fikk en konkret idé til hvordan dere kan " + improvementArea + ".",
     "",
-    "Jeg vil ikke sende en lang salgsmelding her, men jeg kan vise deg hva jeg mener i 2–3 korte linjer.",
+    "Jeg kan sende et kort eksempel, så kan dere vurdere om det er relevant.",
     "",
-    "Skal jeg sende deg ideen?",
+    "Skal jeg sende det?",
     "",
     "Mvh Jelassi"
   ].join("\n");
