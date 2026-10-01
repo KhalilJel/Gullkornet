@@ -22,8 +22,8 @@ test("createPersonalizedDraft uses concrete website evidence and asks permission
   );
   assert.ok(result.subject?.includes("Eksempel Regnskap AS"));
   assert.ok(result.draftBody?.includes("Regnskap som gir deg bedre oversikt"));
-  assert.ok(result.draftBody?.includes("konkret mulighet til å forbedre"));
-  assert.ok(result.draftBody?.includes("Skal jeg sende deg ideen?"));
+  assert.ok(result.draftBody?.includes("konkret idé"));
+  assert.ok(result.draftBody?.includes("Skal jeg sende det?"));
   assert.ok(result.subject?.includes("En idé til nettsiden"));
   assert.equal(result.personalizationEvidence, "Regnskap som gir deg bedre oversikt");
 });
@@ -52,6 +52,21 @@ test("company-name headings and navigation-only text do not support a personaliz
   assert.ok(result.notes.some((note) => note.includes("Only a page title was available")));
 });
 
+
+test("draft avoids repeating long service evidence and uses a concrete, concise improvement", () => {
+  const longEvidence = "Vi tilbyr regnskap, lønn, årsoppgjør, fakturering, økonomisk rådgivning og hjelp med skatt for små og mellomstore bedrifter i hele regionen.";
+  const result = createPersonalizedDraft(
+    { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
+    "Eksempel Regnskap",
+    "OM OSS",
+    longEvidence
+  );
+  assert.ok(result.draftBody);
+  assert.ok(result.personalizationEvidence!.length <= 110);
+  assert.ok(result.draftBody!.includes("gjøre tjenestene deres lettere å forstå ved første besøk"));
+  assert.ok(result.draftBody!.includes("Skal jeg sende det?"));
+});
+
 test("createPersonalizedDraft does not invent website-specific facts when no evidence exists", () => {
   const result = createPersonalizedDraft({ companyName: "Eksempel AS" });
   assert.equal(result.draftBody, undefined);
@@ -74,7 +89,7 @@ test("createPersonalizedDraft names a concrete improvement from website audit si
       metaDescription: undefined
     }
   );
-  assert.ok(result.draftBody?.includes("forbedre hvordan nettsiden presenteres i søkeresultater"));
+  assert.ok(result.draftBody?.includes("gjøre søkeresultatet tydeligere"));
   assert.ok(result.draftBody?.includes("Skal jeg sende deg ideen?"));
 });
 
