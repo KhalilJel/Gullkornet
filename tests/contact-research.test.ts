@@ -34,3 +34,22 @@ test("createPersonalizedDraft does not invent website-specific facts when no evi
   assert.equal(result.subject, undefined);
   assert.ok(result.notes.length > 0);
 });
+
+test("createPersonalizedDraft names a concrete improvement from website audit signals", () => {
+  const result = createPersonalizedDraft(
+    { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
+    "Eksempel Regnskap",
+    "Regnskap for små bedrifter",
+    "Vi hjelper små bedrifter med regnskap og lønn",
+    {
+      companyName: "Eksempel Regnskap AS",
+      websiteUrl: "https://example.no",
+      checkedAt: "2026-10-01T00:00:00.000Z",
+      status: "AUDITED",
+      flags: ["MISSING_META_DESCRIPTION"],
+      metaDescription: undefined
+    }
+  );
+  assert.ok(result.draftBody?.includes("forbedre hvordan nettsiden presenteres i søkeresultater"));
+  assert.ok(result.draftBody?.includes("Skal jeg sende deg ideen?"));
+});
