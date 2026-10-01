@@ -237,7 +237,7 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   const cleanEvidence = rawEvidence.length <= maxEvidenceLength
     ? rawEvidence
     : rawEvidence.slice(0, maxEvidenceLength - 1).replace(/\s+\S*$/, "") + "…";
-  const subject = "En idé til nettsiden til " + company;
+  const subject = "Dette la vi merke til hos dere";
   const observedDetail = usefulHeadline
     ? "overskriften «" + cleanEvidence + "»"
     : "beskrivelsen «" + cleanEvidence + "»";
@@ -261,11 +261,13 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   const draftBody = [
     "Hei!",
     "",
-    "Jeg var innom nettsiden deres og la merke til " + observedDetail + ".",
+    "Jeg kom over " + company + " og la merke til " + observedDetail + ".",
     "",
-    "Jeg fikk en liten idé til en mulig forbedring: " + improvementArea + ". Jeg vil ikke anta at det er relevant for dere, men tenkte det kunne være verdt å nevne.",
+    "Vi jobber med å hjelpe bedrifter med å få mer ut av sin digitale tilstedeværelse, og så en mulig forbedring knyttet til å " + improvementArea + ". Det kan gjøre det enklere å tiltrekke seg nye kunder og få flere relevante henvendelser.",
     "",
-    "Er du åpen for at jeg sender over ideen i en kort melding?",
+    "Jeg har en konkret idé basert på " + company + " som jeg gjerne kan vise dere.",
+    "",
+    "Hvis det er interessant, kan jeg sende en kort forklaring på e-post.",
     "",
     "Mvh Jelassi"
   ].join("\n");
