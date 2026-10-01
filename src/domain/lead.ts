@@ -27,6 +27,7 @@ export type Evidence = {
 
 export type Lead = {
   id: string;
+  organizationNumber?: string;
   companyName: string;
   websiteUrl?: string;
   contactName?: string;
