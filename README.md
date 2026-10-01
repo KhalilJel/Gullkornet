@@ -23,10 +23,10 @@ In PowerShell:
 
 ```powershell
 New-Item -ItemType Directory -Force data
-npm run discover:registry -- regnskap > data/discovered-candidates.json
+npm run --silent discover:registry -- regnskap > data/discovered-candidates.json
 ```
 
-The query term can be changed, for example to `økonomi` or `bokføring`. The current adapter checks a limited set of municipalities and up to two pages per municipality by default. It does not yet enforce the planned daily discovery limit.
+The `--silent` flag prevents npm's command banner from being mixed into the JSON output. The query term can be changed, for example to `økonomi` or `bokføring`. The current adapter checks a limited set of municipalities and up to two pages per municipality by default. It does not yet enforce the planned daily discovery limit.
 
 ### Import candidates and researched leads
 
