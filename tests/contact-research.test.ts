@@ -28,6 +28,30 @@ test("createPersonalizedDraft uses concrete website evidence and asks permission
   assert.equal(result.personalizationEvidence, "Regnskap som gir deg bedre oversikt");
 });
 
+test("generic headings fall back to a useful service statement", () => {
+  const result = createPersonalizedDraft(
+    { companyName: "2R Data og Regnskap", websiteUrl: "https://example.no" },
+    "En side under bygging",
+    "OM OSS",
+    "2R Data og Regnskap tilbyr regnskapsføring, fakturering, lønnskjøring og årsoppgjør."
+  );
+  assert.ok(result.draftBody?.includes("beskrivelsen deres"));
+  assert.ok(result.draftBody?.includes("regnskapsføring, fakturering, lønnskjøring og årsoppgjør"));
+  assert.equal(result.personalizationEvidence, "2R Data og Regnskap tilbyr regnskapsføring, fakturering, lønnskjøring og årsoppgjør.");
+});
+
+test("company-name headings and navigation-only text do not support a personalized draft", () => {
+  const result = createPersonalizedDraft(
+    { companyName: "A til Å Regnskap AS", websiteUrl: "https://example.no" },
+    "atilaa - Hjem",
+    "A til Å Regnskap AS",
+    "Hjem Søk Søk Hjem Kort om oss Hvem er regnskapspliktig"
+  );
+  assert.equal(result.draftBody, undefined);
+  assert.equal(result.subject, undefined);
+  assert.ok(result.notes.some((note) => note.includes("Only a page title was available")));
+});
+
 test("createPersonalizedDraft does not invent website-specific facts when no evidence exists", () => {
   const result = createPersonalizedDraft({ companyName: "Eksempel AS" });
   assert.equal(result.draftBody, undefined);
