@@ -28,11 +28,11 @@ test("createPersonalizedDraft uses concrete website evidence and asks permission
       metaDescription: undefined
     }
   );
-  assert.ok(result.subject?.includes("Eksempel Regnskap AS"));
+  assert.equal(result.subject, "Dette la vi merke til hos dere");
   assert.ok(result.draftBody?.includes("Regnskap som gir deg bedre oversikt"));
-  assert.ok(result.draftBody?.includes("liten idé til en mulig forbedring"));
-  assert.ok(result.draftBody?.includes("Er du åpen for at jeg sender over ideen i en kort melding?"));
-  assert.ok(result.subject?.includes("En idé til nettsiden"));
+  assert.ok(result.draftBody?.includes("mulig forbedring knyttet til"));
+  assert.ok(result.draftBody?.includes("Hvis det er interessant, kan jeg sende en kort forklaring på e-post."));
+  assert.ok(result.subject?.includes("Dette la vi merke til hos dere"));
   assert.equal(result.personalizationEvidence, "Regnskap som gir deg bedre oversikt");
 });
 
@@ -88,7 +88,7 @@ test("draft avoids repeating long service evidence and uses a concrete, concise 
   assert.ok(result.draftBody);
   assert.ok(result.personalizationEvidence!.length <= 110);
   assert.ok(result.draftBody!.includes("mulig forbedring"));
-  assert.ok(result.draftBody!.includes("Er du åpen for at jeg sender over ideen i en kort melding?"));
+  assert.ok(result.draftBody!.includes("Hvis det er interessant, kan jeg sende en kort forklaring på e-post."));
 });
 
 
@@ -128,7 +128,7 @@ test("interest-first draft avoids a sales pitch or unsupported outcome claims", 
     }
   );
   assert.ok(result.draftBody);
-  assert.ok(result.draftBody!.includes("Er du åpen for at jeg sender over ideen i en kort melding?"));
+  assert.ok(result.draftBody!.includes("Hvis det er interessant, kan jeg sende en kort forklaring på e-post."));
   assert.ok(!result.draftBody!.includes("øke inntektene"));
   assert.ok(!result.draftBody!.includes("flere kunder"));
   assert.ok(!result.draftBody!.includes("bestille et møte"));
@@ -157,7 +157,7 @@ test("createPersonalizedDraft names a concrete improvement from website audit si
     }
   );
   assert.ok(result.draftBody?.includes("mulig forbedring"));
-  assert.ok(result.draftBody?.includes("Er du åpen for at jeg sender over ideen i en kort melding?"));
+  assert.ok(result.draftBody?.includes("Hvis det er interessant, kan jeg sende en kort forklaring på e-post."));
 });
 
 test("does not generate an outreach draft when only a generic page title is available", () => {
