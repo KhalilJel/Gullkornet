@@ -13,8 +13,9 @@ const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   DRY_RUN: z.string().optional(),
   TARGET_COUNTRY: z.string().default("Norway"),
-  TARGET_INDUSTRY: z.string().default(""),
-  TARGET_CITY: z.string().default(""),
+  TARGET_INDUSTRY: z.string().default("accounting firms"),
+  TARGET_CITY: z.string().default("Oslo and Akershus"),
+  TARGET_OFFER: z.string().default("website redesign focused on qualified enquiries"),
   DAILY_LEAD_LIMIT: z.coerce.number().int().positive().default(25)
 });
 
