@@ -1,0 +1,48 @@
+name: Gullkornet Google Places Discovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      search_term:
+        description: "Business type to search for"
+        required: true
+        default: "regnskapsfører"
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run limited Google Places discovery
+        env:
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          SEARCH_TERM: ${{ inputs.search_term }}
+        run: |
+          if [ -z "$GOOGLE_MAPS_API_KEY" ]; then
+            echo "Missing repository secret GOOGLE_MAPS_API_KEY."
+            exit 1
+          fi
+          mkdir -p data
+          npm run --silent discover:google -- "$SEARCH_TERM" > data/google-candidates.json
+          echo "Discovery completed. Candidate details are saved as a workflow artifact."
+
+      - name: Upload candidate results
+        uses: actions/upload-artifact@v4
+        with:
+          name: gullkornet-google-candidates
+          path: data/google-candidates.json
+          retention-days: 3
