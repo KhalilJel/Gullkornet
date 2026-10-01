@@ -30,7 +30,7 @@ test("createPersonalizedDraft uses concrete website evidence and asks permission
   );
   assert.equal(result.subject, "Dette la vi merke til hos dere");
   assert.ok(result.draftBody?.includes("vi fant ingen egen metabeskrivelse på nettsiden"));
-  assert.ok(result.draftBody?.includes("mulig forbedring knyttet til"));
+  assert.ok(result.draftBody?.includes("En mulig forbedring kan være å"));
   assert.ok(result.draftBody?.includes("Hvis det er interessant, kan jeg sende en kort forklaring på e-post."));
   assert.ok(result.subject?.includes("Dette la vi merke til hos dere"));
   assert.equal(result.personalizationEvidence, "vi fant ingen egen metabeskrivelse på nettsiden");
@@ -65,7 +65,7 @@ test("company-name headings and navigation-only text do not support a personaliz
   );
   assert.equal(result.draftBody, undefined);
   assert.equal(result.subject, undefined);
-  assert.ok(result.notes.some((note) => note.includes("Only a page title was available")));
+  assert.ok(result.notes.some((note) => note.includes("no verified actionable audit finding")));
 });
 
 
@@ -108,7 +108,7 @@ test("does not create a draft when the audit has no actionable finding", () => {
     }
   );
   assert.equal(result.draftBody, undefined);
-  assert.ok(result.notes.some((note) => note.includes("No actionable website audit finding")));
+  assert.ok(result.notes.some((note) => note.includes("No sufficiently strong, actionable website finding")));
 });
 
 
@@ -167,7 +167,7 @@ test("does not generate an outreach draft when only a generic page title is avai
   );
   assert.equal(result.draftBody, undefined);
   assert.equal(result.subject, undefined);
-  assert.ok(result.notes.some((note) => note.includes("Only a page title was available")));
+  assert.ok(result.notes.some((note) => note.includes("no verified actionable audit finding")));
 });
 
 
@@ -182,7 +182,7 @@ test("stripHtml excludes navigation noise and decodes HTML entities in service e
   assert.equal(result.serviceEvidence, "Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo.");
 });
 
-test("spaced-letter and navigation headings do not create personalized drafts", () => {
+test("spaced-letter and navigation headings are not used as outreach evidence", () => {
   for (const headline of ["C I F E R O A S - F O R S I D E", "Skip to content 66 96 53 00 post@example.no Finn oss Ansatte"]) {
     const result = createPersonalizedDraft(
       { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
@@ -198,8 +198,9 @@ test("spaced-letter and navigation headings do not create personalized drafts", 
         metaDescription: undefined
       }
     );
-    assert.equal(result.draftBody, undefined);
-    assert.equal(result.subject, undefined);
+    assert.ok(result.draftBody);
+    assert.ok(!result.draftBody?.includes(headline));
+    assert.equal(result.personalizationEvidence, "vi fant ingen egen metabeskrivelse på nettsiden");
   }
 });
 
@@ -209,7 +210,7 @@ test("rejects website evidence containing template placeholders or markup residu
   assert.equal(result.serviceEvidence, undefined);
 });
 
-test("does not create drafts from navigation-heavy or markup-contaminated headlines", () => {
+test("does not quote navigation-heavy or markup-contaminated headlines in drafts", () => {
   for (const headline of [
     "A til Å regnskap AS Hopp rett til innholdet",
     "atilaa - Hjem {{slideNum}} data-cycle-swipe=true >",
@@ -229,8 +230,8 @@ test("does not create drafts from navigation-heavy or markup-contaminated headli
         metaDescription: undefined
       }
     );
-    assert.equal(result.draftBody, undefined);
-    assert.equal(result.subject, undefined);
+    assert.ok(result.draftBody);
+    assert.ok(!result.draftBody?.includes(headline));
   }
 });
 
