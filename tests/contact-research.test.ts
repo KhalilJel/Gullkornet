@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extractPublicEmails, createPersonalizedDraft } from "../src/integrations/contact-research.js";
+import { extractPublicEmails, createPersonalizedDraft, extractEvidence } from "../src/integrations/contact-research.js";
 
 test("extractPublicEmails finds only publicly visible mailto and text addresses", () => {
   const html = `<html><body>
@@ -171,21 +171,7 @@ test("does not generate an outreach draft when only a generic page title is avai
 });
 
 
-test("extracts relevant accounting service evidence from a meta description when body text has no useful sentence", async () => {
-  const { researchContactAndDraft } = await import("../src/integrations/contact-research.js");
-  // The helper is exercised through the HTML evidence extraction path in a separate exported utility.
-  const result = createPersonalizedDraft(
-    { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
-    "Eksempel Regnskap",
-    undefined,
-    "Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo.",
-    {
-      companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no",
-      checkedAt: "2026-10-01T00:00:00.000Z", status: "AUDITED",
-      flags: ["MISSING_META_DESCRIPTION"], metaDescription: undefined
-    }
-  );
-  assert.ok(result.draftBody);
-  assert.ok(result.draftBody.includes("Vi tilbyr regnskap, lønn og årsoppgjør"));
-  assert.equal(typeof researchContactAndDraft, "function");
+test("uses a relevant meta description as fallback service evidence", () => {
+  const result = extractEvidence('<html><head><meta name="description" content="Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo."></head><body><nav>Hjem Kontakt</nav></body></html>');
+  assert.equal(result.serviceEvidence, "Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo.");
 });
