@@ -47,7 +47,7 @@ The default store is `data/leads.json`. To use another path, set `LEAD_STORE_PAT
 
 The report command prints total records, counts by status, and the qualified leads with their evidence summary.
 
-The registry adapter does not evaluate websites, infer business performance, or send email. Candidates must not be treated as qualified until concrete website opportunities and supporting evidence have been reviewed.
+The registry adapter does not evaluate websites, infer business performance, or send email. Candidates must not be treated as qualified until concrete website opportunities and supporting evidence have been reviewed. Use `docs/WEBSITE-RESEARCH-CHECKLIST.md` to make research consistent.
 
 ### Qualification rules
 
