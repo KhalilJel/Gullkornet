@@ -29,14 +29,14 @@ test("createPersonalizedDraft uses concrete website evidence and asks permission
     }
   );
   assert.equal(result.subject, "Dette la vi merke til hos dere");
-  assert.ok(result.draftBody?.includes("Regnskap som gir deg bedre oversikt"));
+  assert.ok(result.draftBody?.includes("vi fant ingen egen metabeskrivelse på nettsiden"));
   assert.ok(result.draftBody?.includes("mulig forbedring knyttet til"));
   assert.ok(result.draftBody?.includes("Hvis det er interessant, kan jeg sende en kort forklaring på e-post."));
   assert.ok(result.subject?.includes("Dette la vi merke til hos dere"));
-  assert.equal(result.personalizationEvidence, "Regnskap som gir deg bedre oversikt");
+  assert.equal(result.personalizationEvidence, "vi fant ingen egen metabeskrivelse på nettsiden");
 });
 
-test("generic headings fall back to a useful service statement", () => {
+test("generic headings are ignored in favor of a concrete audit finding", () => {
   const result = createPersonalizedDraft(
     { companyName: "2R Data og Regnskap", websiteUrl: "https://example.no" },
     "En side under bygging",
@@ -51,9 +51,9 @@ test("generic headings fall back to a useful service statement", () => {
       metaDescription: undefined
     }
   );
-  assert.ok(result.draftBody?.includes("beskrivelsen «"));
-  assert.ok(result.draftBody?.includes("regnskapsføring, fakturering, lønnskjøring og årsoppgjør"));
-  assert.equal(result.personalizationEvidence, "2R Data og Regnskap tilbyr regnskapsføring, fakturering, lønnskjøring og årsoppgjør.");
+  assert.ok(result.draftBody?.includes("vi fant ingen egen metabeskrivelse på nettsiden"));
+  assert.ok(!result.draftBody?.includes("regnskapsføring, fakturering, lønnskjøring og årsoppgjør"));
+  assert.equal(result.personalizationEvidence, "vi fant ingen egen metabeskrivelse på nettsiden");
 });
 
 test("company-name headings and navigation-only text do not support a personalized draft", () => {
@@ -87,7 +87,7 @@ test("draft avoids repeating long service evidence and uses a concrete, concise 
   );
   assert.ok(result.draftBody);
   assert.ok(result.personalizationEvidence!.length <= 110);
-  assert.ok(result.draftBody!.includes("mulig forbedring"));
+  assert.ok(result.draftBody!.includes("vi fant ingen egen metabeskrivelse på nettsiden"));
   assert.ok(result.draftBody!.includes("Hvis det er interessant, kan jeg sende en kort forklaring på e-post."));
 });
 
@@ -156,7 +156,7 @@ test("createPersonalizedDraft names a concrete improvement from website audit si
       metaDescription: undefined
     }
   );
-  assert.ok(result.draftBody?.includes("mulig forbedring"));
+  assert.ok(result.draftBody?.includes("vi fant ingen egen metabeskrivelse på nettsiden"));
   assert.ok(result.draftBody?.includes("Hvis det er interessant, kan jeg sende en kort forklaring på e-post."));
 });
 
@@ -243,4 +243,45 @@ test("rejects spaced-letter navigation residue inside otherwise relevant service
 test("rejects Norwegian skip-to-content phrases from service evidence", () => {
   const result = extractEvidence('<html><body><main><p>Hopp rett til innholdet. Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo.</p></main></body></html>');
   assert.equal(result.serviceEvidence, "Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo.");
+});
+
+
+test("does not generate outreach from weak technical or email-link signals alone", () => {
+  for (const flag of ["NOT_HTTPS", "MISSING_VIEWPORT_META", "NO_EMAIL_LINK_DETECTED", "NO_OBVIOUS_ACCOUNTING_SERVICE_TEXT"]) {
+    const result = createPersonalizedDraft(
+      { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
+      "Eksempel Regnskap",
+      "Regnskap som gir deg bedre oversikt",
+      "Vi hjelper små bedrifter med regnskap og lønn",
+      {
+        companyName: "Eksempel Regnskap AS",
+        websiteUrl: "https://example.no",
+        checkedAt: "2026-10-01T00:00:00.000Z",
+        status: "AUDITED",
+        flags: [flag],
+        metaDescription: undefined
+      }
+    );
+    assert.equal(result.draftBody, undefined, `Unexpected draft for weak signal: ${flag}`);
+  }
+});
+
+test("draft leads with the exact audit observation rather than a generic headline", () => {
+  const result = createPersonalizedDraft(
+    { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
+    "Eksempel Regnskap",
+    "Regnskap som gir deg bedre oversikt",
+    "Vi hjelper små bedrifter med regnskap og lønn",
+    {
+      companyName: "Eksempel Regnskap AS",
+      websiteUrl: "https://example.no",
+      checkedAt: "2026-10-01T00:00:00.000Z",
+      status: "AUDITED",
+      flags: ["NO_OBVIOUS_CONTACT_PATH", "MISSING_META_DESCRIPTION"],
+      metaDescription: undefined
+    }
+  );
+  assert.ok(result.draftBody?.includes("vi fant ikke en tydelig kontakt- eller bestillingslenke"));
+  assert.ok(result.draftBody?.includes("en synlig vei til kontakt kan gjøre neste steg enklere"));
+  assert.ok(!result.draftBody?.includes("Regnskap som gir deg bedre oversikt"));
 });
