@@ -13,29 +13,51 @@ Gullkornet is Cidea's internal lead research and qualification engine.
 
 These are test assumptions, not proven conversion rates. Review lead quality and outreach response before expanding to other industries or all of Norway.
 
-## Current workflow
+## Candidate discovery sources
 
-### Discover candidates from the public business registry
+Gullkornet now supports two discovery sources. They answer different questions and neither source produces qualified leads by itself.
 
-The first discovery adapter uses the Brønnøysund Register Centre's public Enhetsregister API. It searches for a name term in Oslo and selected Akershus municipalities. This creates a candidate list, not a list of qualified sales leads. Registry details must be checked, and website opportunities must be researched separately.
+### Google Places: primary discovery source
+
+Google Places Text Search helps find accounting firms and their public websites. It is the preferred starting point for discovering businesses that have an online presence or may need a website review. It requires a Google Maps Platform API key, Places API (New) enabled, and billing configured. The adapter requests only selected fields and does not collect phone numbers, reviews, or personal contact details.
+
+Set `GOOGLE_MAPS_API_KEY` in your local `.env` file. Never commit the key to Git. Check Google Maps Platform pricing, quotas, and applicable terms before running a larger search. Google Places data use is subject to Google's policies.
 
 In PowerShell:
 
 ```powershell
+npm install
 New-Item -ItemType Directory -Force data
-npm run --silent discover:registry -- regnskap > data/discovered-candidates.json
+npm run --silent discover:google -- regnskapsfører > data/google-candidates.json
+npm run import:leads -- data/google-candidates.json
+npm run report:leads
 ```
 
-The `--silent` flag prevents npm's command banner from being mixed into the JSON output. The query term can be changed, for example to `økonomi` or `bokføring`. The current adapter checks a limited set of municipalities and up to two pages per municipality by default. It does not yet enforce the planned daily discovery limit.
+The Google discovery adapter searches Oslo and selected Akershus municipalities, up to 20 results per municipality per run. Repeated businesses are deduplicated by website domain where possible. This is a discovery cap per query, not a daily limit; daily discovery enforcement is not implemented yet.
 
-### Import candidates and researched leads
+If you want to search for another relevant phrase, pass it as the first argument, for example `økonomikonsulent`. Review the search terms and resulting candidates before treating them as accounting firms.
+
+### Brønnøysundregistrene: verification and additional discovery
+
+The Brønnøysund Register Centre's public Enhetsregister API provides structured company information such as organization number, registered name, and available contact fields. It remains useful for verification and to discover firms that Google Places may miss.
 
 ```powershell
+npm run --silent discover:registry -- regnskap > data/discovered-candidates.json
 npm run import:leads -- data/discovered-candidates.json
 npm run report:leads
 ```
 
-For the complete development checks:
+The registry adapter searches a name term in Oslo and selected Akershus municipalities and checks a limited number of result pages. It creates candidates, not qualified sales leads.
+
+## Import and research workflow
+
+The default store is `data/leads.json`. To use another path, set `LEAD_STORE_PATH`. The local data directory is excluded from Git. Import validates each record, computes the pilot fit score, labels candidates as NEW until research is documented, and labels researched leads as QUALIFIED or RESEARCHED. Duplicate organization numbers, domains, and emails are not added again, and existing lead statuses are retained.
+
+The report command prints total records, counts by status, and the qualified leads with their evidence summary.
+
+Use `docs/WEBSITE-RESEARCH-CHECKLIST.md` to assess a specific opportunity. A website existing by itself is not a reason to qualify a business. The research must identify a real opportunity, such as unclear services, a weak contact path, mobile usability issues, poor performance, outdated design, or no website.
+
+## Development checks
 
 ```bash
 npm install
@@ -43,51 +65,14 @@ npm run typecheck
 npm test
 ```
 
-The default store is `data/leads.json`. To use another path, set `LEAD_STORE_PATH`. The local data directory is excluded from Git. Import validates each record, computes the pilot fit score, labels candidates as NEW until research is documented, and labels researched leads as QUALIFIED or RESEARCHED. Duplicate organization numbers, domains, and emails are not added again, and existing lead statuses are retained.
-
-The report command prints total records, counts by status, and the qualified leads with their evidence summary.
-
-The registry adapter does not evaluate websites, infer business performance, or send email. Candidates must not be treated as qualified until concrete website opportunities and supporting evidence have been reviewed. Use `docs/WEBSITE-RESEARCH-CHECKLIST.md` to make research consistent.
-
-### Qualification rules
-
-A lead is qualified only when all of these are true:
-1. The industry matches the accounting/bookkeeping pilot.
-2. The company is in the Oslo or Akershus pilot area.
-3. A specific website opportunity is documented.
-4. A source URL and concrete observation support the opportunity.
-5. The lead reaches the qualification score threshold.
-
-A website existing by itself is not a reason to qualify a business. The research must identify a real opportunity, such as unclear services, a weak contact path, mobile usability issues, poor performance, outdated design, or no website.
-
-## Current implementation
-
-- TypeScript configuration with safe dry-run defaults
-- Public registry candidate discovery
-- Structured lead model and explicit qualification rules
-- Deduplication by organization number, domain, and email
-- Validated JSON intake with per-record errors
-- Atomic local JSON storage
-- Local status and qualification report
-- Unit tests for qualification, deduplication, registry mapping, storage, and intake
-- Sending remains out of scope until research quality and data handling are validated
-
-## Next build steps
-
-1. Run registry discovery and review the candidate list.
-2. Research website quality and contact routes for the first 50 candidates.
-3. Verify evidence and manually review every qualified lead.
-4. Generate personalized outreach drafts for human approval.
-5. Track replies and results before considering any sending integration.
-
-## Principles
+## Principles and safety
 
 - Lead quality over lead volume.
 - Evidence over assumptions.
-- Simple before sophisticated.
 - Trace every lead back to its source.
 - Never contact the same business twice accidentally.
 - Respect do-not-contact requests and applicable privacy and marketing rules.
+- Sending is not implemented or enabled.
 - Do not change DNS or MX records.
 - Do not connect Gullkornet to SmartSvar production state.
 
