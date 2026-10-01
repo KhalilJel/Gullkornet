@@ -111,7 +111,7 @@ async function fetchHtml(rawUrl: string): Promise<{ html: string; finalUrl: stri
 }
 
 function getTagText(html: string, tag: string): string | undefined {
-  const match = html.match(new RegExp("<" + tag + "\b[^>]*>([\\s\\S]*?)<\\/" + tag + ">", "i"));
+  const match = html.match(new RegExp("<" + tag + "\\b[^>]*>([\\s\\S]*?)<\\/" + tag + ">", "i"));
   const value = match?.[1] ? stripHtml(match[1]).slice(0, 220) : "";
   return value || undefined;
 }
