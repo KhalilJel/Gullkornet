@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extractPublicEmails, createPersonalizedDraft } from "../src/integrations/contact-research.js";
+import { extractPublicEmails, createPersonalizedDraft, extractEvidence } from "../src/integrations/contact-research.js";
 
 test("extractPublicEmails finds only publicly visible mailto and text addresses", () => {
   const html = `<html><body>
@@ -168,4 +168,10 @@ test("does not generate an outreach draft when only a generic page title is avai
   assert.equal(result.draftBody, undefined);
   assert.equal(result.subject, undefined);
   assert.ok(result.notes.some((note) => note.includes("Only a page title was available")));
+});
+
+
+test("uses a relevant meta description as fallback service evidence", () => {
+  const result = extractEvidence('<html><head><meta name="description" content="Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo."></head><body><nav>Hjem Kontakt</nav></body></html>');
+  assert.equal(result.serviceEvidence, "Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo.");
 });
