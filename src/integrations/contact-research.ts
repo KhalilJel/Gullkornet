@@ -174,10 +174,33 @@ function extractEvidence(html: string): { headline?: string; serviceEvidence?: s
   return { headline, serviceEvidence };
 }
 
+function normalizeEvidence(value: string): string {
+  return value.toLocaleLowerCase("nb-NO").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+function isUsefulServiceEvidence(value?: string): value is string {
+  if (!value || value.trim().length < 35) return false;
+  const serviceTerms = /regnskap|regnskapsfør|bokfør|lønn|årsoppgjør|økonomirådgivning|rådgivning|skatt|mva|accounting|bookkeeping/i;
+  if (!serviceTerms.test(value)) return false;
+  const navigationTerms = value.match(/\b(hjem|søk|kontakt oss|kontakt|om oss|tjenester|meny|personvern|cookies|logg inn)\b/gi) ?? [];
+  return navigationTerms.length < 3;
+}
+
 export function createPersonalizedDraft(candidate: GoogleCandidate, title?: string, headline?: string, serviceEvidence?: string, audit?: WebsiteAudit): {
   subject?: string; draftBody?: string; personalizationEvidence?: string; notes: string[];
 } {
-  const evidence = headline ?? serviceEvidence;
+  const company = candidate.companyName.trim();
+  const normalizedHeadline = headline ? normalizeEvidence(headline) : "";
+  const normalizedCompany = normalizeEvidence(company);
+  const genericHeadline = /^(om oss|kontakt|kontakt oss|hjem|forside|velkommen|tjenester|om meg|om firmaet|om virksomheten|about us|contact us|services|home|startside)$/i;
+  const usefulHeadline = headline?.trim()
+    && headline.trim().length >= 24
+    && normalizedHeadline !== normalizedCompany
+    && !genericHeadline.test(headline.trim())
+    ? headline.trim()
+    : undefined;
+  const usefulServiceEvidence = isUsefulServiceEvidence(serviceEvidence) ? serviceEvidence.trim() : undefined;
+  const evidence = usefulHeadline ?? usefulServiceEvidence;
   const notes: string[] = [];
   if (!evidence) {
     notes.push(title
@@ -186,9 +209,8 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
     return { notes };
   }
   const cleanEvidence = evidence.replace(/[\r\n"]/g, "").slice(0, 180);
-  const company = candidate.companyName.trim();
   const subject = "En idé til nettsiden til " + company;
-  const observedDetail = headline
+  const observedDetail = usefulHeadline
     ? "overskriften «" + cleanEvidence + "»"
     : "beskrivelsen deres «" + cleanEvidence + "»";
   const auditImprovement = audit?.flags.includes("MISSING_META_DESCRIPTION")
@@ -200,7 +222,7 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
         : audit?.flags.includes("MISSING_VIEWPORT_META")
           ? "hvordan nettsiden tilpasses mobilbesøkende"
           : undefined;
-  const improvementArea = auditImprovement ?? (serviceEvidence
+  const improvementArea = auditImprovement ?? (usefulServiceEvidence
     ? "hvordan dere presenterer " + cleanEvidence.replace(/[.!?]+$/, "")
     : "hvordan nettsiden presenterer tilbudet deres");
   const draftBody = [
