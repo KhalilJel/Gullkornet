@@ -175,14 +175,14 @@ function extractEvidence(html: string): { headline?: string; serviceEvidence?: s
 }
 
 function normalizeEvidence(value: string): string {
-  return value.toLocaleLowerCase("nb-NO").replace(/[^\p{L}\\p{N}]+/gu, " ").trim();
+  return value.toLocaleLowerCase("nb-NO").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
 function isUsefulServiceEvidence(value?: string): value is string {
   if (!value || value.trim().length < 35) return false;
   const serviceTerms = /regnskap|regnskapsfør|bokfør|lønn|årsoppgjør|økonomirådgivning|rådgivning|skatt|mva|accounting|bookkeeping/i;
   if (!serviceTerms.test(value)) return false;
-  const navigationTerms = value.match(/\\b(hjem|søk|kontakt oss|kontakt|om oss|tjenester|meny|personvern|cookies|logg inn)\\b/gi) ?? [];
+  const navigationTerms = value.match(/\b(hjem|søk|kontakt oss|kontakt|om oss|tjenester|meny|personvern|cookies|logg inn)\b/gi) ?? [];
   return navigationTerms.length < 3;
 }
 
