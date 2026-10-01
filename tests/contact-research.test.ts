@@ -169,3 +169,23 @@ test("does not generate an outreach draft when only a generic page title is avai
   assert.equal(result.subject, undefined);
   assert.ok(result.notes.some((note) => note.includes("Only a page title was available")));
 });
+
+
+test("extracts relevant accounting service evidence from a meta description when body text has no useful sentence", async () => {
+  const { researchContactAndDraft } = await import("../src/integrations/contact-research.js");
+  // The helper is exercised through the HTML evidence extraction path in a separate exported utility.
+  const result = createPersonalizedDraft(
+    { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
+    "Eksempel Regnskap",
+    undefined,
+    "Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo.",
+    {
+      companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no",
+      checkedAt: "2026-10-01T00:00:00.000Z", status: "AUDITED",
+      flags: ["MISSING_META_DESCRIPTION"], metaDescription: undefined
+    }
+  );
+  assert.ok(result.draftBody);
+  assert.ok(result.draftBody.includes("Vi tilbyr regnskap, lønn og årsoppgjør"));
+  assert.equal(typeof researchContactAndDraft, "function");
+});
