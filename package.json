@@ -9,6 +9,7 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "discover:registry": "tsx src/cli/discover-registry.ts",
     "discover:google": "tsx src/cli/discover-google.ts",
+    "audit:websites": "tsx src/cli/audit-websites.ts",
     "import:leads": "tsx src/cli/import-leads.ts",
     "report:leads": "tsx src/cli/report-leads.ts"
   },
