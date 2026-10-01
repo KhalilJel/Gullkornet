@@ -18,7 +18,15 @@ test("createPersonalizedDraft uses concrete website evidence and asks permission
     { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no", city: "Oslo" },
     "Eksempel Regnskap",
     "Regnskap som gir deg bedre oversikt",
-    "Vi hjelper små bedrifter med regnskap og lønn"
+    "Vi hjelper små bedrifter med regnskap og lønn",
+    {
+      companyName: "Eksempel Regnskap AS",
+      websiteUrl: "https://example.no",
+      checkedAt: "2026-10-01T00:00:00.000Z",
+      status: "AUDITED",
+      flags: ["MISSING_META_DESCRIPTION"],
+      metaDescription: undefined
+    }
   );
   assert.ok(result.subject?.includes("Eksempel Regnskap AS"));
   assert.ok(result.draftBody?.includes("Regnskap som gir deg bedre oversikt"));
@@ -33,7 +41,15 @@ test("generic headings fall back to a useful service statement", () => {
     { companyName: "2R Data og Regnskap", websiteUrl: "https://example.no" },
     "En side under bygging",
     "OM OSS",
-    "2R Data og Regnskap tilbyr regnskapsføring, fakturering, lønnskjøring og årsoppgjør."
+    "2R Data og Regnskap tilbyr regnskapsføring, fakturering, lønnskjøring og årsoppgjør.",
+    {
+      companyName: "2R Data og Regnskap",
+      websiteUrl: "https://example.no",
+      checkedAt: "2026-10-01T00:00:00.000Z",
+      status: "AUDITED",
+      flags: ["MISSING_META_DESCRIPTION"],
+      metaDescription: undefined
+    }
   );
   assert.ok(result.draftBody?.includes("beskrivelsen «"));
   assert.ok(result.draftBody?.includes("regnskapsføring, fakturering, lønnskjøring og årsoppgjør"));
@@ -59,12 +75,40 @@ test("draft avoids repeating long service evidence and uses a concrete, concise 
     { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
     "Eksempel Regnskap",
     "OM OSS",
-    longEvidence
+    longEvidence,
+    {
+      companyName: "Eksempel Regnskap AS",
+      websiteUrl: "https://example.no",
+      checkedAt: "2026-10-01T00:00:00.000Z",
+      status: "AUDITED",
+      flags: ["MISSING_META_DESCRIPTION"],
+      metaDescription: undefined
+    }
   );
   assert.ok(result.draftBody);
   assert.ok(result.personalizationEvidence!.length <= 110);
   assert.ok(result.draftBody!.includes("gjøre tjenestene deres lettere å forstå ved første besøk"));
   assert.ok(result.draftBody!.includes("Skal jeg sende det?"));
+});
+
+
+test("does not create a draft when the audit has no actionable finding", () => {
+  const result = createPersonalizedDraft(
+    { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
+    "Eksempel Regnskap",
+    "Regnskap som gir deg bedre oversikt",
+    "Vi hjelper små bedrifter med regnskap og lønn",
+    {
+      companyName: "Eksempel Regnskap AS",
+      websiteUrl: "https://example.no",
+      checkedAt: "2026-10-01T00:00:00.000Z",
+      status: "AUDITED",
+      flags: ["NOT_HTTPS"],
+      metaDescription: undefined
+    }
+  );
+  assert.equal(result.draftBody, undefined);
+  assert.ok(result.notes.some((note) => note.includes("No actionable website audit finding")));
 });
 
 test("createPersonalizedDraft does not invent website-specific facts when no evidence exists", () => {
