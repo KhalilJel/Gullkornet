@@ -12,6 +12,7 @@ const evidenceSchema = z.object({
 });
 
 const intakeSchema = z.object({
+  organizationNumber: z.string().regex(/^\d{9}$/).optional(),
   companyName: z.string().trim().min(2).max(200),
   websiteUrl: z.string().trim().url().optional(),
   contactName: z.string().trim().max(200).optional(),
