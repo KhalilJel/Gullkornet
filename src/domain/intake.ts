@@ -89,25 +89,23 @@ export async function importLeadRecords(
 
     const qualification = qualifyLead(lead);
     lead.fitScore = qualification.fitScore;
-    if (qualification.qualified) {
-      lead.status = "QUALIFIED";
-      summary.qualified += 1;
-    } else {
-      lead.status = "RESEARCHED";
-      summary.notQualified += 1;
-    }
+    lead.status = qualification.qualified ? "QUALIFIED" : "RESEARCHED";
     accepted.push(lead);
   }
 
   const deduplicated = deduplicateLeads([...existing, ...accepted]);
   const existingIds = new Set(existing.map((lead) => lead.id));
   const retainedNew = deduplicated.uniqueLeads.filter((lead) => !existingIds.has(lead.id));
+  const retainedIds = new Set(retainedNew.map((lead) => lead.id));
+
   summary.duplicates = deduplicated.duplicates.filter((duplicate) =>
     accepted.some((lead) => lead.id === duplicate.duplicateLeadId)
   ).length;
   summary.imported = retainedNew.length;
+  summary.qualified = retainedNew.filter((lead) => lead.status === "QUALIFIED").length;
+  summary.notQualified = retainedNew.filter((lead) => lead.status === "RESEARCHED").length;
 
-  if (retainedNew.length > 0) {
+  if (retainedIds.size > 0) {
     await store.saveAll(deduplicated.uniqueLeads);
   }
 
