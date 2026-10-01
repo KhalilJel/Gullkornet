@@ -283,6 +283,6 @@ test("draft leads with the exact audit observation rather than a generic headlin
     }
   );
   assert.ok(result.draftBody?.includes("vi fant ikke en tydelig kontakt- eller bestillingslenke"));
-  assert.ok(result.draftBody?.includes("en synlig vei til kontakt kan gjøre neste steg enklere"));
+  assert.ok(result.draftBody?.includes("gjøre veien til kontakt mer synlig og neste steg enklere"));
   assert.ok(!result.draftBody?.includes("Regnskap som gir deg bedre oversikt"));
 });
