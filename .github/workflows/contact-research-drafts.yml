@@ -1,0 +1,63 @@
+name: Gullkornet Contact Research and Drafts
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "Google Places discovery run ID"
+        required: true
+        default: "36840881370"
+      audit_run_id:
+        description: "Website audit run ID"
+        required: true
+        default: "36841510439"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Download Google Places candidates
+        uses: actions/download-artifact@v4
+        with:
+          name: gullkornet-google-candidates
+          path: data/source
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download website audit results
+        uses: actions/download-artifact@v4
+        with:
+          name: gullkornet-website-audit
+          path: data/audit
+          run-id: ${{ inputs.audit_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Research public contact emails and prepare drafts
+        run: |
+          test -f data/source/google-candidates.json
+          test -f data/audit/website-audit.json
+          npm run --silent research:contacts -- data/source/google-candidates.json data/audit/website-audit.json > data/contact-research-drafts.json
+          echo "Contact research and draft generation complete. No emails were sent."
+
+      - name: Upload contact research and draft artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gullkornet-contact-research-drafts
+          path: data/contact-research-drafts.json
+          retention-days: 3
