@@ -214,17 +214,17 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   const finding = audit?.status === "AUDITED"
     ? audit.flags.includes("NO_OBVIOUS_CONTACT_PATH")
       ? {
-          observation: "vi fant ikke en tydelig kontakt- eller bestillingslenke i navigasjonen på siden vi sjekket",
+          observation: "jeg hadde litt vanskelig for å finne en tydelig kontakt- eller bestillingslenke i navigasjonen på nettsiden deres",
           improvement: "gjøre veien til kontakt mer synlig og neste steg enklere for besøkende"
         }
       : audit.flags.includes("MISSING_META_DESCRIPTION")
         ? {
-            observation: "vi fant ingen egen metabeskrivelse på nettsiden",
-            improvement: "lage en kort, tydelig beskrivelse som gir bedre kontroll over hvordan dere presenteres i søkeresultater"
+            observation: "nettsiden ser ikke ut til å ha en egen metabeskrivelse",
+            improvement: "legge til en kort, tydelig beskrivelse som kan gi bedre kontroll over hvordan dere presenteres i søkeresultater"
           }
         : audit.flags.includes("MISSING_TITLE")
           ? {
-              observation: "sidetittelen på nettsiden ser ut til å mangle",
+              observation: "det ser ut til at sidetittelen på nettsiden mangler",
               improvement: "legge til en beskrivende sidetittel som gjør det tydeligere hva siden handler om når folk finner den på nett"
             }
           : undefined
