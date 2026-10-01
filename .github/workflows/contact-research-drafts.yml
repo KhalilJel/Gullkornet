@@ -5,6 +5,12 @@ on:
     workflows: ["Gullkornet Website Audit"]
     types: [completed]
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      audit_run_id:
+        description: "Successful Website Audit workflow run ID whose artifact should be processed"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -12,7 +18,7 @@ permissions:
 
 jobs:
   research:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -32,7 +38,7 @@ jobs:
         with:
           name: gullkornet-website-audit
           path: data/input
-          run-id: ${{ github.event.workflow_run.id }}
+          run-id: ${{ github.event_name == 'workflow_dispatch' && inputs.audit_run_id || github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Research public contact emails and prepare drafts
