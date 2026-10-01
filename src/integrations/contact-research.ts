@@ -194,10 +194,11 @@ function isUsefulServiceEvidence(value?: string): value is string {
   if (!value || value.trim().length < 35) return false;
   const serviceTerms = /regnskap|regnskapsfør|bokfør|lønn|årsoppgjør|økonomirådgivning|rådgivning|skatt|mva|accounting|bookkeeping/i;
   if (!serviceTerms.test(value)) return false;
-  const navigationTerms = value.match(/\b(hjem|søk|kontakt oss|kontakt|om oss|tjenester|meny|personvern|cookies|logg inn|skip to content|finn oss|åpningstider|nyttige linker|ansatte)\b/gi) ?? [];
+  const navigationTerms = value.match(/\b(hjem|søk|kontakt oss|kontakt|om oss|tjenester|meny|personvern|cookies|logg inn|skip to content|hopp rett til innholdet|hopp til innholdet|finn oss|åpningstider|nyttige linker|ansatte)\b/gi) ?? [];
   const phoneNumbers = value.match(/(?:\+?\d[\d\s().-]{7,}\d)/g) ?? [];
   const decodedEntityNoise = /&#(?:x[\da-f]+|\d+);/i.test(value);
-  return navigationTerms.length < 2 && phoneNumbers.length === 0 && !decodedEntityNoise && !/\b(?:followers|likes)\b/i.test(value);
+  const markupResidue = /\{\{[^}]+\}\}|\bdata-[\w-]+\s*=|[<>]/i.test(value);
+  return navigationTerms.length === 0 && phoneNumbers.length === 0 && !decodedEntityNoise && !markupResidue && !/\b(?:followers|likes)\b/i.test(value);
 }
 
 export function createPersonalizedDraft(candidate: GoogleCandidate, title?: string, headline?: string, serviceEvidence?: string, audit?: WebsiteAudit): {
@@ -207,7 +208,8 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   const normalizedHeadline = headline ? normalizeEvidence(headline) : "";
   const normalizedCompany = normalizeEvidence(company);
   const genericHeadline = /^(om oss|kontakt|kontakt oss|hjem|forside|velkommen|tjenester|om meg|om firmaet|om virksomheten|about us|contact us|services|home|startside|skip to content|søk|meny)$/i;
-  const navigationHeadline = /skip to content|\b(finn oss|åpningstider|nyttige linker|personvern|cookies|logg inn)\b/i;
+  const navigationHeadline = /\b(hjem|forside|meny|søk|kontakt oss|om oss|tjenester|skip to content|hopp rett til innholdet|hopp til innholdet|finn oss|åpningstider|nyttige linker|personvern|cookies|logg inn)\b/i;
+  const markupHeadline = /\{\{[^}]+\}\}|\bdata-[\w-]+\s*=|[<>]|&#(?:x[\da-f]+|\d+);/i;
   const spacedLetterHeadline = /^(?:[A-Z]\s+){4,}[A-Z]/i;
   const encodedHeadline = /&#(?:x[\da-f]+|\d+);/i;
   const usefulHeadline = headline?.trim()
@@ -215,6 +217,7 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
     && normalizedHeadline !== normalizedCompany
     && !genericHeadline.test(headline.trim())
     && !navigationHeadline.test(headline.trim())
+    && !markupHeadline.test(headline.trim())
     && !spacedLetterHeadline.test(headline.trim())
     && !encodedHeadline.test(headline.trim())
     ? headline.trim()
