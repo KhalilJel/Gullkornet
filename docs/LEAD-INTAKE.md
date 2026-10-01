@@ -1,12 +1,13 @@
 # Lead intake format
 
-Gullkornet currently accepts a JSON array of manually researched records. It does not scrape the web or send messages.
+Gullkornet accepts a JSON array of candidate or researched business records. The registry discovery command can generate a candidate list, but it does not evaluate websites or send messages.
 
 ## Example
 
 ```json
 [
   {
+    "organizationNumber": "999888777",
     "companyName": "Example Regnskap AS",
     "websiteUrl": "https://example.no",
     "contactEmail": "post@example.no",
@@ -25,7 +26,9 @@ Gullkornet currently accepts a JSON array of manually researched records. It doe
 ]
 ```
 
-The company above is fictional and exists only to illustrate the format. Do not import example data as a real prospect.
+The company and organization number above are fictional and exist only to illustrate the format. Do not import example data as a real prospect.
+
+Registry discovery records can omit website issue and evidence. They will remain NEW until the website opportunity has been researched.
 
 ## Supported website issue values
 
@@ -58,7 +61,7 @@ The default store is `data/leads.json`. Override it with `LEAD_STORE_PATH=/path/
 The importer:
 1. Validates each record and rejects unknown fields.
 2. Computes a qualification score.
-3. Deduplicates against existing records and within the incoming batch by website domain and contact email.
+3. Deduplicates against existing records and within the incoming batch by organization number, website domain, and contact email.
 4. Preserves existing records and statuses.
 5. Prints a summary and record-level validation errors.
 
