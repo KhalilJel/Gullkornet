@@ -15,25 +15,39 @@ These are test assumptions, not proven conversion rates. Review lead quality and
 
 ## Current workflow
 
-### Import researched leads
+### Discover candidates from the public business registry
 
-Create a JSON file containing an array of records. Each record must include a company name and should include public website/contact details plus source-backed evidence. See `docs/LEAD-INTAKE.md` for the format.
+The first discovery adapter uses the Brønnøysund Register Centre's public Enhetsregister API. It searches for a name term in Oslo and selected Akershus municipalities. This creates a candidate list, not a list of qualified sales leads. Registry details must be checked, and website opportunities must be researched separately.
 
-Run:
+In PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force data
+npm run discover:registry -- regnskap > data/discovered-candidates.json
+```
+
+The query term can be changed, for example to `økonomi` or `bokføring`. The current adapter checks a limited set of municipalities and up to two pages per municipality by default. It does not yet enforce the planned daily discovery limit.
+
+### Import candidates and researched leads
+
+```powershell
+npm run import:leads -- data/discovered-candidates.json
+npm run report:leads
+```
+
+For the complete development checks:
 
 ```bash
 npm install
 npm run typecheck
 npm test
-npm run import:leads -- ./path/to/leads.json
-npm run report:leads
 ```
 
-The default store is `data/leads.json`. To use another path, set `LEAD_STORE_PATH`. The local data directory is excluded from Git. Import validates each record, computes the pilot fit score, labels candidates as NEW until research is documented, and labels researched leads as QUALIFIED or RESEARCHED. Duplicate domains/emails are not added again, and existing lead statuses are retained.
+The default store is `data/leads.json`. To use another path, set `LEAD_STORE_PATH`. The local data directory is excluded from Git. Import validates each record, computes the pilot fit score, labels candidates as NEW until research is documented, and labels researched leads as QUALIFIED or RESEARCHED. Duplicate organization numbers, domains, and emails are not added again, and existing lead statuses are retained.
 
 The report command prints total records, counts by status, and the qualified leads with their evidence summary.
 
-The import command does not discover businesses from the internet and does not send email. Research sources and observations must be collected and verified before import.
+The registry adapter does not evaluate websites, infer business performance, or send email. Candidates must not be treated as qualified until concrete website opportunities and supporting evidence have been reviewed.
 
 ### Qualification rules
 
@@ -49,21 +63,22 @@ A website existing by itself is not a reason to qualify a business. The research
 ## Current implementation
 
 - TypeScript configuration with safe dry-run defaults
+- Public registry candidate discovery
 - Structured lead model and explicit qualification rules
-- Domain and email duplicate detection
+- Deduplication by organization number, domain, and email
 - Validated JSON intake with per-record errors
 - Atomic local JSON storage
 - Local status and qualification report
-- Unit tests for qualification, deduplication, and intake
+- Unit tests for qualification, deduplication, registry mapping, storage, and intake
 - Sending remains out of scope until research quality and data handling are validated
 
 ## Next build steps
 
-1. Add a repeatable research source workflow for the first 50 businesses.
-2. Review all qualified leads manually and verify the evidence.
-3. Generate personalized outreach drafts for human approval.
-4. Track replies and results.
-5. Add sending only after a small, reviewed pilot is ready.
+1. Run registry discovery and review the candidate list.
+2. Research website quality and contact routes for the first 50 candidates.
+3. Verify evidence and manually review every qualified lead.
+4. Generate personalized outreach drafts for human approval.
+5. Track replies and results before considering any sending integration.
 
 ## Principles
 
