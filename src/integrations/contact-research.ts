@@ -239,7 +239,7 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
     "",
     "Jeg var innom nettsiden deres og la merke til " + observedDetail + ".",
     "",
-    "Jeg fikk en liten idé til en mulig forbedring rundt dette, men vil ikke anta at det er relevant for dere.",
+    "Jeg fikk en liten idé til en mulig forbedring: " + improvementArea + ". Jeg vil ikke anta at det er relevant for dere, men tenkte det kunne være verdt å nevne.",
     "",
     "Er du åpen for at jeg sender over ideen i en kort melding?",
     "",
