@@ -24,7 +24,7 @@ Cidea does not sell a website by default. The goal is to give each business a us
 - **Social media presence:** when official profiles appear absent, incomplete, inconsistent, or disconnected from the business's core information.
 - **Combined improvements:** when evidence supports more than one gap.
 
-Gullkornet should identify the observed issue first and recommend a possible solution second. It must not force every prospect into a website offer, assume poor digital presence means lost revenue, or claim that a proposed change will increase sales. Outreach should only open a conversation: mention one verifiable observation, hint at a relevant idea, and ask permission to share it. Khalil handles all sales conversations personally.
+Gullkornet should identify the observed issue first and recommend a possible solution second. It must not force every prospect into a website offer, assume poor digital presence means lost revenue, or claim that a proposed change will increase sales. Outreach should only open a conversation: use the subject “Dette la vi merke til hos dere”, mention one verifiable observation, connect a plausible improvement to digital presence and relevant enquiries without promising results, hint at a concrete idea, and ask whether the recipient would like a short explanation by email. Khalil handles all sales conversations personally.
 
 **Current implementation boundary:** the pilot currently researches public business listings and websites. Branding and social-media checks are a planned extension, not capabilities to assume are already implemented. Any proposed opportunity requires a source URL and a concrete observation.
 
