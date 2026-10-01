@@ -206,64 +206,48 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   subject?: string; draftBody?: string; personalizationEvidence?: string; notes: string[];
 } {
   const company = candidate.companyName.trim();
-  const normalizedHeadline = headline ? normalizeEvidence(headline) : "";
-  const normalizedCompany = normalizeEvidence(company);
-  const genericHeadline = /^(om oss|kontakt|kontakt oss|hjem|forside|velkommen|tjenester|om meg|om firmaet|om virksomheten|about us|contact us|services|home|startside|skip to content|søk|meny)$/i;
-  const navigationHeadline = /\b(hjem|forside|meny|søk|kontakt oss|om oss|tjenester|skip to content|hopp rett til innholdet|hopp til innholdet|finn oss|åpningstider|nyttige linker|personvern|cookies|logg inn)\b/i;
-  const markupHeadline = /\{\{[^}]+\}\}|\bdata-[\w-]+\s*=|[<>]|&#(?:x[\da-f]+|\d+);/i;
-  const spacedLetterHeadline = /(?:\b[A-Z]\s+){3,}[A-Z]\b/i;
-  const encodedHeadline = /&#(?:x[\da-f]+|\d+);/i;
-  const usefulHeadline = headline?.trim()
-    && headline.trim().length >= 24
-    && normalizedHeadline !== normalizedCompany
-    && !genericHeadline.test(headline.trim())
-    && !navigationHeadline.test(headline.trim())
-    && !markupHeadline.test(headline.trim())
-    && !spacedLetterHeadline.test(headline.trim())
-    && !encodedHeadline.test(headline.trim())
-    ? headline.trim()
-    : undefined;
-  const usefulServiceEvidence = isUsefulServiceEvidence(serviceEvidence) ? serviceEvidence.trim() : undefined;
-  const evidence = usefulHeadline ?? usefulServiceEvidence;
   const notes: string[] = [];
-  if (!evidence) {
-    notes.push(title
-      ? "Only a page title was available. It is not enough to support a specific personalized outreach draft; manual research required."
-      : "No reliable page-specific headline or service statement was extracted; no personalized draft generated.");
+
+  // Only use strong, directly checkable website findings for automated outreach.
+  // Weak signals such as a missing mailto link, missing viewport metadata, or
+  // keyword detection gaps are not sufficient to make a business-facing claim.
+  const finding = audit?.status === "AUDITED"
+    ? audit.flags.includes("NO_OBVIOUS_CONTACT_PATH")
+      ? {
+          observation: "vi fant ikke en tydelig kontakt- eller bestillingslenke i navigasjonen på siden vi sjekket",
+          improvement: "gjøre veien til kontakt mer synlig og neste steg enklere for besøkende"
+        }
+      : audit.flags.includes("MISSING_META_DESCRIPTION")
+        ? {
+            observation: "vi fant ingen egen metabeskrivelse på nettsiden",
+            improvement: "lage en kort, tydelig beskrivelse som gir bedre kontroll over hvordan dere presenteres i søkeresultater"
+          }
+        : audit.flags.includes("MISSING_TITLE")
+          ? {
+              observation: "sidetittelen på nettsiden ser ut til å mangle",
+              improvement: "legge til en beskrivende sidetittel som gjør det tydeligere hva siden handler om når folk finner den på nett"
+            }
+          : undefined
+    : undefined;
+
+  if (!finding) {
+    notes.push(
+      audit?.status === "AUDITED"
+        ? "No sufficiently strong, actionable website finding supports an automated outreach draft. Manual review required."
+        : title || headline || serviceEvidence
+          ? "Page content was found, but no verified actionable audit finding supports an automated outreach draft. Manual review required."
+          : "No reliable page-specific evidence or actionable audit finding was extracted; no personalized draft generated."
+    );
     return { notes };
   }
-  const rawEvidence = evidence.replace(/[\r\n"]/g, "").trim();
-  const maxEvidenceLength = 110;
-  const cleanEvidence = rawEvidence.length <= maxEvidenceLength
-    ? rawEvidence
-    : rawEvidence.slice(0, maxEvidenceLength - 1).replace(/\s+\S*$/, "") + "…";
+
   const subject = "Dette la vi merke til hos dere";
-  const observedDetail = usefulHeadline
-    ? "overskriften «" + cleanEvidence + "»"
-    : "beskrivelsen «" + cleanEvidence + "»";
-  const improvementArea = audit?.flags.includes("MISSING_META_DESCRIPTION")
-    ? "gjøre søkeresultatet tydeligere med en kort beskrivelse av tjenestene deres"
-    : audit?.flags.includes("NO_OBVIOUS_CONTACT_PATH")
-      ? "gjøre kontaktmuligheten lettere å finne for besøkende som vil spørre om hjelp"
-      : audit?.flags.includes("MISSING_TITLE")
-        ? "gi siden en mer beskrivende tittel i søkeresultater"
-        : audit?.flags.includes("MISSING_VIEWPORT_META")
-          ? "gjøre siden enklere å lese og bruke på mobil"
-          : audit?.flags.includes("NO_OBVIOUS_ACCOUNTING_SERVICE_TEXT")
-            ? "forklare regnskapstjenestene tydeligere på forsiden"
-            : audit?.flags.includes("NO_EMAIL_LINK_DETECTED")
-              ? "gjøre kontaktinformasjonen lettere å finne på nettsiden"
-              : undefined;
-  if (!improvementArea) {
-    notes.push("No actionable website audit finding supports a specific improvement suggestion; manual review required.");
-    return { notes };
-  }
   const draftBody = [
     "Hei!",
     "",
-    "Jeg kom over " + company + " og la merke til " + observedDetail + ".",
+    "Jeg kom over " + company + " og la merke til at " + finding.observation + ".",
     "",
-    "Vi jobber med å hjelpe bedrifter med å få mer ut av sin digitale tilstedeværelse, og så en mulig forbedring knyttet til å " + improvementArea + ". Det kan gjøre det enklere å tiltrekke seg nye kunder og få flere relevante henvendelser.",
+    "En mulig forbedring kan være å " + finding.improvement + ".",
     "",
     "Jeg har en konkret idé basert på " + company + " som jeg gjerne kan vise dere.",
     "",
@@ -271,7 +255,13 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
     "",
     "Mvh Jelassi"
   ].join("\n");
-  return { subject, draftBody, personalizationEvidence: cleanEvidence, notes };
+
+  return {
+    subject,
+    draftBody,
+    personalizationEvidence: finding.observation,
+    notes
+  };
 }
 
 export async function researchContactAndDraft(candidate: GoogleCandidate, audit?: WebsiteAudit): Promise<ContactResearchDraft> {
