@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
-    "import:leads": "tsx src/cli/import-leads.ts"
+    "import:leads": "tsx src/cli/import-leads.ts",
+    "report:leads": "tsx src/cli/report-leads.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
