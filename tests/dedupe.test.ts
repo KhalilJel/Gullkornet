@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { deduplicateLeads, normalizeDomain, normalizeEmail } from "../src/domain/dedupe.js";
+import { deduplicateLeads, normalizeDomain, normalizeEmail, normalizeOrganizationNumber } from "../src/domain/dedupe.js";
 import type { Lead } from "../src/domain/lead.js";
 
 const makeLead = (id: string, websiteUrl?: string, contactEmail?: string): Lead => ({
@@ -24,6 +24,11 @@ test("normalizes email case and whitespace", () => {
   assert.equal(normalizeEmail("  SALES@Example.no "), "sales@example.no");
 });
 
+test("normalizes organization numbers and ignores invalid values", () => {
+  assert.equal(normalizeOrganizationNumber("999 888 777"), "999888777");
+  assert.equal(normalizeOrganizationNumber("123"), undefined);
+});
+
 test("keeps the first lead and flags duplicates by domain or email", () => {
   const result = deduplicateLeads([
     makeLead("1", "https://www.example.no", "post@example.no"),
@@ -36,5 +41,16 @@ test("keeps the first lead and flags duplicates by domain or email", () => {
   assert.deepEqual(result.duplicates, [
     { keptLeadId: "1", duplicateLeadId: "2", matchedOn: "domain" },
     { keptLeadId: "1", duplicateLeadId: "3", matchedOn: "email" }
+  ]);
+});
+
+test("deduplicates records with the same organization number", () => {
+  const first = { ...makeLead("1"), organizationNumber: "999888777" };
+  const second = { ...makeLead("2"), organizationNumber: "999 888 777" };
+  const result = deduplicateLeads([first, second]);
+
+  assert.deepEqual(result.uniqueLeads.map((lead) => lead.id), ["1"]);
+  assert.deepEqual(result.duplicates, [
+    { keptLeadId: "1", duplicateLeadId: "2", matchedOn: "organizationNumber" }
   ]);
 });
