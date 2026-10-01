@@ -16,7 +16,9 @@ try {
     .sort((a, b) => (b.fitScore ?? 0) - (a.fitScore ?? 0))
     .map((lead) => ({
       companyName: lead.companyName,
+      organizationNumber: lead.organizationNumber ?? null,
       city: lead.city ?? null,
+      industry: lead.industry ?? null,
       websiteUrl: lead.websiteUrl ?? null,
       contactEmail: lead.contactEmail ?? null,
       fitScore: lead.fitScore ?? null,
