@@ -174,7 +174,7 @@ function extractEvidence(html: string): { headline?: string; serviceEvidence?: s
   return { headline, serviceEvidence };
 }
 
-export function createPersonalizedDraft(candidate: GoogleCandidate, title?: string, headline?: string, serviceEvidence?: string): {
+export function createPersonalizedDraft(candidate: GoogleCandidate, title?: string, headline?: string, serviceEvidence?: string, audit?: WebsiteAudit): {
   subject?: string; draftBody?: string; personalizationEvidence?: string; notes: string[];
 } {
   const evidence = headline ?? serviceEvidence ?? title;
@@ -186,15 +186,36 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   if (!headline && !serviceEvidence) notes.push("Personalization uses the page title only; manually verify before use.");
   const cleanEvidence = evidence.replace(/[\r\n"]/g, "").slice(0, 180);
   const company = candidate.companyName.trim();
-  const subject = "Et konkret forslag til nettsiden til " + company;
+  const subject = "En idé til nettsiden til " + company;
+  const observedDetail = headline
+    ? "overskriften «" + cleanEvidence + "»"
+    : serviceEvidence
+      ? "beskrivelsen deres «" + cleanEvidence + "»"
+      : "sidetittelen «" + cleanEvidence + "»";
+  const auditImprovement = audit?.flags.includes("MISSING_META_DESCRIPTION")
+    ? "hvordan nettsiden presenteres i søkeresultater med en tydelig metabeskrivelse"
+    : audit?.flags.includes("NO_OBVIOUS_CONTACT_PATH")
+      ? "hvor enkelt det er for besøkende å finne veien til kontakt"
+      : audit?.flags.includes("MISSING_TITLE")
+        ? "hvordan nettsiden presenteres i søkeresultater med en mer beskrivende sidetittel"
+        : audit?.flags.includes("MISSING_VIEWPORT_META")
+          ? "hvordan nettsiden tilpasses mobilbesøkende"
+          : undefined;
+  const improvementArea = auditImprovement ?? (serviceEvidence
+    ? "hvordan dere presenterer " + cleanEvidence.replace(/[.!?]+$/, "")
+    : headline
+      ? "hvordan dere løfter frem budskapet «" + cleanEvidence + "»"
+      : "hvordan nettsiden presenterer tilbudet deres");
   const draftBody = [
     "Hei!",
     "",
-    "Jeg tok en titt på nettsiden deres og la merke til " + (headline ? "overskriften «" + cleanEvidence + "»." : serviceEvidence ? "at dere beskriver tjenestene deres slik: «" + cleanEvidence + "»." : "sidetittelen «" + cleanEvidence + "»."),
+    "Jeg tok en titt på nettsiden deres og la spesielt merke til " + observedDetail + ".",
     "",
-    "Jeg jobber med nettsider for bedrifter og fikk en konkret idé til hvordan nettsiden kan gjøre det enklere for potensielle kunder å forstå tilbudet deres og ta kontakt.",
+    "Det ga meg en idé. Jeg tror det kan være en konkret mulighet til å forbedre " + improvementArea + ", slik at potensielle kunder raskere ser hva dere kan hjelpe dem med.",
     "",
-    "Er det interessant om jeg sender over ideen i noen få linjer? Ingen forpliktelser.",
+    "Jeg vil ikke sende en lang salgsmelding her, men jeg kan vise deg hva jeg mener i 2–3 korte linjer.",
+    "",
+    "Skal jeg sende deg ideen?",
     "",
     "Mvh Jelassi"
   ].join("\n");
@@ -245,7 +266,7 @@ export async function researchContactAndDraft(candidate: GoogleCandidate, audit?
     }
 
     const uniqueEmails = [...new Map(emails.map((item) => [item.email, item])).values()].slice(0, 10);
-    const draft = createPersonalizedDraft(candidate, title, evidence.headline, evidence.serviceEvidence);
+    const draft = createPersonalizedDraft(candidate, title, evidence.headline, evidence.serviceEvidence, audit);
     const notes = [...draft.notes];
     if (uniqueEmails.length === 0) notes.push("No public email address found on the checked pages. Do not guess an address.");
     else notes.push("Email addresses were extracted from publicly accessible pages; mailbox deliverability and recipient role are not verified.");
