@@ -234,7 +234,6 @@ export async function researchContactAndDraft(candidate: GoogleCandidate, audit?
         const page = await fetchHtml(url);
         if (page.status >= 400 || !page.html) continue;
         contactPageUrl ??= page.finalUrl;
-        extraHtml += "\n" + page.html;
         emails.push(...extractPublicEmails(page.html, page.finalUrl));
         const contactEvidence = extractEvidence(page.html);
         evidence.headline ??= contactEvidence.headline;
