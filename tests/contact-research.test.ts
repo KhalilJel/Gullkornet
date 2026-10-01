@@ -30,8 +30,8 @@ test("createPersonalizedDraft uses concrete website evidence and asks permission
   );
   assert.ok(result.subject?.includes("Eksempel Regnskap AS"));
   assert.ok(result.draftBody?.includes("Regnskap som gir deg bedre oversikt"));
-  assert.ok(result.draftBody?.includes("konkret idé"));
-  assert.ok(result.draftBody?.includes("Skal jeg sende det?"));
+  assert.ok(result.draftBody?.includes("liten idé til en mulig forbedring"));
+  assert.ok(result.draftBody?.includes("Er du åpen for at jeg sender over ideen i en kort melding?"));
   assert.ok(result.subject?.includes("En idé til nettsiden"));
   assert.equal(result.personalizationEvidence, "Regnskap som gir deg bedre oversikt");
 });
@@ -87,8 +87,8 @@ test("draft avoids repeating long service evidence and uses a concrete, concise 
   );
   assert.ok(result.draftBody);
   assert.ok(result.personalizationEvidence!.length <= 110);
-  assert.ok(result.draftBody!.includes("gjøre søkeresultatet tydeligere"));
-  assert.ok(result.draftBody!.includes("Skal jeg sende det?"));
+  assert.ok(result.draftBody!.includes("mulig forbedring"));
+  assert.ok(result.draftBody!.includes("Er du åpen for at jeg sender over ideen i en kort melding?"));
 });
 
 
@@ -109,6 +109,29 @@ test("does not create a draft when the audit has no actionable finding", () => {
   );
   assert.equal(result.draftBody, undefined);
   assert.ok(result.notes.some((note) => note.includes("No actionable website audit finding")));
+});
+
+
+test("interest-first draft avoids a sales pitch or unsupported outcome claims", () => {
+  const result = createPersonalizedDraft(
+    { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
+    "Eksempel Regnskap",
+    "Regnskap som gir deg bedre oversikt",
+    "Vi hjelper små bedrifter med regnskap og lønn",
+    {
+      companyName: "Eksempel Regnskap AS",
+      websiteUrl: "https://example.no",
+      checkedAt: "2026-10-01T00:00:00.000Z",
+      status: "AUDITED",
+      flags: ["MISSING_META_DESCRIPTION"],
+      metaDescription: undefined
+    }
+  );
+  assert.ok(result.draftBody);
+  assert.ok(result.draftBody!.includes("Er du åpen for at jeg sender over ideen i en kort melding?"));
+  assert.ok(!result.draftBody!.includes("øke inntektene"));
+  assert.ok(!result.draftBody!.includes("flere kunder"));
+  assert.ok(!result.draftBody!.includes("bestille et møte"));
 });
 
 test("createPersonalizedDraft does not invent website-specific facts when no evidence exists", () => {
@@ -133,8 +156,8 @@ test("createPersonalizedDraft names a concrete improvement from website audit si
       metaDescription: undefined
     }
   );
-  assert.ok(result.draftBody?.includes("gjøre søkeresultatet tydeligere"));
-  assert.ok(result.draftBody?.includes("Skal jeg sende det?"));
+  assert.ok(result.draftBody?.includes("mulig forbedring"));
+  assert.ok(result.draftBody?.includes("Er du åpen for at jeg sender over ideen i en kort melding?"));
 });
 
 test("does not generate an outreach draft when only a generic page title is available", () => {
