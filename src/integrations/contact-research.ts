@@ -218,14 +218,22 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
     ? "overskriften «" + cleanEvidence + "»"
     : "beskrivelsen «" + cleanEvidence + "»";
   const improvementArea = audit?.flags.includes("MISSING_META_DESCRIPTION")
-    ? "gjøre søkeresultatet tydeligere ved å forklare regnskapstjenestene deres kort"
+    ? "gjøre søkeresultatet tydeligere med en kort beskrivelse av tjenestene deres"
     : audit?.flags.includes("NO_OBVIOUS_CONTACT_PATH")
       ? "gjøre kontaktmuligheten lettere å finne for besøkende som vil spørre om hjelp"
       : audit?.flags.includes("MISSING_TITLE")
         ? "gi siden en mer beskrivende tittel i søkeresultater"
         : audit?.flags.includes("MISSING_VIEWPORT_META")
           ? "gjøre siden enklere å lese og bruke på mobil"
-          : "gjøre tjenestene deres lettere å forstå ved første besøk";
+          : audit?.flags.includes("NO_OBVIOUS_ACCOUNTING_SERVICE_TEXT")
+            ? "forklare regnskapstjenestene tydeligere på forsiden"
+            : audit?.flags.includes("NO_EMAIL_LINK_DETECTED")
+              ? "gjøre kontaktinformasjonen lettere å finne på nettsiden"
+              : undefined;
+  if (!improvementArea) {
+    notes.push("No actionable website audit finding supports a specific improvement suggestion; manual review required.");
+    return { notes };
+  }
   const draftBody = [
     "Hei!",
     "",
