@@ -87,7 +87,7 @@ test("draft avoids repeating long service evidence and uses a concrete, concise 
   );
   assert.ok(result.draftBody);
   assert.ok(result.personalizationEvidence!.length <= 110);
-  assert.ok(result.draftBody!.includes("gjøre søkeresultatet tydeligere"));
+  assert.ok(result.draftBody!.includes("mulig forbedring"));
   assert.ok(result.draftBody!.includes("Er du åpen for at jeg sender over ideen i en kort melding?"));
 });
 
