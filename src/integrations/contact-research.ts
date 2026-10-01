@@ -237,13 +237,11 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   const draftBody = [
     "Hei!",
     "",
-    "Jeg så på nettsiden deres og la merke til " + observedDetail + ".",
+    "Jeg var innom nettsiden deres og la merke til " + observedDetail + ".",
     "",
-    "Jeg fikk en konkret idé til hvordan dere kan " + improvementArea + ".",
+    "Jeg fikk en liten idé til en mulig forbedring rundt dette, men vil ikke anta at det er relevant for dere.",
     "",
-    "Jeg kan sende et kort eksempel, så kan dere vurdere om det er relevant.",
-    "",
-    "Skal jeg sende det?",
+    "Er du åpen for at jeg sender over ideen i en kort melding?",
     "",
     "Mvh Jelassi"
   ].join("\n");
