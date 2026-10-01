@@ -89,7 +89,11 @@ export async function importLeadRecords(
 
     const qualification = qualifyLead(lead);
     lead.fitScore = qualification.fitScore;
-    lead.status = qualification.qualified ? "QUALIFIED" : "RESEARCHED";
+    const hasResearch = Boolean(
+      lead.websiteIssue && lead.websiteIssue !== "NONE" &&
+      lead.evidence.some((item) => item.sourceUrl.trim() && item.observation.trim())
+    );
+    lead.status = qualification.qualified ? "QUALIFIED" : hasResearch ? "RESEARCHED" : "NEW";
     accepted.push(lead);
   }
 
@@ -103,7 +107,7 @@ export async function importLeadRecords(
   ).length;
   summary.imported = retainedNew.length;
   summary.qualified = retainedNew.filter((lead) => lead.status === "QUALIFIED").length;
-  summary.notQualified = retainedNew.filter((lead) => lead.status === "RESEARCHED").length;
+  summary.notQualified = retainedNew.filter((lead) => lead.status !== "QUALIFIED").length;
 
   if (retainedIds.size > 0) {
     await store.saveAll(deduplicated.uniqueLeads);
