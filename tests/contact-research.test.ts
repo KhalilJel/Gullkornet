@@ -29,11 +29,11 @@ test("createPersonalizedDraft uses concrete website evidence and asks permission
     }
   );
   assert.equal(result.subject, "Dette la vi merke til hos dere");
-  assert.ok(result.draftBody?.includes("vi fant ingen egen metabeskrivelse på nettsiden"));
+  assert.ok(result.draftBody?.includes("nettsiden ser ikke ut til å ha en egen metabeskrivelse"));
   assert.ok(result.draftBody?.includes("En mulig forbedring kan være å"));
   assert.ok(result.draftBody?.includes("Hvis det er interessant, kan jeg sende en kort forklaring på e-post."));
   assert.ok(result.subject?.includes("Dette la vi merke til hos dere"));
-  assert.equal(result.personalizationEvidence, "vi fant ingen egen metabeskrivelse på nettsiden");
+  assert.equal(result.personalizationEvidence, "nettsiden ser ikke ut til å ha en egen metabeskrivelse");
 });
 
 test("generic headings are ignored in favor of a concrete audit finding", () => {
@@ -51,9 +51,9 @@ test("generic headings are ignored in favor of a concrete audit finding", () => 
       metaDescription: undefined
     }
   );
-  assert.ok(result.draftBody?.includes("vi fant ingen egen metabeskrivelse på nettsiden"));
+  assert.ok(result.draftBody?.includes("nettsiden ser ikke ut til å ha en egen metabeskrivelse"));
   assert.ok(!result.draftBody?.includes("regnskapsføring, fakturering, lønnskjøring og årsoppgjør"));
-  assert.equal(result.personalizationEvidence, "vi fant ingen egen metabeskrivelse på nettsiden");
+  assert.equal(result.personalizationEvidence, "nettsiden ser ikke ut til å ha en egen metabeskrivelse");
 });
 
 test("company-name headings and navigation-only text do not support a personalized draft", () => {
@@ -87,7 +87,7 @@ test("draft avoids repeating long service evidence and uses a concrete, concise 
   );
   assert.ok(result.draftBody);
   assert.ok(result.personalizationEvidence!.length <= 110);
-  assert.ok(result.draftBody!.includes("vi fant ingen egen metabeskrivelse på nettsiden"));
+  assert.ok(result.draftBody!.includes("nettsiden ser ikke ut til å ha en egen metabeskrivelse"));
   assert.ok(result.draftBody!.includes("Hvis det er interessant, kan jeg sende en kort forklaring på e-post."));
 });
 
@@ -156,7 +156,7 @@ test("createPersonalizedDraft names a concrete improvement from website audit si
       metaDescription: undefined
     }
   );
-  assert.ok(result.draftBody?.includes("vi fant ingen egen metabeskrivelse på nettsiden"));
+  assert.ok(result.draftBody?.includes("nettsiden ser ikke ut til å ha en egen metabeskrivelse"));
   assert.ok(result.draftBody?.includes("Hvis det er interessant, kan jeg sende en kort forklaring på e-post."));
 });
 
@@ -200,7 +200,7 @@ test("spaced-letter and navigation headings are not used as outreach evidence", 
     );
     assert.ok(result.draftBody);
     assert.ok(!result.draftBody?.includes(headline));
-    assert.equal(result.personalizationEvidence, "vi fant ingen egen metabeskrivelse på nettsiden");
+    assert.equal(result.personalizationEvidence, "nettsiden ser ikke ut til å ha en egen metabeskrivelse");
   }
 });
 
@@ -282,7 +282,7 @@ test("draft leads with the exact audit observation rather than a generic headlin
       metaDescription: undefined
     }
   );
-  assert.ok(result.draftBody?.includes("vi fant ikke en tydelig kontakt- eller bestillingslenke"));
+  assert.ok(result.draftBody?.includes("jeg hadde litt vanskelig for å finne en tydelig kontakt- eller bestillingslenke"));
   assert.ok(result.draftBody?.includes("gjøre veien til kontakt mer synlig og neste steg enklere"));
   assert.ok(!result.draftBody?.includes("Regnskap som gir deg bedre oversikt"));
 });
