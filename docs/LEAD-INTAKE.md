@@ -30,6 +30,19 @@ The company and organization number above are fictional and exist only to illust
 
 Registry discovery records can omit website issue and evidence. They will remain NEW until the website opportunity has been researched.
 
+## Digital-presence opportunity principle
+
+Record the observed need before choosing a service. The possible Cidea solution may be a website, branding, social media setup, or a combination. Do not use a generic recommendation such as "needs a better digital presence" without a concrete observation and source.
+
+For each opportunity, distinguish:
+- **Observation:** what was actually visible on a public source.
+- **Potential implication:** why the observation might matter to a visitor or prospective customer, phrased cautiously.
+- **Possible solution:** a hypothesis to validate with the business, not a conclusion or promise of results.
+
+Do not infer lost sales, poor reputation, or business performance from appearance alone. Outreach is an interest opener, not a pitch; Khalil handles sales conversations.
+
+The current automated pilot supports website research only. Branding and social-media assessment require additional evidence collection and review before they can be used for automated qualification or outreach.
+
 ## Supported website issue values
 
 - `NO_WEBSITE`
