@@ -165,7 +165,7 @@ export function extractPublicEmails(html: string, sourceUrl: string): PublicEmai
   return results.filter((item) => !/\.(png|jpe?g|gif|webp|svg)$/i.test(item.email));
 }
 
-function extractEvidence(html: string): { headline?: string; serviceEvidence?: string } {
+export function extractEvidence(html: string): { headline?: string; serviceEvidence?: string } {
   const headline = getTagText(html, "h1");
   const text = stripHtml(html);
   const sentenceCandidates = text.split(/[.!?]\s+/).map((s) => s.trim()).filter((s) => s.length >= 30 && s.length <= 220);
