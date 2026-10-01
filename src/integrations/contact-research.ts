@@ -141,7 +141,7 @@ function getContactLinks(html: string, baseUrl: string): string[] {
   return found.slice(0, MAX_PAGES_PER_SITE - 1);
 }
 
-function extractEmails(html: string, sourceUrl: string): PublicEmail[] {
+export function extractPublicEmails(html: string, sourceUrl: string): PublicEmail[] {
   const results: PublicEmail[] = [];
   const seen = new Set<string>();
   const mailtos = html.match(/href\s*=\s*["']mailto:([^"'?\s]+)(?:\?[^"']*)?["']/gi) ?? [];
@@ -174,7 +174,7 @@ function extractEvidence(html: string): { headline?: string; serviceEvidence?: s
   return { headline, serviceEvidence };
 }
 
-function createDraft(candidate: GoogleCandidate, title?: string, headline?: string, serviceEvidence?: string): {
+export function createPersonalizedDraft(candidate: GoogleCandidate, title?: string, headline?: string, serviceEvidence?: string): {
   subject?: string; draftBody?: string; personalizationEvidence?: string; notes: string[];
 } {
   const evidence = headline ?? serviceEvidence ?? title;
@@ -226,17 +226,16 @@ export async function researchContactAndDraft(candidate: GoogleCandidate, audit?
 
     const title = getTitle(homepage.html) ?? audit?.title;
     const evidence = extractEvidence(homepage.html);
-    const emails = extractEmails(homepage.html, homepage.finalUrl);
+    const emails = extractPublicEmails(homepage.html, homepage.finalUrl);
     const contactUrls = getContactLinks(homepage.html, homepage.finalUrl);
     let contactPageUrl: string | undefined;
-    let extraHtml = "";
     for (const url of contactUrls) {
       try {
         const page = await fetchHtml(url);
         if (page.status >= 400 || !page.html) continue;
         contactPageUrl ??= page.finalUrl;
         extraHtml += "\n" + page.html;
-        emails.push(...extractEmails(page.html, page.finalUrl));
+        emails.push(...extractPublicEmails(page.html, page.finalUrl));
         const contactEvidence = extractEvidence(page.html);
         evidence.headline ??= contactEvidence.headline;
         evidence.serviceEvidence ??= contactEvidence.serviceEvidence;
@@ -247,7 +246,7 @@ export async function researchContactAndDraft(candidate: GoogleCandidate, audit?
     }
 
     const uniqueEmails = [...new Map(emails.map((item) => [item.email, item])).values()].slice(0, 10);
-    const draft = createDraft(candidate, title, evidence.headline, evidence.serviceEvidence);
+    const draft = createPersonalizedDraft(candidate, title, evidence.headline, evidence.serviceEvidence);
     const notes = [...draft.notes];
     if (uniqueEmails.length === 0) notes.push("No public email address found on the checked pages. Do not guess an address.");
     else notes.push("Email addresses were extracted from publicly accessible pages; mailbox deliverability and recipient role are not verified.");
