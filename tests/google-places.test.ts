@@ -35,7 +35,7 @@ test("discovers candidates from Google Places and deduplicates by website domain
   assert.equal(requests[0]?.fieldMask?.includes("places.websiteUri"), true);
   assert.equal(results.length, 2);
   assert.equal(results.find((item) => item.companyName === "Eksempel Regnskap AS")?.city, "Oslo");
-  assert.equal(results.find((item) => item.companyName === "Eksempel Regnskap AS")?.websiteUrl, "https://www.example.no");
+  assert.equal(results.find((item) => item.companyName === "Eksempel Regnskap AS")?.websiteUrl, "https://www.example.no/");
 });
 
 test("requires a Google Maps Platform API key", async () => {
