@@ -1,10 +1,14 @@
 name: Gullkornet Website Audit
 
 on:
+  workflow_run:
+    workflows: ["Gullkornet Google Places Discovery"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       source_run_id:
-        description: "Successful Google Places discovery run ID"
+        description: "Successful Google Places discovery run ID (manual runs only)"
         required: true
         default: "36840881370"
 
@@ -14,6 +18,7 @@ permissions:
 
 jobs:
   audit:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -33,7 +38,7 @@ jobs:
         with:
           name: gullkornet-google-candidates
           path: data/source
-          run-id: ${{ inputs.source_run_id }}
+          run-id: ${{ github.event_name == 'workflow_dispatch' && inputs.source_run_id || github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Audit public business websites
@@ -42,9 +47,11 @@ jobs:
           npm run --silent audit:websites -- data/source/google-candidates.json > data/website-audit.json
           echo "Website audit output created. Signals are automated and require manual review."
 
-      - name: Upload website audit results
+      - name: Upload website audit and candidate inputs
         uses: actions/upload-artifact@v4
         with:
           name: gullkornet-website-audit
-          path: data/website-audit.json
+          path: |
+            data/website-audit.json
+            data/source/google-candidates.json
           retention-days: 3
