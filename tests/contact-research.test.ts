@@ -22,7 +22,9 @@ test("createPersonalizedDraft uses concrete website evidence and asks permission
   );
   assert.ok(result.subject?.includes("Eksempel Regnskap AS"));
   assert.ok(result.draftBody?.includes("Regnskap som gir deg bedre oversikt"));
-  assert.ok(result.draftBody?.includes("Er det interessant om jeg sender over ideen"));
+  assert.ok(result.draftBody?.includes("konkret mulighet til å forbedre"));
+  assert.ok(result.draftBody?.includes("Skal jeg sende deg ideen?"));
+  assert.ok(result.subject?.includes("En idé til nettsiden"));
   assert.equal(result.personalizationEvidence, "Regnskap som gir deg bedre oversikt");
 });
 
