@@ -35,7 +35,7 @@ test("generic headings fall back to a useful service statement", () => {
     "OM OSS",
     "2R Data og Regnskap tilbyr regnskapsføring, fakturering, lønnskjøring og årsoppgjør."
   );
-  assert.ok(result.draftBody?.includes("beskrivelsen deres"));
+  assert.ok(result.draftBody?.includes("beskrivelsen «"));
   assert.ok(result.draftBody?.includes("regnskapsføring, fakturering, lønnskjøring og årsoppgjør"));
   assert.equal(result.personalizationEvidence, "2R Data og Regnskap tilbyr regnskapsføring, fakturering, lønnskjøring og årsoppgjør.");
 });
@@ -90,7 +90,7 @@ test("createPersonalizedDraft names a concrete improvement from website audit si
     }
   );
   assert.ok(result.draftBody?.includes("gjøre søkeresultatet tydeligere"));
-  assert.ok(result.draftBody?.includes("Skal jeg sende deg ideen?"));
+  assert.ok(result.draftBody?.includes("Skal jeg sende det?"));
 });
 
 test("does not generate an outreach draft when only a generic page title is available", () => {
