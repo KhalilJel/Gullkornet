@@ -186,15 +186,27 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   if (!headline && !serviceEvidence) notes.push("Personalization uses the page title only; manually verify before use.");
   const cleanEvidence = evidence.replace(/[\r\n"]/g, "").slice(0, 180);
   const company = candidate.companyName.trim();
-  const subject = "Et konkret forslag til nettsiden til " + company;
+  const subject = "En idé til nettsiden til " + company;
+  const observedDetail = headline
+    ? "overskriften «" + cleanEvidence + "»"
+    : serviceEvidence
+      ? "beskrivelsen deres «" + cleanEvidence + "»"
+      : "sidetittelen «" + cleanEvidence + "»";
+  const improvementArea = serviceEvidence
+    ? "hvordan dere presenterer " + cleanEvidence.replace(/[.!?]+$/, "")
+    : headline
+      ? "hvordan dere løfter frem budskapet «" + cleanEvidence + "»"
+      : "hvordan nettsiden presenterer tilbudet deres";
   const draftBody = [
     "Hei!",
     "",
-    "Jeg tok en titt på nettsiden deres og la merke til " + (headline ? "overskriften «" + cleanEvidence + "»." : serviceEvidence ? "at dere beskriver tjenestene deres slik: «" + cleanEvidence + "»." : "sidetittelen «" + cleanEvidence + "»."),
+    "Jeg tok en titt på nettsiden deres og la spesielt merke til " + observedDetail + ".",
     "",
-    "Jeg jobber med nettsider for bedrifter og fikk en konkret idé til hvordan nettsiden kan gjøre det enklere for potensielle kunder å forstå tilbudet deres og ta kontakt.",
+    "Det ga meg en idé. Jeg tror det kan være en konkret mulighet til å forbedre " + improvementArea + ", slik at potensielle kunder raskere ser hva dere kan hjelpe dem med.",
     "",
-    "Er det interessant om jeg sender over ideen i noen få linjer? Ingen forpliktelser.",
+    "Jeg vil ikke sende en lang salgsmelding her, men jeg kan vise deg hva jeg mener i 2–3 korte linjer.",
+    "",
+    "Skal jeg sende deg ideen?",
     "",
     "Mvh Jelassi"
   ].join("\n");
