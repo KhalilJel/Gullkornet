@@ -26,9 +26,12 @@ npm install
 npm run typecheck
 npm test
 npm run import:leads -- ./path/to/leads.json
+npm run report:leads
 ```
 
-The default store is `data/leads.json`. To use another path, set `LEAD_STORE_PATH`. The local data directory is excluded from Git. Import validates each record, computes the pilot fit score, labels the lead as QUALIFIED or RESEARCHED, and prevents duplicate domains/emails from being added again. Existing lead statuses are retained when duplicates are encountered.
+The default store is `data/leads.json`. To use another path, set `LEAD_STORE_PATH`. The local data directory is excluded from Git. Import validates each record, computes the pilot fit score, labels candidates as NEW until research is documented, and labels researched leads as QUALIFIED or RESEARCHED. Duplicate domains/emails are not added again, and existing lead statuses are retained.
+
+The report command prints total records, counts by status, and the qualified leads with their evidence summary.
 
 The import command does not discover businesses from the internet and does not send email. Research sources and observations must be collected and verified before import.
 
@@ -50,6 +53,7 @@ A website existing by itself is not a reason to qualify a business. The research
 - Domain and email duplicate detection
 - Validated JSON intake with per-record errors
 - Atomic local JSON storage
+- Local status and qualification report
 - Unit tests for qualification, deduplication, and intake
 - Sending remains out of scope until research quality and data handling are validated
 
