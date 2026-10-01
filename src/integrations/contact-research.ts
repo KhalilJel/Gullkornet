@@ -215,17 +215,17 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
     ? audit.flags.includes("NO_OBVIOUS_CONTACT_PATH")
       ? {
           observation: "vi fant ikke en tydelig kontakt- eller bestillingslenke i navigasjonen på siden vi sjekket",
-          improvement: "en synlig vei til kontakt kan gjøre neste steg enklere for besøkende"
+          improvement: "gjøre veien til kontakt mer synlig og neste steg enklere for besøkende"
         }
       : audit.flags.includes("MISSING_META_DESCRIPTION")
         ? {
             observation: "vi fant ingen egen metabeskrivelse på nettsiden",
-            improvement: "en kort, tydelig beskrivelse kan gi bedre kontroll over hvordan dere presenteres i søkeresultater"
+            improvement: "lage en kort, tydelig beskrivelse som gir bedre kontroll over hvordan dere presenteres i søkeresultater"
           }
         : audit.flags.includes("MISSING_TITLE")
           ? {
               observation: "sidetittelen på nettsiden ser ut til å mangle",
-              improvement: "en beskrivende sidetittel kan gjøre det tydeligere hva siden handler om når folk finner den på nett"
+              improvement: "legge til en beskrivende sidetittel som gjør det tydeligere hva siden handler om når folk finner den på nett"
             }
           : undefined
     : undefined;
@@ -247,7 +247,7 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
     "",
     "Jeg kom over " + company + " og la merke til at " + finding.observation + ".",
     "",
-    "Det kan være en mulighet til å " + finding.improvement + ".",
+    "En mulig forbedring kan være å " + finding.improvement + ".",
     "",
     "Jeg har en konkret idé basert på " + company + " som jeg gjerne kan vise dere.",
     "",
