@@ -174,7 +174,7 @@ function extractEvidence(html: string): { headline?: string; serviceEvidence?: s
   return { headline, serviceEvidence };
 }
 
-export function createPersonalizedDraft(candidate: GoogleCandidate, title?: string, headline?: string, serviceEvidence?: string): {
+export function createPersonalizedDraft(candidate: GoogleCandidate, title?: string, headline?: string, serviceEvidence?: string, audit?: WebsiteAudit): {
   subject?: string; draftBody?: string; personalizationEvidence?: string; notes: string[];
 } {
   const evidence = headline ?? serviceEvidence ?? title;
@@ -192,11 +192,20 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
     : serviceEvidence
       ? "beskrivelsen deres «" + cleanEvidence + "»"
       : "sidetittelen «" + cleanEvidence + "»";
-  const improvementArea = serviceEvidence
+  const auditImprovement = audit?.flags.includes("MISSING_META_DESCRIPTION")
+    ? "hvordan nettsiden presenteres i søkeresultater med en tydelig metabeskrivelse"
+    : audit?.flags.includes("NO_OBVIOUS_CONTACT_PATH")
+      ? "hvor enkelt det er for besøkende å finne veien til kontakt"
+      : audit?.flags.includes("MISSING_TITLE")
+        ? "hvordan nettsiden presenteres i søkeresultater med en mer beskrivende sidetittel"
+        : audit?.flags.includes("MISSING_VIEWPORT_META")
+          ? "hvordan nettsiden tilpasses mobilbesøkende"
+          : undefined;
+  const improvementArea = auditImprovement ?? (serviceEvidence
     ? "hvordan dere presenterer " + cleanEvidence.replace(/[.!?]+$/, "")
     : headline
       ? "hvordan dere løfter frem budskapet «" + cleanEvidence + "»"
-      : "hvordan nettsiden presenterer tilbudet deres";
+      : "hvordan nettsiden presenterer tilbudet deres");
   const draftBody = [
     "Hei!",
     "",
@@ -257,7 +266,7 @@ export async function researchContactAndDraft(candidate: GoogleCandidate, audit?
     }
 
     const uniqueEmails = [...new Map(emails.map((item) => [item.email, item])).values()].slice(0, 10);
-    const draft = createPersonalizedDraft(candidate, title, evidence.headline, evidence.serviceEvidence);
+    const draft = createPersonalizedDraft(candidate, title, evidence.headline, evidence.serviceEvidence, audit);
     const notes = [...draft.notes];
     if (uniqueEmails.length === 0) notes.push("No public email address found on the checked pages. Do not guess an address.");
     else notes.push("Email addresses were extracted from publicly accessible pages; mailbox deliverability and recipient role are not verified.");
