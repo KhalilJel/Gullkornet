@@ -28,7 +28,7 @@ test("createPersonalizedDraft uses concrete website evidence and asks permission
       metaDescription: undefined
     }
   );
-  assert.ok(result.subject?.includes("Eksempel Regnskap AS"));
+  assert.equal(result.subject, "Dette la vi merke til hos dere");
   assert.ok(result.draftBody?.includes("Regnskap som gir deg bedre oversikt"));
   assert.ok(result.draftBody?.includes("mulig forbedring knyttet til"));
   assert.ok(result.draftBody?.includes("Hvis det er interessant, kan jeg sende en kort forklaring på e-post."));
