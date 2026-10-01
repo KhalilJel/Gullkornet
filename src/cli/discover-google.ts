@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { discoverGooglePlacesCandidates } from "../integrations/google-places.js";
 
 const searchTerm = process.argv[2]?.trim() || "regnskapsfører";
