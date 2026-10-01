@@ -202,3 +202,34 @@ test("spaced-letter and navigation headings do not create personalized drafts", 
     assert.equal(result.subject, undefined);
   }
 });
+
+
+test("rejects website evidence containing template placeholders or markup residue", () => {
+  const result = extractEvidence('<html><body><main><p>atilaa - Hjem {{slideNum}} data-cycle-swipe=true > A til Å regnskap AS Sammen skaper vi vekst</p></main></body></html>');
+  assert.equal(result.serviceEvidence, undefined);
+});
+
+test("does not create drafts from navigation-heavy or markup-contaminated headlines", () => {
+  for (const headline of [
+    "A til Å regnskap AS Hopp rett til innholdet",
+    "atilaa - Hjem {{slideNum}} data-cycle-swipe=true >",
+    "Hjem - Regnskap Group AS - Profesjonell Regnskapsføring"
+  ]) {
+    const result = createPersonalizedDraft(
+      { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
+      "Eksempel",
+      headline,
+      undefined,
+      {
+        companyName: "Eksempel Regnskap AS",
+        websiteUrl: "https://example.no",
+        checkedAt: "2026-10-01T00:00:00.000Z",
+        status: "AUDITED",
+        flags: ["MISSING_META_DESCRIPTION"],
+        metaDescription: undefined
+      }
+    );
+    assert.equal(result.draftBody, undefined);
+    assert.equal(result.subject, undefined);
+  }
+});
