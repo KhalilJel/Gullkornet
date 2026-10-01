@@ -8,7 +8,7 @@ Gullkornet is Cidea's internal lead research and qualification engine.
 - **Geography:** Oslo and Akershus
 - **Offer:** Website redesign or a new website focused on clearer services and qualified enquiries
 - **Pilot target:** Research 50 businesses, identify up to 20 genuinely qualified leads, and use the results to improve targeting
-- **Daily discovery limit:** 25 leads by default
+- **Planned daily discovery limit:** 25 leads; this is configuration only and is not enforced by a discovery module yet
 - **Safety:** Dry run is enabled by default. Sending is not implemented or enabled.
 
 These are test assumptions, not proven conversion rates. Review lead quality and outreach response before expanding to other industries or all of Norway.
