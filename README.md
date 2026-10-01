@@ -6,12 +6,27 @@ Gullkornet is Cidea's internal lead research and qualification engine.
 
 - **Industry:** Small accounting firms and bookkeeping practices
 - **Geography:** Oslo and Akershus
-- **Offer:** Website redesign or a new website focused on clearer services and qualified enquiries
+- **Core promise:** Improve a business's digital presence so it is easier to find, understand, trust, and contact.
+- **Possible solutions:** Website, branding and visual identity, social media setup, or a combination, depending on the specific business need.
+- **Initial pilot delivery:** Website-focused research only. Broader digital-presence research will be added as evidence sources and qualification rules are implemented.
 - **Pilot target:** Research 50 businesses, identify up to 20 genuinely qualified leads, and use the results to improve targeting
 - **Planned daily discovery limit:** 25 leads; this is configuration only and is not enforced by a discovery module yet
 - **Safety:** Dry run is enabled by default. Sending is not implemented or enabled.
 
 These are test assumptions, not proven conversion rates. Review lead quality and outreach response before expanding to other industries or all of Norway.
+
+## Cidea's value principle
+
+Cidea does not sell a website by default. The goal is to give each business a useful improvement to its digital presence. The right solution depends on what the business actually needs:
+
+- **Website:** when key information is hard to find, services are unclear, the mobile experience is weak, or the route to contact the business is difficult.
+- **Branding:** when the visual identity appears inconsistent, unclear, or poorly aligned with the business's stated positioning. Treat this as a hypothesis for human review, not an objective verdict.
+- **Social media presence:** when official profiles appear absent, incomplete, inconsistent, or disconnected from the business's core information.
+- **Combined improvements:** when evidence supports more than one gap.
+
+Gullkornet should identify the observed issue first and recommend a possible solution second. It must not force every prospect into a website offer, assume poor digital presence means lost revenue, or claim that a proposed change will increase sales. Outreach should only open a conversation: mention one verifiable observation, hint at a relevant idea, and ask permission to share it. Khalil handles all sales conversations personally.
+
+**Current implementation boundary:** the pilot currently researches public business listings and websites. Branding and social-media checks are a planned extension, not capabilities to assume are already implemented. Any proposed opportunity requires a source URL and a concrete observation.
 
 ## Candidate discovery sources
 
