@@ -177,21 +177,20 @@ function extractEvidence(html: string): { headline?: string; serviceEvidence?: s
 export function createPersonalizedDraft(candidate: GoogleCandidate, title?: string, headline?: string, serviceEvidence?: string, audit?: WebsiteAudit): {
   subject?: string; draftBody?: string; personalizationEvidence?: string; notes: string[];
 } {
-  const evidence = headline ?? serviceEvidence ?? title;
+  const evidence = headline ?? serviceEvidence;
   const notes: string[] = [];
   if (!evidence) {
-    notes.push("No reliable page-specific headline or service statement was extracted; no personalized draft generated.");
+    notes.push(title
+      ? "Only a page title was available. It is not enough to support a specific personalized outreach draft; manual research required."
+      : "No reliable page-specific headline or service statement was extracted; no personalized draft generated.");
     return { notes };
   }
-  if (!headline && !serviceEvidence) notes.push("Personalization uses the page title only; manually verify before use.");
   const cleanEvidence = evidence.replace(/[\r\n"]/g, "").slice(0, 180);
   const company = candidate.companyName.trim();
   const subject = "En idé til nettsiden til " + company;
   const observedDetail = headline
     ? "overskriften «" + cleanEvidence + "»"
-    : serviceEvidence
-      ? "beskrivelsen deres «" + cleanEvidence + "»"
-      : "sidetittelen «" + cleanEvidence + "»";
+    : "beskrivelsen deres «" + cleanEvidence + "»";
   const auditImprovement = audit?.flags.includes("MISSING_META_DESCRIPTION")
     ? "hvordan nettsiden presenteres i søkeresultater med en tydelig metabeskrivelse"
     : audit?.flags.includes("NO_OBVIOUS_CONTACT_PATH")
@@ -203,9 +202,7 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
           : undefined;
   const improvementArea = auditImprovement ?? (serviceEvidence
     ? "hvordan dere presenterer " + cleanEvidence.replace(/[.!?]+$/, "")
-    : headline
-      ? "hvordan dere løfter frem budskapet «" + cleanEvidence + "»"
-      : "hvordan nettsiden presenterer tilbudet deres");
+    : "hvordan nettsiden presenterer tilbudet deres");
   const draftBody = [
     "Hei!",
     "",

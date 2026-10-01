@@ -53,3 +53,13 @@ test("createPersonalizedDraft names a concrete improvement from website audit si
   assert.ok(result.draftBody?.includes("forbedre hvordan nettsiden presenteres i søkeresultater"));
   assert.ok(result.draftBody?.includes("Skal jeg sende deg ideen?"));
 });
+
+test("does not generate an outreach draft when only a generic page title is available", () => {
+  const result = createPersonalizedDraft(
+    { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
+    "Eksempel Regnskap"
+  );
+  assert.equal(result.draftBody, undefined);
+  assert.equal(result.subject, undefined);
+  assert.ok(result.notes.some((note) => note.includes("Only a page title was available")));
+});
