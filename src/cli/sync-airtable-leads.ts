@@ -56,7 +56,7 @@ function getStatus(item: ResearchRecord, existing?: AirtableRecord): string {
   const existingStatus = existing?.fields["Lead Status"];
   const doNotContact = existing?.fields["Do Not Contact"] === true;
   if (doNotContact || existingStatus === "Suppressed") return "Suppressed";
-  if (existingStatus === "Sent" || existingStatus === "Replied") return String(existingStatus);
+  if (["Sent", "Replied", "Approved", "Follow-up"].includes(String(existingStatus))) return String(existingStatus);
   if (item.notes?.some((note) => note.includes("MANUAL REVIEW:"))) return "Needs Review";
   if (item.emails?.length && item.subject && item.draftBody) return "Draft Ready";
   if (item.emails?.length) return "Researched";
