@@ -149,7 +149,7 @@ export function extractPublicEmails(html: string, sourceUrl: string): PublicEmai
   const seen = new Set<string>();
   const mailtos = html.match(/href\s*=\s*["']mailto:([^"'?\s]+)(?:\?[^"']*)?["']/gi) ?? [];
   for (const tag of mailtos) {
-    const match = tag.match(/mailto:([^"'?\\s]+)/i);
+    const match = tag.match(/mailto:([^"'?\s]+)/i);
     let email: string | undefined;
     if (match?.[1]) {
       try {
