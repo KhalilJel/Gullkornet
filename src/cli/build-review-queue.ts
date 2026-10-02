@@ -14,14 +14,20 @@ type ResearchResult = {
   requiresHumanReview: true;
 };
 
-type Priority = "HIGH REVIEW" | "MEDIUM REVIEW" | "LOW REVIEW" | "MANUAL RESEARCH";
+type ContactReview = "VERIFY CONTACT" | "CONTACT FOUND — NOT VERIFIED" | "NO PUBLIC EMAIL";
 
-function priorityFor(item: ResearchResult): Priority {
-  const evidence = (item.personalizationEvidence ?? "").toLocaleLowerCase("nb-NO");
-  if (evidence.includes("kontakt- eller bestillingslenke")) return "HIGH REVIEW";
-  if (evidence.includes("sidetittelen")) return "MEDIUM REVIEW";
-  if (evidence.includes("metabeskrivelse")) return "LOW REVIEW";
-  return "MANUAL RESEARCH";
+function contactReviewFor(item: ResearchResult): ContactReview {
+  if (item.notes.some((note) => note.includes("MANUAL REVIEW:"))) return "VERIFY CONTACT";
+  if (item.emails.length > 0) return "CONTACT FOUND — NOT VERIFIED";
+  return "NO PUBLIC EMAIL";
+}
+
+function observationFor(item: ResearchResult): string {
+  const evidence = item.personalizationEvidence?.trim();
+  if (!evidence || /no specific website claim|no concrete|ingen konkret/i.test(evidence)) {
+    return "Ingen konkret nettsideobservasjon er bekreftet. E-postutkastet er en generell åpner.";
+  }
+  return evidence;
 }
 
 function escapeCell(value: string): string {
@@ -37,26 +43,24 @@ try {
   if (!Array.isArray(parsed)) throw new Error("Contact research input must be a JSON array.");
   const results = parsed as ResearchResult[];
   const drafts = results.filter((item) => Boolean(item.draftBody && item.subject));
-  const priorityOrder: Record<Priority, number> = {
-    "HIGH REVIEW": 0,
-    "MEDIUM REVIEW": 1,
-    "LOW REVIEW": 2,
-    "MANUAL RESEARCH": 3
+  const reviewOrder: Record<ContactReview, number> = {
+    "VERIFY CONTACT": 0,
+    "CONTACT FOUND — NOT VERIFIED": 1,
+    "NO PUBLIC EMAIL": 2
   };
   const ranked = drafts
-    .map((item) => ({ item, priority: priorityFor(item) }))
+    .map((item) => ({ item, contactReview: contactReviewFor(item) }))
     .sort((a, b) =>
-      priorityOrder[a.priority] - priorityOrder[b.priority] ||
-      Number(b.item.emails.length > 0) - Number(a.item.emails.length > 0) ||
+      reviewOrder[a.contactReview] - reviewOrder[b.contactReview] ||
       a.item.companyName.localeCompare(b.item.companyName, "nb")
     );
 
   const counts = Object.fromEntries(
-    (Object.keys(priorityOrder) as Priority[]).map((priority) => [
-      priority,
-      ranked.filter((row) => row.priority === priority).length
+    (Object.keys(reviewOrder) as ContactReview[]).map((status) => [
+      status,
+      ranked.filter((row) => row.contactReview === status).length
     ])
-  ) as Record<Priority, number>;
+  ) as Record<ContactReview, number>;
 
   const lines = [
     "# Gullkornet — manuell leadgjennomgang",
@@ -71,9 +75,9 @@ try {
     `- Bedrifter behandlet: ${results.length}`,
     `- Utkast generert: ${drafts.length}`,
     `- Utkast med offentlig e-postadresse: ${drafts.filter((item) => item.emails.length > 0).length}`,
-    `- Høy prioritet for manuell vurdering (kontaktvei): ${counts["HIGH REVIEW"]}`,
-    `- Middels prioritet (sidetittel): ${counts["MEDIUM REVIEW"]}`,
-    `- Lav prioritet (metabeskrivelse): ${counts["LOW REVIEW"]}`,
+    `- Må verifisere kontaktadresse manuelt: ${counts["VERIFY CONTACT"]}`,
+    `- Kontaktadresse funnet, men ikke verifisert: ${counts["CONTACT FOUND — NOT VERIFIED"]}`,
+    `- Ingen offentlig e-post funnet: ${counts["NO PUBLIC EMAIL"]}`,
     "",
     "## Utkast sortert for gjennomgang",
     ""
@@ -84,11 +88,11 @@ try {
     lines.push(
       `### ${index + 1}. ${item.companyName}`,
       "",
-      `- **Gjennomgangsnivå:** ${row.priority}`,
+      `- **Kontaktstatus:** ${row.contactReview}`,
       `- **By:** ${item.city ?? "Ikke oppgitt"}`,
       `- **Nettside:** ${item.websiteUrl ? "[" + item.websiteUrl + "](" + item.websiteUrl + ")" : "Ikke oppgitt"}`,
       `- **Kontaktadresse:** ${item.emails.length ? item.emails.map((entry) => "`" + entry.email + "`").join(", ") : "Ingen offentlig e-post funnet"}`,
-      `- **Dokumentert observasjon:** ${item.personalizationEvidence ?? "Ingen konkret observasjon tilgjengelig"}`,
+      `- **Dokumentert observasjon:** ${observationFor(item)}`,
       `- **Kontakt-/informasjonsside:** ${item.contactPageUrl ? "[" + item.contactPageUrl + "](" + item.contactPageUrl + ")" : "Ikke funnet"}`,
       "",
       "**E-postutkast — ikke sendt**",
@@ -99,7 +103,7 @@ try {
       item.draftBody ?? "Ingen e-posttekst generert.",
       "```",
       "",
-      "**Kontroller før eventuell kontakt:** at observasjonen fortsatt stemmer, at mottakeren er riktig person/bedrift, at e-postadressen er relevant, og at kontakt er lovlig og ønsket.",
+      "**Kontroller før eventuell kontakt:** åpne kildesiden for hver adresse, bekreft at adressen tilhører riktig bedrift og relevant mottaker, kontroller at eventuell observasjon faktisk stemmer, og vurder om kontakt er lovlig og ønsket. En offentlig adresse er ikke i seg selv tillatelse til markedsføring.",
       "",
       "---",
       ""
