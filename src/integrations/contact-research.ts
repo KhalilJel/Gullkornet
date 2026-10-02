@@ -149,8 +149,15 @@ export function extractPublicEmails(html: string, sourceUrl: string): PublicEmai
   const seen = new Set<string>();
   const mailtos = html.match(/href\s*=\s*["']mailto:([^"'?\s]+)(?:\?[^"']*)?["']/gi) ?? [];
   for (const tag of mailtos) {
-    const match = tag.match(/mailto:([^"'?\s]+)/i);
-    const email = match?.[1]?.toLowerCase();
+    const match = tag.match(/mailto:([^"'?\\s]+)/i);
+    let email: string | undefined;
+    if (match?.[1]) {
+      try {
+        email = decodeURIComponent(match[1]).trim().toLowerCase();
+      } catch {
+        // Ignore malformed percent-encoding instead of retaining a broken address.
+      }
+    }
     if (email && EMAIL_PATTERN.test(email) && !seen.has(email)) {
       seen.add(email);
       results.push({ email, sourceUrl, sourceType: "mailto" });
