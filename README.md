@@ -66,11 +66,11 @@ The registry adapter searches a name term in Oslo and selected Akershus municipa
 
 ## Daily lead machine
 
-The Google Places workflow runs on weekday mornings and searches two local-business categories per scheduled run, rotating across hairdressers, restaurants, accounting firms, dentists, and auto repair shops. Candidates are deduplicated by website domain or business name within that run. The website audit and contact-research workflows are triggered from successful upstream runs, producing an outreach-draft artifact without sending email. A manual workflow dispatch still searches one selected category.
+The Google Places workflow runs on weekday mornings and searches two local-business categories per scheduled run, rotating across hairdressers, restaurants, accounting firms, dentists, auto repair shops, electricians, plumbers, cleaning companies, physiotherapists, and gyms. Candidates are deduplicated within the run and against a cached cross-run discovery history. The website audit and contact-research workflows are triggered from successful upstream runs, producing an outreach-draft artifact without sending email. A manual workflow dispatch still searches one selected category.
 
 To run a one-off search, open **Actions → Gullkornet Google Places Discovery → Run workflow** and choose a business type. The scheduled workflow requires the repository secret `GOOGLE_MAPS_API_KEY`; ensure Places API billing and quotas are configured. Google Places and website requests may incur costs or be rate-limited.
 
-This pipeline discovers candidates, audits websites, researches publicly listed contact routes, and drafts interest-first outreach. It deduplicates within each run but does **not** yet deduplicate against previous runs, guarantee new leads each day, qualify businesses automatically, or send emails. Review the generated queue and check your contact history before outreach to prevent duplicate contact. The intended operating target is up to 100 new candidates per weekday run. Actual email-ready volume depends on how many candidates have public contact addresses. The pipeline prepares drafts only; it does not send emails.
+This pipeline discovers candidates, audits websites, researches publicly listed contact routes, and drafts interest-first outreach. It deduplicates candidates within a run and uses cached discovery history to avoid previously discovered domains and business names across runs. It cannot guarantee that 100 new candidates will be found every day; actual volume depends on category coverage and public listing availability. The pipeline prepares drafts only; it does not automatically send emails.
 
 ## Import and research workflow
 
