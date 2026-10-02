@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { assertLiveSendAllowed, prepareEmail, sendOneEmail, type OutreachDraft } from "../integrations/outbound-email.js";
+import { assertLiveSendAllowed, parseSuppressionList, prepareEmail, sendOneEmail, type OutreachDraft } from "../integrations/outbound-email.js";
 
 const args = process.argv.slice(2);
 const sendRequested = args.includes("--send");
@@ -21,11 +21,23 @@ try {
   console.log(email.text);
   console.log("--- END BODY ---");
   if (!sendRequested) {
-    console.log("Dry run complete. To send one reviewed email, add --send and set all required approval environment variables.");
+    console.log("Dry run complete. No suppression list or provider credentials were accessed.");
     process.exit(0);
   }
-  assertLiveSendAllowed(email);
-  const result = await sendOneEmail(email, process.env.RESEND_API_KEY!.trim());
+
+  let suppressionContents: string;
+  try {
+    suppressionContents = await readFile("data/suppressed-emails.txt", "utf8");
+  } catch {
+    throw new Error("Required data/suppressed-emails.txt is missing. Create it before any live send; one email per line, # for comments.");
+  }
+  const suppressedEmails = parseSuppressionList(suppressionContents);
+  assertLiveSendAllowed(email, process.env, suppressedEmails);
+  const result = await sendOneEmail(
+    email,
+    process.env.RESEND_API_KEY!.trim(),
+    process.env.GULLKORNET_SEND_IDEMPOTENCY_KEY!.trim()
+  );
   console.log(`Resend accepted one email. Email ID: ${result.id}`);
 } catch (error) {
   console.error(error instanceof Error ? error.message : "Outbound email failed.");

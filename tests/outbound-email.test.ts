@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertLiveSendAllowed, prepareEmail, type OutreachDraft } from "../src/integrations/outbound-email.js";
+import { assertLiveSendAllowed, parseSuppressionList, prepareEmail, type OutreachDraft } from "../src/integrations/outbound-email.js";
 
 const drafts: OutreachDraft[] = [{
   companyName: "Example AS",
@@ -8,6 +8,13 @@ const drafts: OutreachDraft[] = [{
   subject: "Et lite spørsmål til Example AS",
   draftBody: "Hei!\n\nEr det greit at jeg sender en kort idé?\n\nMvh Jelassi"
 }];
+const approvedEnv = {
+  GULLKORNET_ENABLE_LIVE_SEND: "true",
+  GULLKORNET_APPROVED_RECIPIENT: "post@example.no",
+  GULLKORNET_RECIPIENT_REVIEWED: "true",
+  GULLKORNET_SEND_IDEMPOTENCY_KEY: "gullkornet-test-unique-1",
+  RESEND_API_KEY: "test"
+};
 
 test("prepares one draft using the selected sender", () => {
   const email = prepareEmail(drafts, "POST@example.no");
@@ -21,29 +28,26 @@ test("refuses to send if recipient has no unique matching draft", () => {
   assert.throws(() => prepareEmail([...drafts, ...drafts], "post@example.no"), /found 2/);
 });
 
-test("live send requires explicit enablement, exact recipient and review confirmation", () => {
-  const email = prepareEmail(drafts, "post@example.no");
-  assert.throws(() => assertLiveSendAllowed(email, {}), /disabled/);
-  assert.throws(() => assertLiveSendAllowed(email, {
-    GULLKORNET_ENABLE_LIVE_SEND: "true",
-    GULLKORNET_APPROVED_RECIPIENT: "other@example.no",
-    GULLKORNET_RECIPIENT_REVIEWED: "true",
-    RESEND_API_KEY: "test"
-  }), /does not exactly match/);
-  assert.throws(() => assertLiveSendAllowed(email, {
-    GULLKORNET_ENABLE_LIVE_SEND: "true",
-    GULLKORNET_APPROVED_RECIPIENT: "post@example.no",
-    GULLKORNET_RECIPIENT_REVIEWED: "false",
-    RESEND_API_KEY: "test"
-  }), /review confirmation missing/);
+test("suppression list ignores blank lines, comments and case", () => {
+  const list = parseSuppressionList("# opt-outs\nPOST@example.no\n\nother@example.no ");
+  assert.equal(list.has("post@example.no"), true);
+  assert.equal(list.has("other@example.no"), true);
 });
 
-test("allows live send checks only when all explicit gates are satisfied", () => {
+test("live send requires explicit enablement, exact recipient and human review", () => {
   const email = prepareEmail(drafts, "post@example.no");
-  assert.doesNotThrow(() => assertLiveSendAllowed(email, {
-    GULLKORNET_ENABLE_LIVE_SEND: "true",
-    GULLKORNET_APPROVED_RECIPIENT: "post@example.no",
-    GULLKORNET_RECIPIENT_REVIEWED: "true",
-    RESEND_API_KEY: "test"
-  }));
+  assert.throws(() => assertLiveSendAllowed(email, {}), /disabled/);
+  assert.throws(() => assertLiveSendAllowed(email, { ...approvedEnv, GULLKORNET_APPROVED_RECIPIENT: "other@example.no" }), /does not exactly match/);
+  assert.throws(() => assertLiveSendAllowed(email, { ...approvedEnv, GULLKORNET_RECIPIENT_REVIEWED: "false" }), /review confirmation missing/);
+});
+
+test("live send fails closed for suppressed recipients and missing idempotency keys", () => {
+  const email = prepareEmail(drafts, "post@example.no");
+  assert.throws(() => assertLiveSendAllowed(email, approvedEnv, new Set(["post@example.no"])), /suppression list/);
+  assert.throws(() => assertLiveSendAllowed(email, { ...approvedEnv, GULLKORNET_SEND_IDEMPOTENCY_KEY: "" }), /GULLKORNET_SEND_IDEMPOTENCY_KEY/);
+});
+
+test("allows live send checks only when all gates pass and recipient is not suppressed", () => {
+  const email = prepareEmail(drafts, "post@example.no");
+  assert.doesNotThrow(() => assertLiveSendAllowed(email, approvedEnv, new Set()));
 });

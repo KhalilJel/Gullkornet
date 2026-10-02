@@ -31,17 +31,18 @@ export function prepareEmail(
   if (/[\r\n]/.test(sender) || !sender.includes("@")) {
     throw new Error("OUTREACH_FROM_EMAIL is not a valid sender address.");
   }
-  return {
-    from: sender,
-    to: normalizedRecipient,
-    subject: draft.subject.trim(),
-    text: draft.draftBody.trim()
-  };
+  return { from: sender, to: normalizedRecipient, subject: draft.subject.trim(), text: draft.draftBody.trim() };
+}
+
+export function parseSuppressionList(contents: string): Set<string> {
+  return new Set(contents.split(/\r?\n/).map((line) => line.trim().toLowerCase())
+    .filter((line) => line.length > 0 && !line.startsWith("#")));
 }
 
 export function assertLiveSendAllowed(
   email: PreparedEmail,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  suppressedEmails: Set<string> = new Set()
 ): void {
   if (env.GULLKORNET_ENABLE_LIVE_SEND !== "true") {
     throw new Error("Live sending is disabled. Set GULLKORNET_ENABLE_LIVE_SEND=true only for an approved one-off send.");
@@ -50,29 +51,26 @@ export function assertLiveSendAllowed(
     throw new Error("Recipient does not exactly match GULLKORNET_APPROVED_RECIPIENT.");
   }
   if (env.GULLKORNET_RECIPIENT_REVIEWED !== "true") {
-    throw new Error("Recipient review confirmation missing. Set GULLKORNET_RECIPIENT_REVIEWED=true only after checking recipient and applicable marketing rules.");
+    throw new Error("Recipient review confirmation missing. Confirm recipient suitability and applicable marketing rules first.");
   }
-  if (env.RESEND_API_KEY?.trim() === undefined || env.RESEND_API_KEY.trim() === "") {
-    throw new Error("RESEND_API_KEY is required for live sending.");
-  }
-  if (email.from.toLowerCase() !== DEFAULT_SENDER) {
-    throw new Error(`Sender must remain ${DEFAULT_SENDER} for this pilot.`);
+  if (!env.RESEND_API_KEY?.trim()) throw new Error("RESEND_API_KEY is required for live sending.");
+  if (email.from.toLowerCase() !== DEFAULT_SENDER) throw new Error(`Sender must remain ${DEFAULT_SENDER} for this pilot.`);
+  if (suppressedEmails.has(email.to)) throw new Error("Recipient is on the suppression list. Refusing to send.");
+  if (!env.GULLKORNET_SEND_IDEMPOTENCY_KEY?.trim()) {
+    throw new Error("GULLKORNET_SEND_IDEMPOTENCY_KEY is required to prevent duplicate sends on retries.");
   }
 }
 
-export async function sendOneEmail(email: PreparedEmail, apiKey: string): Promise<{ id: string }> {
+export async function sendOneEmail(email: PreparedEmail, apiKey: string, idempotencyKey: string): Promise<{ id: string }> {
+  if (!idempotencyKey.trim()) throw new Error("An idempotency key is required.");
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey.trim()
     },
-    body: JSON.stringify({
-      from: email.from,
-      to: [email.to],
-      subject: email.subject,
-      text: email.text
-    }),
+    body: JSON.stringify({ from: email.from, to: [email.to], subject: email.subject, text: email.text }),
     signal: AbortSignal.timeout(15000)
   });
   const body: unknown = await response.json().catch(() => ({}));
