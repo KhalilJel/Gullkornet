@@ -131,4 +131,4 @@ jobs:
           path: |
             data/google-candidates.json
             data/discovery-history.json
-          retention-days: 3
+          retention-days: 30
