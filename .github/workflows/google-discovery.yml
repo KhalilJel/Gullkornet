@@ -60,6 +60,7 @@ jobs:
             exit 1
           fi
           mkdir -p data
+          touch data/discovery-history.json
           files=()
           index=0
           IFS='|' read -ra TERMS <<< "$SEARCH_TERMS"
@@ -71,7 +72,7 @@ jobs:
             index=$((index + 1))
           done
           node --input-type=module -e '
-            import { readFileSync, writeFileSync } from "node:fs";
+            import { readFileSync, writeFileSync, existsSync } from "node:fs";
             const map = new Map();
             for (const file of process.argv.slice(1)) {
               const candidates = JSON.parse(readFileSync(file, "utf8"));
@@ -82,12 +83,35 @@ jobs:
                 if (!current || (!current.websiteUrl && candidate.websiteUrl)) map.set(key, candidate);
               }
             }
-            writeFileSync("data/google-candidates.json", JSON.stringify([...map.values()], null, 2));
-            console.error("Discovery complete: " + map.size + " unique candidates across " + (process.argv.length - 1) + " segment files. No email was sent.");
+            const history = existsSync("data/discovery-history.json")
+              ? JSON.parse(readFileSync("data/discovery-history.json", "utf8"))
+              : { domains: [], companyNames: [] };
+            const knownDomains = new Set(Array.isArray(history.domains) ? history.domains : []);
+            const knownNames = new Set(Array.isArray(history.companyNames) ? history.companyNames : []);
+            const dailyLimit = Number.parseInt(process.env.DAILY_LEAD_LIMIT || "25", 10) || 25;
+            const fresh = [...map.values()].filter((candidate) => {
+              const website = candidate.websiteUrl ? new URL(candidate.websiteUrl).hostname.toLowerCase().replace(/^www\./, "") : "";
+              const name = candidate.companyName.trim().toLocaleLowerCase("nb-NO");
+              return !(website && knownDomains.has(website)) && !knownNames.has(name);
+            }).slice(0, dailyLimit);
+            writeFileSync("data/google-candidates.json", JSON.stringify(fresh, null, 2));
+            const domains = new Set(knownDomains);
+            const names = new Set(knownNames);
+            for (const candidate of fresh) {
+              if (candidate.websiteUrl) domains.add(new URL(candidate.websiteUrl).hostname.toLowerCase().replace(/^www\./, ""));
+              names.add(candidate.companyName.trim().toLocaleLowerCase("nb-NO"));
+            }
+            writeFileSync("data/discovery-history.json", JSON.stringify({
+              domains: [...domains],
+              companyNames: [...names]
+            }, null, 2));
+            console.error("Discovery complete: " + map.size + " unique candidates across " + (process.argv.length - 1) + " segment files; " + fresh.length + " new candidates after cross-run dedupe and daily cap. No email was sent.");
           ' "${files[@]}"
       - name: Upload candidate results
         uses: actions/upload-artifact@v4
         with:
           name: gullkornet-google-candidates
-          path: data/google-candidates.json
+          path: |
+            data/google-candidates.json
+            data/discovery-history.json
           retention-days: 3
