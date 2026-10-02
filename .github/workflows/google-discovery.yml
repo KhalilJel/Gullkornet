@@ -50,6 +50,14 @@ jobs:
             esac
           fi
 
+      - name: Restore discovery history
+        uses: actions/cache/restore@v4
+        with:
+          path: data/discovery-history.json
+          key: gullkornet-discovery-history-${{ github.run_id }}
+          restore-keys: |
+            gullkornet-discovery-history-
+
       - name: Discover and deduplicate candidates across segments
         env:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
@@ -61,7 +69,9 @@ jobs:
             exit 1
           fi
           mkdir -p data
-          touch data/discovery-history.json
+          if [ ! -s data/discovery-history.json ]; then
+            printf '{"domains":[],"companyNames":[]}' > data/discovery-history.json
+          fi
           files=()
           index=0
           IFS='|' read -ra TERMS <<< "$SEARCH_TERMS"
@@ -108,6 +118,12 @@ jobs:
             }, null, 2));
             console.error("Discovery complete: " + map.size + " unique candidates across " + (process.argv.length - 1) + " segment files; " + fresh.length + " new candidates after cross-run dedupe and daily cap. No email was sent.");
           ' "${files[@]}"
+      - name: Save discovery history for future runs
+        uses: actions/cache/save@v4
+        with:
+          path: data/discovery-history.json
+          key: gullkornet-discovery-history-${{ github.run_id }}
+
       - name: Upload candidate results
         uses: actions/upload-artifact@v4
         with:
