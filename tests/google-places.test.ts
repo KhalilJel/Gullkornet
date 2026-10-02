@@ -14,7 +14,7 @@ test("discovers candidates from Google Places and deduplicates by website domain
     return new Response(JSON.stringify({
       places: city === "Oslo"
         ? [
-            { displayName: { text: "Eksempel Regnskap AS" }, websiteUri: "https://www.example.no", formattedAddress: "Oslo, Norway", googleMapsUri: "https://maps.google.com/example" },
+            { displayName: { text: "Eksempel Regnskap AS" }, websiteUri: "https://www.example.no", formattedAddress: "Oslo", addressComponents: [{ longText: "Norway", shortText: "NO", types: ["country"] }], googleMapsUri: "https://maps.google.com/example" },
             { displayName: { text: "Wrong Country Restaurant" }, websiteUri: "https://brgrill.com/brambleton/", formattedAddress: "Brambleton, VA, USA", googleMapsUri: "https://maps.google.com/wrong-country" },
             { displayName: { text: "Address Missing Restaurant" }, websiteUri: "https://missing.example", googleMapsUri: "https://maps.google.com/missing-address" },
             { displayName: { text: "Uten nettside Regnskap" }, formattedAddress: "Oslo, Norway" }
@@ -35,6 +35,7 @@ test("discovers candidates from Google Places and deduplicates by website domain
   assert.equal(requests.length, 2);
   assert.equal(requests[0]?.url, "https://places.googleapis.com/v1/places:searchText");
   assert.equal(requests[0]?.fieldMask?.includes("places.websiteUri"), true);
+  assert.equal(requests[0]?.fieldMask?.includes("places.addressComponents"), true);
   assert.equal(results.length, 2);
   assert.equal(results.some((item) => item.companyName === "Wrong Country Restaurant"), false);
   assert.equal(results.some((item) => item.companyName === "Address Missing Restaurant"), false);
