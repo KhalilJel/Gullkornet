@@ -227,19 +227,16 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
               observation: "det ser ut til at sidetittelen på nettsiden mangler",
               improvement: "legge til en beskrivende sidetittel som gjør det tydeligere hva siden handler om når folk finner den på nett"
             }
-          : {
-              observation: "nettsiden deres gir et første inntrykk av virksomheten, og jeg ble nysgjerrig på om dere vurderer å videreutvikle den digitale presentasjonen",
-              improvement: "se på om nettsiden, den visuelle profilen eller synligheten deres på nett kan presenteres enda tydeligere"
-            }
+          : undefined
     : undefined;
 
   if (!finding) {
     notes.push(
       audit?.status === "AUDITED"
-        ? "A general interest-first draft was not possible; manual review required."
+        ? "No specific, actionable website finding was identified. Do not send a generic digital-presence pitch; manually review the business and find a genuine reason to contact them, or skip the lead."
         : title || headline || serviceEvidence
-          ? "Page content was found, but no verified actionable audit finding supports an automated outreach draft. Manual review required."
-          : "No reliable page-specific evidence or actionable audit finding was extracted; no personalized draft generated."
+          ? "Page content was found, but no verified actionable audit finding supports an outreach draft. Manually review the business and find a genuine reason to contact them, or skip the lead."
+          : "No reliable page-specific evidence or actionable audit finding was extracted; no outreach draft generated."
     );
     return { notes };
   }
