@@ -12,6 +12,7 @@ type GooglePlace = {
   formattedAddress?: string;
   googleMapsUri?: string;
   primaryTypeDisplayName?: { text?: string };
+  addressComponents?: Array<{ longText?: string; shortText?: string; types?: string[] }>;
 };
 
 type GooglePlacesResponse = {
@@ -36,6 +37,17 @@ const DEFAULT_CITIES = [
   "Lørenskog",
   "Nittedal"
 ];
+
+function isNorwegianPlace(place: GooglePlace, formattedAddress: string): boolean {
+  const country = place.addressComponents?.find((component) => component.types?.includes("country"));
+  if (country) {
+    const longText = country.longText?.trim().toLocaleLowerCase("nb-NO");
+    const shortText = country.shortText?.trim().toUpperCase();
+    return shortText === "NO" || longText === "norway" || longText === "norge";
+  }
+  // Backward-compatible fallback when addressComponents is not returned.
+  return /(?:,\s*|\s)(?:Norway|Norge)$/i.test(formattedAddress);
+}
 
 function normalizeWebsite(value?: string): string | undefined {
   const trimmed = value?.trim();
@@ -73,7 +85,7 @@ export async function discoverGooglePlacesCandidates(
       headers: {
         "content-type": "application/json",
         "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": "places.displayName,places.websiteUri,places.formattedAddress,places.googleMapsUri,places.primaryTypeDisplayName"
+        "X-Goog-FieldMask": "places.displayName,places.websiteUri,places.formattedAddress,places.googleMapsUri,places.primaryTypeDisplayName,places.addressComponents"
       },
       body: JSON.stringify({
         textQuery: `${searchTerm} in ${city}, Norway`,
