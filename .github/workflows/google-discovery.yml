@@ -76,7 +76,7 @@ jobs:
             for (const file of process.argv.slice(1)) {
               const candidates = JSON.parse(readFileSync(file, "utf8"));
               for (const candidate of candidates) {
-                const website = candidate.websiteUrl ? new URL(candidate.websiteUrl).hostname.toLowerCase().replace(/^www\\./, "") : "";
+                const website = candidate.websiteUrl ? new URL(candidate.websiteUrl).hostname.toLowerCase().replace(/^www\./, "") : "";
                 const key = website || candidate.companyName.trim().toLocaleLowerCase("nb-NO");
                 const current = map.get(key);
                 if (!current || (!current.websiteUrl && candidate.websiteUrl)) map.set(key, candidate);
