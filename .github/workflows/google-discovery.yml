@@ -54,6 +54,7 @@ jobs:
         env:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
           SEARCH_TERMS: ${{ steps.segment.outputs.terms }}
+          DAILY_LEAD_LIMIT: ${{ vars.DAILY_LEAD_LIMIT || '25' }}
         run: |
           if [ -z "$GOOGLE_MAPS_API_KEY" ]; then
             echo "Missing repository secret GOOGLE_MAPS_API_KEY."
@@ -88,7 +89,7 @@ jobs:
               : { domains: [], companyNames: [] };
             const knownDomains = new Set(Array.isArray(history.domains) ? history.domains : []);
             const knownNames = new Set(Array.isArray(history.companyNames) ? history.companyNames : []);
-            const dailyLimit = Number.parseInt(process.env.DAILY_LEAD_LIMIT || "25", 10) || 25;
+            const dailyLimit = Math.max(1, Number.parseInt(process.env.DAILY_LEAD_LIMIT || "25", 10) || 25);
             const fresh = [...map.values()].filter((candidate) => {
               const website = candidate.websiteUrl ? new URL(candidate.websiteUrl).hostname.toLowerCase().replace(/^www\./, "") : "";
               const name = candidate.companyName.trim().toLocaleLowerCase("nb-NO");
