@@ -13,7 +13,8 @@
     "research:contacts": "tsx src/cli/research-contacts.ts",
     "import:leads": "tsx src/cli/import-leads.ts",
     "report:leads": "tsx src/cli/report-leads.ts",
-    "review-queue": "tsx src/cli/build-review-queue.ts"
+    "review-queue": "tsx src/cli/build-review-queue.ts",
+    "send:email": "tsx src/cli/send-email.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
