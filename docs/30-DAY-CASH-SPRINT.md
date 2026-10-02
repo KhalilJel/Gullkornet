@@ -21,7 +21,7 @@ For a prospect who needs less, offer a separately scoped landing page or website
 ## Daily operating rhythm
 
 Every weekday:
-1. **09:00–10:00:** Follow up all warm replies and previous conversations.
+1. **09:00–10:00:** Follow up Cidea website prospects and open proposals. Do not count SmartSvar AI replies as Cidea website leads.
 2. **10:00–12:00:** Research 10–15 businesses and identify one verifiable website issue for each.
 3. **12:30–14:00:** Send individually reviewed outreach, only where permitted; no bulk or unreviewed sending.
 4. **14:00–15:30:** Call suitable businesses, respond to replies, and book short discovery conversations.
@@ -32,12 +32,12 @@ Track daily: researched, contacted, replies, positive replies, conversations, pr
 
 ## 30-day checkpoints
 
-### Days 1–2: Convert existing interest
-- Review and personally follow up the three replies from the first 45 manually sent emails.
-- Identify what each person actually needs before proposing a website.
-- Send a specific next step and a concise scope/pricing range only when relevant.
+### Days 1–2: Build the Cidea website sales pipeline
+- Keep the three replies from the earlier SmartSvar AI campaign completely separate; they are not Cidea website leads and do not count toward this target.
 - Review the 15 contact-path findings in the latest Gullkornet review queue first, then the remaining evidence-backed findings.
-- Build a short list of the 20 most promising prospects, manually verifying each website and contact route.
+- Manually verify each website, the specific issue, the business contact route, and whether a website project is plausible.
+- Build a prioritized list of 20 Cidea website prospects and draft an individual opener for each.
+- Start with the strongest verified prospects and move any genuine interest toward a scoped website proposal.
 
 ### Days 3–7: Close the first project
 - Contact 10–15 researched businesses per working day with individual observations.
