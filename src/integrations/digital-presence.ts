@@ -43,7 +43,7 @@ function identifySocialProfile(rawUrl: string, baseUrl: string): SocialProfile |
         if (platform === "linkedin" && /^\/(sharing|share)(\/|$)/i.test(url.pathname)) return undefined;
         const path = url.pathname.replace(/\/+$/, "");
         if (!path || path === "/") return undefined;
-        if (/^\/(yoururl|your-page|yourpage|yourname|username|company|profile|share|sharer|intent)(\/|$)/i.test(path)) return undefined;
+        if (/^\/(yoururl|your-page|yourpage|yourname|username|share|sharer|intent)(\/|$)/i.test(path)) return undefined;
         if (platform === "instagram" && /^\/(hjemmesidehuset|yoururl|yourname|username)(\/|$)/i.test(path)) return undefined;
         return { platform, url: url.toString() };
       }
