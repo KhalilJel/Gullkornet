@@ -12,6 +12,7 @@ type GooglePlace = {
   formattedAddress?: string;
   googleMapsUri?: string;
   primaryTypeDisplayName?: { text?: string };
+  addressComponents?: Array<{ longText?: string; shortText?: string; types?: string[] }>;
 };
 
 type GooglePlacesResponse = {
@@ -36,6 +37,17 @@ const DEFAULT_CITIES = [
   "Lørenskog",
   "Nittedal"
 ];
+
+function isNorwegianPlace(place: GooglePlace, formattedAddress: string): boolean {
+  const country = place.addressComponents?.find((component) => component.types?.includes("country"));
+  if (country) {
+    const longText = country.longText?.trim().toLocaleLowerCase("nb-NO");
+    const shortText = country.shortText?.trim().toUpperCase();
+    return shortText === "NO" || longText === "norway" || longText === "norge";
+  }
+  // Backward-compatible fallback when addressComponents is not returned.
+  return /(?:,\s*|\s)(?:Norway|Norge)$/i.test(formattedAddress);
+}
 
 function normalizeWebsite(value?: string): string | undefined {
   const trimmed = value?.trim();
@@ -73,7 +85,7 @@ export async function discoverGooglePlacesCandidates(
       headers: {
         "content-type": "application/json",
         "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": "places.displayName,places.websiteUri,places.formattedAddress,places.googleMapsUri,places.primaryTypeDisplayName"
+        "X-Goog-FieldMask": "places.displayName,places.websiteUri,places.formattedAddress,places.googleMapsUri,places.primaryTypeDisplayName,places.addressComponents"
       },
       body: JSON.stringify({
         textQuery: `${searchTerm} in ${city}, Norway`,
@@ -93,9 +105,10 @@ export async function discoverGooglePlacesCandidates(
       const companyName = place.displayName?.text?.trim();
       if (!companyName) continue;
       // Text Search can return similarly named businesses outside the requested country.
-      // Never assign the query city to a result unless its formatted address confirms Norway.
+      // regionCode=NO may cause Google to omit the country suffix from formattedAddress,
+      // so prefer the explicit country address component and only use the suffix as fallback.
       const formattedAddress = place.formattedAddress?.trim();
-      if (!formattedAddress || !/(?:,\s*|\s)(?:Norway|Norge)$/i.test(formattedAddress)) continue;
+      if (!formattedAddress || !isNorwegianPlace(place, formattedAddress)) continue;
       const websiteUrl = normalizeWebsite(place.websiteUri);
       const key = websiteUrl ? new URL(websiteUrl).hostname.toLowerCase().replace(/^www\./, "") : companyName.toLocaleLowerCase("nb-NO");
       const candidate: GooglePlacesCandidate = {
