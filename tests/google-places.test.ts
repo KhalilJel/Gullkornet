@@ -15,6 +15,8 @@ test("discovers candidates from Google Places and deduplicates by website domain
       places: city === "Oslo"
         ? [
             { displayName: { text: "Eksempel Regnskap AS" }, websiteUri: "https://www.example.no", formattedAddress: "Oslo, Norway", googleMapsUri: "https://maps.google.com/example" },
+            { displayName: { text: "Wrong Country Restaurant" }, websiteUri: "https://brgrill.com/brambleton/", formattedAddress: "Brambleton, VA, USA", googleMapsUri: "https://maps.google.com/wrong-country" },
+            { displayName: { text: "Address Missing Restaurant" }, websiteUri: "https://missing.example", googleMapsUri: "https://maps.google.com/missing-address" },
             { displayName: { text: "Uten nettside Regnskap" }, formattedAddress: "Oslo, Norway" }
           ]
         : [
@@ -34,6 +36,8 @@ test("discovers candidates from Google Places and deduplicates by website domain
   assert.equal(requests[0]?.url, "https://places.googleapis.com/v1/places:searchText");
   assert.equal(requests[0]?.fieldMask?.includes("places.websiteUri"), true);
   assert.equal(results.length, 2);
+  assert.equal(results.some((item) => item.companyName === "Wrong Country Restaurant"), false);
+  assert.equal(results.some((item) => item.companyName === "Address Missing Restaurant"), false);
   assert.equal(results.find((item) => item.companyName === "Eksempel Regnskap AS")?.city, "Oslo");
   assert.equal(results.find((item) => item.companyName === "Eksempel Regnskap AS")?.websiteUrl, "https://www.example.no/");
 });
