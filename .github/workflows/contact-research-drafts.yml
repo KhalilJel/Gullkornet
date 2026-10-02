@@ -56,4 +56,4 @@ jobs:
           path: |
             data/contact-research-drafts.json
             data/lead-review-queue.md
-          retention-days: 3
+          retention-days: 30
