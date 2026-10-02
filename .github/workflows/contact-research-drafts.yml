@@ -49,6 +49,17 @@ jobs:
           npm run --silent review-queue -- data/contact-research-drafts.json data/lead-review-queue.md
           echo "Contact research and review queue complete. No emails were sent."
 
+      - name: Sync leads to persistent Airtable registry when configured
+        env:
+          AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
+          GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
+        run: |
+          if [ -z "$AIRTABLE_API_TOKEN" ] || [ -z "$GULLKORNET_AIRTABLE_BASE_ID" ]; then
+            echo "Airtable sync skipped: configure AIRTABLE_API_TOKEN secret and GULLKORNET_AIRTABLE_BASE_ID variable."
+            exit 0
+          fi
+          npm run --silent sync:airtable -- data/contact-research-drafts.json
+
       - name: Upload contact research and draft artifact
         uses: actions/upload-artifact@v4
         with:

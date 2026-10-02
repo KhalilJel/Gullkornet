@@ -72,6 +72,15 @@ To run a one-off search, open **Actions â†’ Gullkornet Google Places Discovery â
 
 Workflow artifacts containing candidates, audits, contact research, and draft queues are retained for 30 days so recent runs can be inspected without downloading them immediately. This is temporary run history, not a permanent CRM or database.
 
+### Persistent Airtable lead registry (optional)
+
+A separate Airtable base named `Gullkornet Lead Registry` can store one durable record per business. The contact-research workflow syncs drafts only when both GitHub settings are configured:
+- Repository secret `AIRTABLE_API_TOKEN`: a personal access token limited to the Gullkornet Lead Registry base with record read/write access.
+- Repository variable `GULLKORNET_AIRTABLE_BASE_ID`: the dedicated base ID.
+
+The sync updates existing records by normalized website domain or business name and preserves terminal states (`Sent`, `Replied`, `Suppressed`) and the `Do Not Contact` flag. It does not send email. If the credentials are absent, the workflow skips the sync and continues producing artifacts. Do not use SmartSvar's existing CRM base for this integration.
+
+
 This pipeline discovers candidates, audits websites, researches publicly listed contact routes, and drafts interest-first outreach. It deduplicates candidates within a run and uses cached discovery history to avoid previously discovered domains and business names across runs. It cannot guarantee that 100 new candidates will be found every day; actual volume depends on category coverage and public listing availability. The pipeline prepares drafts only; it does not automatically send emails.
 
 ## Import and research workflow
