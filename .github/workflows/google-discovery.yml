@@ -62,7 +62,7 @@ jobs:
         env:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
           SEARCH_TERMS: ${{ steps.segment.outputs.terms }}
-          DAILY_LEAD_LIMIT: ${{ vars.DAILY_LEAD_LIMIT || '25' }}
+          DAILY_LEAD_LIMIT: ${{ vars.DAILY_LEAD_LIMIT || '100' }}
         run: |
           if [ -z "$GOOGLE_MAPS_API_KEY" ]; then
             echo "Missing repository secret GOOGLE_MAPS_API_KEY."

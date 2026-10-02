@@ -5,7 +5,7 @@ import { normalizeDomain } from "../domain/dedupe.js";
 
 const searchTerm = process.argv[2]?.trim() || "regnskapsfører";
 const historyPath = process.env.DISCOVERY_HISTORY_PATH?.trim() || "data/discovery-history.json";
-const dailyLimit = Math.max(1, Number.parseInt(process.env.DAILY_LEAD_LIMIT?.trim() || "25", 10) || 25);
+const dailyLimit = Math.max(1, Number.parseInt(process.env.DAILY_LEAD_LIMIT?.trim() || "100", 10) || 25);
 const updateHistory = process.env.UPDATE_DISCOVERY_HISTORY === "true";
 
 type DiscoveryHistory = {
