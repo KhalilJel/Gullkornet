@@ -150,8 +150,11 @@ function isLikelyPublicBusinessEmail(email: string): boolean {
   if (at <= 0) return false;
   const localPart = normalized.slice(0, at);
   const domain = normalized.slice(at + 1);
-  // Exclude technical telemetry identifiers exposed in page markup, not business inboxes.
+  // Exclude obvious placeholders and technical telemetry, while retaining alternate
+  // legitimate domains for human review (e.g. parent-company inboxes).
   if (localPart.startsWith("/") || /(?:^|\\.)sentry(?:-next)?\\.wixpress\\.com$|^sentry\\.io$/i.test(domain)) return false;
+  if (/^(?:example\\.(?:com|org|net)|website\\.com|yourdomain\\.(?:com|no)|domain\\.com|test\\.com)$/i.test(domain)) return false;
+  if (/^(?:yourname|name|email|user)@/i.test(normalized)) return false;
   return true;
 }
 
@@ -300,10 +303,24 @@ export async function researchContactAndDraft(candidate: GoogleCandidate, audit?
     }
 
     const uniqueEmails = [...new Map(emails.map((item) => [item.email, item])).values()].slice(0, 10);
+    const websiteHost = new URL(homepage.finalUrl).hostname.toLowerCase().replace(/^www\\./, "");
+    const offDomainEmails = uniqueEmails.filter((item) => {
+      const emailDomain = item.email.split("@").pop()?.toLowerCase() ?? "";
+      return emailDomain !== websiteHost && !emailDomain.endsWith("." + websiteHost);
+    });
+    const emailsFromOtherPages = uniqueEmails.filter((item) => {
+      try {
+        return new URL(item.sourceUrl).hostname.toLowerCase().replace(/^www\\./, "") !== websiteHost;
+      } catch {
+        return true;
+      }
+    });
     const draft = createPersonalizedDraft(candidate, title, evidence.headline, evidence.serviceEvidence, audit);
     const notes = [...draft.notes];
     if (uniqueEmails.length === 0) notes.push("No public email address found on the checked pages. Do not guess an address.");
     else notes.push("Email addresses were extracted from publicly accessible pages; mailbox deliverability and recipient role are not verified.");
+    if (offDomainEmails.length > 0) notes.push("MANUAL REVIEW: " + offDomainEmails.length + " email address(es) use a domain different from the business website. This can be legitimate, but the recipient relationship must be verified.");
+    if (emailsFromOtherPages.length > 0) notes.push("MANUAL REVIEW: " + emailsFromOtherPages.length + " address(es) were sourced from a page hosted on a different domain than the homepage.");
     notes.push("Draft is not sent. Human review is required for accuracy, relevance, and applicable outreach rules.");
 
     return {
