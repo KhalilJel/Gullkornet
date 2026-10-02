@@ -39,14 +39,14 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "terms=${REQUESTED_TERM}" >> "$GITHUB_OUTPUT"
           else
-            # Two segments per weekday increases prospect volume while rotating
-            # through local-business categories. Manual runs stay single-segment.
+            # Two segments per weekday rotate through ten local-business categories.
+            # Manual runs stay single-segment to keep ad-hoc API use controlled.
             case "$(date -u +%u)" in
               1) echo "terms=frisør|restaurant" >> "$GITHUB_OUTPUT" ;;
               2) echo "terms=regnskapsfører|tannlege" >> "$GITHUB_OUTPUT" ;;
-              3) echo "terms=bilverksted|frisør" >> "$GITHUB_OUTPUT" ;;
-              4) echo "terms=restaurant|regnskapsfører" >> "$GITHUB_OUTPUT" ;;
-              5) echo "terms=tannlege|bilverksted" >> "$GITHUB_OUTPUT" ;;
+              3) echo "terms=bilverksted|elektriker" >> "$GITHUB_OUTPUT" ;;
+              4) echo "terms=rørlegger|renhold" >> "$GITHUB_OUTPUT" ;;
+              5) echo "terms=fysioterapeut|treningssenter" >> "$GITHUB_OUTPUT" ;;
             esac
           fi
 
@@ -99,7 +99,7 @@ jobs:
               : { domains: [], companyNames: [] };
             const knownDomains = new Set(Array.isArray(history.domains) ? history.domains : []);
             const knownNames = new Set(Array.isArray(history.companyNames) ? history.companyNames : []);
-            const dailyLimit = Math.max(1, Number.parseInt(process.env.DAILY_LEAD_LIMIT || "25", 10) || 25);
+            const dailyLimit = Math.max(1, Number.parseInt(process.env.DAILY_LEAD_LIMIT || "100", 10) || 100);
             const fresh = [...map.values()].filter((candidate) => {
               const website = candidate.websiteUrl ? new URL(candidate.websiteUrl).hostname.toLowerCase().replace(/^www\./, "") : "";
               const name = candidate.companyName.trim().toLocaleLowerCase("nb-NO");
