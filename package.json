@@ -12,7 +12,8 @@
     "audit:websites": "tsx src/cli/audit-websites.ts",
     "research:contacts": "tsx src/cli/research-contacts.ts",
     "import:leads": "tsx src/cli/import-leads.ts",
-    "report:leads": "tsx src/cli/report-leads.ts"
+    "report:leads": "tsx src/cli/report-leads.ts",
+    "review-queue": "tsx src/cli/build-review-queue.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
