@@ -92,7 +92,7 @@ test("draft avoids repeating long service evidence and uses a concrete, concise 
 });
 
 
-test("does not create a draft when the audit has no actionable finding", () => {
+test("creates a general interest-first draft when the audit has no actionable finding", () => {
   const result = createPersonalizedDraft(
     { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
     "Eksempel Regnskap",
@@ -107,8 +107,10 @@ test("does not create a draft when the audit has no actionable finding", () => {
       metaDescription: undefined
     }
   );
-  assert.equal(result.draftBody, undefined);
-  assert.ok(result.notes.some((note) => note.includes("No sufficiently strong, actionable website finding")));
+  assert.ok(result.draftBody);
+  assert.ok(result.draftBody.includes("ble nysgjerrig på om dere vurderer å videreutvikle den digitale presentasjonen"));
+  assert.ok(!result.draftBody.includes("mangler metabeskrivelse"));
+  assert.ok(result.notes.some((note) => note.includes("Draft is not sent")) === false);
 });
 
 
@@ -247,7 +249,7 @@ test("rejects Norwegian skip-to-content phrases from service evidence", () => {
 });
 
 
-test("does not generate outreach from weak technical or email-link signals alone", () => {
+test("uses a general interest-first draft rather than claiming weak technical signals are defects", () => {
   for (const flag of ["NOT_HTTPS", "MISSING_VIEWPORT_META", "NO_EMAIL_LINK_DETECTED", "NO_OBVIOUS_ACCOUNTING_SERVICE_TEXT"]) {
     const result = createPersonalizedDraft(
       { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
@@ -263,7 +265,10 @@ test("does not generate outreach from weak technical or email-link signals alone
         metaDescription: undefined
       }
     );
-    assert.equal(result.draftBody, undefined, `Unexpected draft for weak signal: ${flag}`);
+    assert.ok(result.draftBody, `Expected a general draft for audited site with weak signal: ${flag}`);
+    assert.ok(!result.draftBody!.includes("ikke HTTPS"));
+    assert.ok(!result.draftBody!.includes("viewport"));
+    assert.ok(!result.draftBody!.includes("e-postlenke"));
   }
 });
 
