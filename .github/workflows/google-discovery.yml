@@ -1,12 +1,16 @@
 name: Gullkornet Google Places Discovery
 
 on:
+  # Run each weekday morning. Downstream audit and contact-research workflows
+  # continue automatically from the completed discovery run.
+  schedule:
+    - cron: "30 6 * * 1-5"
   workflow_dispatch:
     inputs:
       search_term:
         description: "Business type to search for"
         required: true
-        default: "regnskapsfører"
+        default: "frisør"
 
 permissions:
   contents: read
@@ -27,10 +31,29 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Select a daily business segment
+        id: segment
+        env:
+          REQUESTED_TERM: ${{ inputs.search_term }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "term=${REQUESTED_TERM}" >> "$GITHUB_OUTPUT"
+          else
+            # Rotate across several local-business categories to broaden
+            # website-project discovery without running every query daily.
+            case "$(date -u +%u)" in
+              1) echo "term=frisør" >> "$GITHUB_OUTPUT" ;;
+              2) echo "term=restaurant" >> "$GITHUB_OUTPUT" ;;
+              3) echo "term=regnskapsfører" >> "$GITHUB_OUTPUT" ;;
+              4) echo "term=tannlege" >> "$GITHUB_OUTPUT" ;;
+              5) echo "term=bilverksted" >> "$GITHUB_OUTPUT" ;;
+            esac
+          fi
+
       - name: Run limited Google Places discovery
         env:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
-          SEARCH_TERM: ${{ inputs.search_term }}
+          SEARCH_TERM: ${{ steps.segment.outputs.term }}
         run: |
           if [ -z "$GOOGLE_MAPS_API_KEY" ]; then
             echo "Missing repository secret GOOGLE_MAPS_API_KEY."
@@ -38,7 +61,7 @@ jobs:
           fi
           mkdir -p data
           npm run --silent discover:google -- "$SEARCH_TERM" > data/google-candidates.json
-          echo "Discovery completed. Candidate details are saved as a workflow artifact."
+          echo "Discovery completed for $SEARCH_TERM. Candidates are not qualified leads."
 
       - name: Upload candidate results
         uses: actions/upload-artifact@v4
