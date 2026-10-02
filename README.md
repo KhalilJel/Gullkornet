@@ -64,6 +64,14 @@ npm run report:leads
 
 The registry adapter searches a name term in Oslo and selected Akershus municipalities and checks a limited number of result pages. It creates candidates, not qualified sales leads.
 
+## Daily lead machine
+
+The Google Places workflow runs on weekday mornings and rotates one local-business category per day: hairdressers, restaurants, accounting firms, dentists, and auto repair shops. The website audit and contact-research workflows are triggered from successful upstream runs, producing a review-queue artifact without sending email.
+
+To run a one-off search, open **Actions → Gullkornet Google Places Discovery → Run workflow** and choose a business type. The scheduled workflow requires the repository secret `GOOGLE_MAPS_API_KEY`; ensure Places API billing and quotas are configured. Google Places and website requests may incur costs or be rate-limited.
+
+This pipeline discovers candidates, audits websites, researches publicly listed contact routes, and drafts outreach. It does **not** deduplicate against previous runs, guarantee new leads each day, qualify businesses automatically, or send emails. Review the generated queue manually before contacting anyone. For more frequent outreach, use the queue as a daily worklist and track contacted businesses separately to prevent duplicate contact.
+
 ## Import and research workflow
 
 The default store is `data/leads.json`. To use another path, set `LEAD_STORE_PATH`. The local data directory is excluded from Git. Import validates each record, computes the pilot fit score, labels candidates as NEW until research is documented, and labels researched leads as QUALIFIED or RESEARCHED. Duplicate organization numbers, domains, and emails are not added again, and existing lead statuses are retained.
