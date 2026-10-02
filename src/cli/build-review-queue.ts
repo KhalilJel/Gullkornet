@@ -30,6 +30,7 @@ function escapeCell(value: string): string {
 
 const inputPath = process.argv[2] ?? "data/contact-research-drafts.json";
 const outputPath = process.argv[3] ?? "data/lead-review-queue.md";
+const senderEmail = process.env.OUTREACH_FROM_EMAIL?.trim() || "jelassi@smartsvar.no";
 
 try {
   const parsed: unknown = JSON.parse(await readFile(inputPath, "utf8"));
@@ -61,8 +62,9 @@ try {
     "# Gullkornet — manuell leadgjennomgang",
     "",
     `Generert: ${new Date().toISOString()}`,
+    `Planlagt avsender: ${senderEmail}`,
     "",
-    "> Dette er en gjennomgangskø, ikke en liste over kvalifiserte salgsmuligheter. Prioritet beskriver kun typen observerte nettsidefunn. Alle funn og mottakere må kontrolleres manuelt. Ingen e-poster er sendt.",
+    "> Dette er en gjennomgangskø, ikke en liste over kvalifiserte salgsmuligheter. Prioritet beskriver kun typen observerte nettsidefunn. Alle funn og mottakere må kontrolleres manuelt. Ingen e-poster er sendt. Planlagt avsender er kun metadata; avsenderkonto og utsending er ikke verifisert eller aktivert.",
     "",
     "## Sammendrag",
     "",
