@@ -72,3 +72,13 @@ test("decodes URL-encoded whitespace and characters in public mailto addresses",
   const emails = extractPublicEmails(html, "https://example.no/kontakt");
   assert.deepEqual(emails.map((item) => item.email), ["fay.skogstad@adamogeva.no"]);
 });
+
+
+test("filters technical Sentry and Wix telemetry addresses from public email results", () => {
+  const html = `<p>Contact post@example.no</p>
+    <p>/8c4075d5481d476e945486754f783364@sentry.io</p>
+    <p>/18d2f96d279149989b95faf0a4b41882@sentry-next.wixpress.com</p>
+    <p>/79baaa8e09c746d2b7401643b99792e0@sentry.wixpress.com</p>`;
+  const emails = extractPublicEmails(html, "https://example.no/kontakt");
+  assert.deepEqual(emails.map((item) => item.email), ["post@example.no"]);
+});

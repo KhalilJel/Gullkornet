@@ -144,6 +144,17 @@ function getContactLinks(html: string, baseUrl: string): string[] {
   return found.slice(0, MAX_PAGES_PER_SITE - 1);
 }
 
+function isLikelyPublicBusinessEmail(email: string): boolean {
+  const normalized = email.trim().toLowerCase();
+  const at = normalized.lastIndexOf("@");
+  if (at <= 0) return false;
+  const localPart = normalized.slice(0, at);
+  const domain = normalized.slice(at + 1);
+  // Exclude technical telemetry identifiers exposed in page markup, not business inboxes.
+  if (localPart.startsWith("/") || /(?:^|\\.)sentry(?:-next)?\\.wixpress\\.com$|^sentry\\.io$/i.test(domain)) return false;
+  return true;
+}
+
 export function extractPublicEmails(html: string, sourceUrl: string): PublicEmail[] {
   const results: PublicEmail[] = [];
   const seen = new Set<string>();
@@ -158,7 +169,7 @@ export function extractPublicEmails(html: string, sourceUrl: string): PublicEmai
         // Ignore malformed percent-encoding instead of retaining a broken address.
       }
     }
-    if (email && EMAIL_PATTERN.test(email) && !seen.has(email)) {
+    if (email && EMAIL_PATTERN.test(email) && isLikelyPublicBusinessEmail(email) && !seen.has(email)) {
       seen.add(email);
       results.push({ email, sourceUrl, sourceType: "mailto" });
     }
@@ -167,7 +178,7 @@ export function extractPublicEmails(html: string, sourceUrl: string): PublicEmai
   const visibleText = stripHtml(html);
   for (const match of visibleText.matchAll(EMAIL_PATTERN)) {
     const email = match[0].toLowerCase();
-    if (!seen.has(email)) {
+    if (isLikelyPublicBusinessEmail(email) && !seen.has(email)) {
       seen.add(email);
       results.push({ email, sourceUrl, sourceType: "visible_text" });
     }
