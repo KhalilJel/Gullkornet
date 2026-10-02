@@ -4,7 +4,7 @@ Gullkornet is Cidea's internal lead research and qualification engine.
 
 ## Initial pilot
 
-- **Industry:** Small accounting firms and bookkeeping practices
+- **Industry:** Local service businesses across several categories, rotated to broaden prospect volume
 - **Geography:** Oslo and Akershus
 - **Core promise:** Improve a business's digital presence so it is easier to find, understand, trust, and contact.
 - **Possible solutions:** Website, branding and visual identity, social media setup, or a combination, depending on the specific business need.
@@ -24,7 +24,7 @@ Cidea does not sell a website by default. The goal is to give each business a us
 - **Social media presence:** when official profiles appear absent, incomplete, inconsistent, or disconnected from the business's core information.
 - **Combined improvements:** when evidence supports more than one gap.
 
-Gullkornet should identify the observed issue first and recommend a possible solution second. It must not force every prospect into a website offer, assume poor digital presence means lost revenue, or claim that a proposed change will increase sales. Outreach should only open a conversation: use the subject “Dette la vi merke til hos dere”, lead with a directly checkable audit finding (currently a missing contact/booking path, meta description, or page title), explain a cautious potential improvement without promising outcomes, and ask whether the recipient would like a short explanation by email. Do not draft outreach from weak signals alone, such as a missing mailto link, missing viewport metadata, or keyword-detection gaps. Khalil handles all sales conversations personally.
+Gullkornet should identify the observed issue first and recommend a possible solution second. It must not force every prospect into a website offer, assume poor digital presence means lost revenue, or claim that a proposed change will increase sales. Outreach should open a conversation, not attempt to sell or diagnose the business in the first email. The customer-facing draft is a short interest opener that identifies Cidea, mentions website and digital-profile help in broad terms, and asks permission to send a short idea. Website audit signals are internal research context only and must not be presented as a customer-facing finding unless the text explicitly says so and a human has verified it. Do not make up observations, promise outcomes, or ask for a meeting in the first email. Khalil handles all replies and sales conversations personally.
 
 **Current implementation boundary:** the pilot currently researches public business listings and websites. Branding and social-media checks are a planned extension, not capabilities to assume are already implemented. Any proposed opportunity requires a source URL and a concrete observation.
 
@@ -66,11 +66,11 @@ The registry adapter searches a name term in Oslo and selected Akershus municipa
 
 ## Daily lead machine
 
-The Google Places workflow runs on weekday mornings and rotates one local-business category per day: hairdressers, restaurants, accounting firms, dentists, and auto repair shops. The website audit and contact-research workflows are triggered from successful upstream runs, producing a review-queue artifact without sending email.
+The Google Places workflow runs on weekday mornings and searches two local-business categories per scheduled run, rotating across hairdressers, restaurants, accounting firms, dentists, and auto repair shops. Candidates are deduplicated by website domain or business name within that run. The website audit and contact-research workflows are triggered from successful upstream runs, producing an outreach-draft artifact without sending email. A manual workflow dispatch still searches one selected category.
 
 To run a one-off search, open **Actions → Gullkornet Google Places Discovery → Run workflow** and choose a business type. The scheduled workflow requires the repository secret `GOOGLE_MAPS_API_KEY`; ensure Places API billing and quotas are configured. Google Places and website requests may incur costs or be rate-limited.
 
-This pipeline discovers candidates, audits websites, researches publicly listed contact routes, and drafts outreach. It does **not** deduplicate against previous runs, guarantee new leads each day, qualify businesses automatically, or send emails. Review the generated queue manually before contacting anyone. For more frequent outreach, use the queue as a daily worklist and track contacted businesses separately to prevent duplicate contact.
+This pipeline discovers candidates, audits websites, researches publicly listed contact routes, and drafts interest-first outreach. It deduplicates within each run but does **not** yet deduplicate against previous runs, guarantee new leads each day, qualify businesses automatically, or send emails. Review the generated queue and check your contact history before outreach to prevent duplicate contact. The intended operating target is 50–100 daily outreach attempts, but actual email-ready volume depends on the number of candidates with public contact addresses and must be measured from each run.
 
 ## Import and research workflow
 

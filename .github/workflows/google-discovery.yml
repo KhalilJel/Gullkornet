@@ -31,38 +31,60 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Select a daily business segment
+      - name: Select daily business segments
         id: segment
         env:
           REQUESTED_TERM: ${{ inputs.search_term }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "term=${REQUESTED_TERM}" >> "$GITHUB_OUTPUT"
+            echo "terms=${REQUESTED_TERM}" >> "$GITHUB_OUTPUT"
           else
-            # Rotate across several local-business categories to broaden
-            # website-project discovery without running every query daily.
+            # Two segments per weekday increases prospect volume while rotating
+            # through local-business categories. Manual runs stay single-segment.
             case "$(date -u +%u)" in
-              1) echo "term=frisør" >> "$GITHUB_OUTPUT" ;;
-              2) echo "term=restaurant" >> "$GITHUB_OUTPUT" ;;
-              3) echo "term=regnskapsfører" >> "$GITHUB_OUTPUT" ;;
-              4) echo "term=tannlege" >> "$GITHUB_OUTPUT" ;;
-              5) echo "term=bilverksted" >> "$GITHUB_OUTPUT" ;;
+              1) echo "terms=frisør|restaurant" >> "$GITHUB_OUTPUT" ;;
+              2) echo "terms=regnskapsfører|tannlege" >> "$GITHUB_OUTPUT" ;;
+              3) echo "terms=bilverksted|frisør" >> "$GITHUB_OUTPUT" ;;
+              4) echo "terms=restaurant|regnskapsfører" >> "$GITHUB_OUTPUT" ;;
+              5) echo "terms=tannlege|bilverksted" >> "$GITHUB_OUTPUT" ;;
             esac
           fi
 
-      - name: Run limited Google Places discovery
+      - name: Discover and deduplicate candidates across segments
         env:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
-          SEARCH_TERM: ${{ steps.segment.outputs.term }}
+          SEARCH_TERMS: ${{ steps.segment.outputs.terms }}
         run: |
           if [ -z "$GOOGLE_MAPS_API_KEY" ]; then
             echo "Missing repository secret GOOGLE_MAPS_API_KEY."
             exit 1
           fi
           mkdir -p data
-          npm run --silent discover:google -- "$SEARCH_TERM" > data/google-candidates.json
-          echo "Discovery completed for $SEARCH_TERM. Candidates are not qualified leads."
-
+          files=()
+          index=0
+          IFS='|' read -ra TERMS <<< "$SEARCH_TERMS"
+          for term in "${TERMS[@]}"; do
+            slug=$(printf '%s' "$term" | tr -cd '[:alnum:]')
+            file="data/candidates-${index}-${slug}.json"
+            npm run --silent discover:google -- "$term" > "$file"
+            files+=("$file")
+            index=$((index + 1))
+          done
+          node --input-type=module -e '
+            import { readFileSync, writeFileSync } from "node:fs";
+            const map = new Map();
+            for (const file of process.argv.slice(1)) {
+              const candidates = JSON.parse(readFileSync(file, "utf8"));
+              for (const candidate of candidates) {
+                const website = candidate.websiteUrl ? new URL(candidate.websiteUrl).hostname.toLowerCase().replace(/^www\./, "") : "";
+                const key = website || candidate.companyName.trim().toLocaleLowerCase("nb-NO");
+                const current = map.get(key);
+                if (!current || (!current.websiteUrl && candidate.websiteUrl)) map.set(key, candidate);
+              }
+            }
+            writeFileSync("data/google-candidates.json", JSON.stringify([...map.values()], null, 2));
+            console.error("Discovery complete: " + map.size + " unique candidates across " + (process.argv.length - 1) + " segment files. No email was sent.");
+          ' "${files[@]}"
       - name: Upload candidate results
         uses: actions/upload-artifact@v4
         with:

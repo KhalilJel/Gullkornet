@@ -208,50 +208,24 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   const company = candidate.companyName.trim();
   const notes: string[] = [];
 
-  // Prefer a concrete, directly checkable website finding. If the site was
-  // successfully audited but no actionable issue was found, still prepare a
-  // low-specificity interest-first draft. Do not invent a defect or outcome claim.
-  const finding = audit?.status === "AUDITED"
-    ? audit.flags.includes("NO_OBVIOUS_CONTACT_PATH")
-      ? {
-          observation: "jeg hadde litt vanskelig for å finne en tydelig kontakt- eller bestillingslenke i navigasjonen på nettsiden deres",
-          improvement: "gjøre veien til kontakt mer synlig og neste steg enklere for besøkende"
-        }
-      : audit.flags.includes("MISSING_META_DESCRIPTION")
-        ? {
-            observation: "nettsiden ser ikke ut til å ha en egen metabeskrivelse",
-            improvement: "legge til en kort, tydelig beskrivelse som kan gi bedre kontroll over hvordan dere presenteres i søkeresultater"
-          }
-        : audit.flags.includes("MISSING_TITLE")
-          ? {
-              observation: "det ser ut til at sidetittelen på nettsiden mangler",
-              improvement: "legge til en beskrivende sidetittel som gjør det tydeligere hva siden handler om når folk finner den på nett"
-            }
-          : undefined
-    : undefined;
-
-  if (!finding) {
-    notes.push(
-      audit?.status === "AUDITED"
-        ? "No specific, actionable website finding was identified. Do not send a generic digital-presence pitch; manually review the business and find a genuine reason to contact them, or skip the lead."
-        : title || headline || serviceEvidence
-          ? "Page content was found, but no verified actionable audit finding supports an outreach draft. Manually review the business and find a genuine reason to contact them, or skip the lead."
-          : "No reliable page-specific evidence or actionable audit finding was extracted; no outreach draft generated."
-    );
-    return { notes };
+  // Website audit signals remain internal context. The customer-facing email is
+  // an honest interest opener and does not pretend a specific defect was found.
+  if (audit?.status === "AUDITED" && audit.flags.length > 0) {
+    notes.push("Website signals are internal research context only; they are not presented as a specific customer-facing finding.");
+  }
+  if (!title && !headline && !serviceEvidence) {
+    notes.push("No meaningful page content was extracted. Draft is a general conversation opener and requires human review.");
   }
 
-  const subject = "Dette la vi merke til hos dere";
+  const subject = "Et lite spørsmål til " + company;
   const draftBody = [
     "Hei!",
     "",
-    "Jeg kom over " + company + " og la merke til at " + finding.observation + ".",
+    "Jeg kom over " + company + " og ville høre om dere er åpne for å se på muligheter rundt nettside og digital profil.",
     "",
-    "En mulig forbedring kan være å " + finding.improvement + ".",
+    "Jeg jobber med Cidea, hvor vi hjelper bedrifter med nettsider, visuell profil og andre digitale forbedringer ut fra hva som passer den enkelte virksomheten.",
     "",
-    "Jeg har en konkret idé basert på " + company + " som jeg gjerne kan vise dere.",
-    "",
-    "Hvis det er interessant, kan jeg sende en kort forklaring på e-post.",
+    "Er det greit at jeg sender en kort idé som kan være relevant for dere?",
     "",
     "Mvh Jelassi"
   ].join("\n");
@@ -259,7 +233,7 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   return {
     subject,
     draftBody,
-    personalizationEvidence: finding.observation,
+    personalizationEvidence: "Business name and interest-first conversation opener; no specific website claim.",
     notes
   };
 }
