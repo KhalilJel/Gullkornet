@@ -304,6 +304,13 @@ export async function researchContactAndDraft(candidate: GoogleCandidate, audit?
 
     const uniqueEmails = [...new Map(emails.map((item) => [item.email, item])).values()].slice(0, 10);
     const websiteHost = new URL(homepage.finalUrl).hostname.toLowerCase().replace(/^www\./, "");
+    let submittedWebsiteHost: string | undefined;
+    try {
+      submittedWebsiteHost = new URL(candidate.websiteUrl!).hostname.toLowerCase().replace(/^www\./, "");
+    } catch {
+      // The URL has already passed safe-fetch validation; retain review flags if normalization fails.
+    }
+    const websiteRedirectedToDifferentHost = Boolean(submittedWebsiteHost && submittedWebsiteHost !== websiteHost);
     const offDomainEmails = uniqueEmails.filter((item) => {
       const emailDomain = item.email.split("@").pop()?.toLowerCase() ?? "";
       return emailDomain !== websiteHost && !emailDomain.endsWith("." + websiteHost);
@@ -319,7 +326,8 @@ export async function researchContactAndDraft(candidate: GoogleCandidate, audit?
     const notes = [...draft.notes];
     if (uniqueEmails.length === 0) notes.push("No public email address found on the checked pages. Do not guess an address.");
     else notes.push("Email addresses were extracted from publicly accessible pages; mailbox deliverability and recipient role are not verified.");
-    if (offDomainEmails.length > 0) notes.push("MANUAL REVIEW: " + offDomainEmails.length + " email address(es) use a domain different from the business website. This can be legitimate, but the recipient relationship must be verified.");
+    if (websiteRedirectedToDifferentHost) notes.push("MANUAL REVIEW: The submitted website redirected from " + submittedWebsiteHost + " to " + websiteHost + ". Confirm the destination belongs to the named business before using any contact details.");
+    if (offDomainEmails.length > 0) notes.push("MANUAL REVIEW: " + offDomainEmails.length + " email address(es) use a domain different from the final website host. This can be legitimate, but the recipient relationship must be verified.");
     if (emailsFromOtherPages.length > 0) notes.push("MANUAL REVIEW: " + emailsFromOtherPages.length + " address(es) were sourced from a page hosted on a different domain than the homepage.");
     notes.push("Draft is not sent. Human review is required for accuracy, relevance, and applicable outreach rules.");
 
