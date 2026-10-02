@@ -208,9 +208,9 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   const company = candidate.companyName.trim();
   const notes: string[] = [];
 
-  // Only use strong, directly checkable website findings for automated outreach.
-  // Weak signals such as a missing mailto link, missing viewport metadata, or
-  // keyword detection gaps are not sufficient to make a business-facing claim.
+  // Prefer a concrete, directly checkable website finding. If the site was
+  // successfully audited but no actionable issue was found, still prepare a
+  // low-specificity interest-first draft. Do not invent a defect or outcome claim.
   const finding = audit?.status === "AUDITED"
     ? audit.flags.includes("NO_OBVIOUS_CONTACT_PATH")
       ? {
@@ -227,13 +227,16 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
               observation: "det ser ut til at sidetittelen på nettsiden mangler",
               improvement: "legge til en beskrivende sidetittel som gjør det tydeligere hva siden handler om når folk finner den på nett"
             }
-          : undefined
+          : {
+              observation: "nettsiden deres gir et første inntrykk av virksomheten, og jeg ble nysgjerrig på om dere vurderer å videreutvikle den digitale presentasjonen",
+              improvement: "se på om nettsiden, den visuelle profilen eller synligheten deres på nett kan presenteres enda tydeligere"
+            }
     : undefined;
 
   if (!finding) {
     notes.push(
       audit?.status === "AUDITED"
-        ? "No sufficiently strong, actionable website finding supports an automated outreach draft. Manual review required."
+        ? "A general interest-first draft was not possible; manual review required."
         : title || headline || serviceEvidence
           ? "Page content was found, but no verified actionable audit finding supports an automated outreach draft. Manual review required."
           : "No reliable page-specific evidence or actionable audit finding was extracted; no personalized draft generated."
