@@ -93,9 +93,10 @@ export async function discoverGooglePlacesCandidates(
       const companyName = place.displayName?.text?.trim();
       if (!companyName) continue;
       // Text Search can return similarly named businesses outside the requested country.
-      // Never assign the query city to a result unless its formatted address confirms Norway.
+      // regionCode=NO may cause Google to omit the country suffix from formattedAddress,
+      // so prefer the explicit country address component and only use the suffix as fallback.
       const formattedAddress = place.formattedAddress?.trim();
-      if (!formattedAddress || !/(?:,\s*|\s)(?:Norway|Norge)$/i.test(formattedAddress)) continue;
+      if (!formattedAddress || !isNorwegianPlace(place, formattedAddress)) continue;
       const websiteUrl = normalizeWebsite(place.websiteUri);
       const key = websiteUrl ? new URL(websiteUrl).hostname.toLowerCase().replace(/^www\./, "") : companyName.toLocaleLowerCase("nb-NO");
       const candidate: GooglePlacesCandidate = {
