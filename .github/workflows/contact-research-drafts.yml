@@ -46,11 +46,14 @@ jobs:
           test -f data/input/website-audit.json
           test -f data/input/source/google-candidates.json
           npm run --silent research:contacts -- data/input/source/google-candidates.json data/input/website-audit.json > data/contact-research-drafts.json
-          echo "Contact research and draft generation complete. No emails were sent."
+          npm run --silent review-queue -- data/contact-research-drafts.json data/lead-review-queue.md
+          echo "Contact research and review queue complete. No emails were sent."
 
       - name: Upload contact research and draft artifact
         uses: actions/upload-artifact@v4
         with:
           name: gullkornet-contact-research-drafts
-          path: data/contact-research-drafts.json
+          path: |
+            data/contact-research-drafts.json
+            data/lead-review-queue.md
           retention-days: 3
