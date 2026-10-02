@@ -152,8 +152,8 @@ function isLikelyPublicBusinessEmail(email: string): boolean {
   const domain = normalized.slice(at + 1);
   // Exclude obvious placeholders and technical telemetry, while retaining alternate
   // legitimate domains for human review (e.g. parent-company inboxes).
-  if (localPart.startsWith("/") || /(?:^|\\.)sentry(?:-next)?\\.wixpress\\.com$|^sentry\\.io$/i.test(domain)) return false;
-  if (/^(?:example\\.(?:com|org|net)|website\\.com|yourdomain\\.(?:com|no)|domain\\.com|test\\.com)$/i.test(domain)) return false;
+  if (localPart.startsWith("/") || /(?:^|\.)sentry(?:-next)?\.wixpress\.com$|^sentry\.io$/i.test(domain)) return false;
+  if (/^(?:example\.(?:com|org|net)|website\.com|yourdomain\.(?:com|no)|domain\.com|test\.com)$/i.test(domain)) return false;
   if (/^(?:yourname|name|email|user)@/i.test(normalized)) return false;
   return true;
 }
@@ -303,14 +303,14 @@ export async function researchContactAndDraft(candidate: GoogleCandidate, audit?
     }
 
     const uniqueEmails = [...new Map(emails.map((item) => [item.email, item])).values()].slice(0, 10);
-    const websiteHost = new URL(homepage.finalUrl).hostname.toLowerCase().replace(/^www\\./, "");
+    const websiteHost = new URL(homepage.finalUrl).hostname.toLowerCase().replace(/^www\./, "");
     const offDomainEmails = uniqueEmails.filter((item) => {
       const emailDomain = item.email.split("@").pop()?.toLowerCase() ?? "";
       return emailDomain !== websiteHost && !emailDomain.endsWith("." + websiteHost);
     });
     const emailsFromOtherPages = uniqueEmails.filter((item) => {
       try {
-        return new URL(item.sourceUrl).hostname.toLowerCase().replace(/^www\\./, "") !== websiteHost;
+        return new URL(item.sourceUrl).hostname.toLowerCase().replace(/^www\./, "") !== websiteHost;
       } catch {
         return true;
       }
