@@ -10,7 +10,7 @@ Gullkornet is Cidea's internal lead research and qualification engine.
 - **Possible solutions:** Website, branding and visual identity, social media setup, or a combination, depending on the specific business need.
 - **Initial pilot delivery:** Website-focused research only. Broader digital-presence research will be added as evidence sources and qualification rules are implemented.
 - **Pilot target:** Research 50 businesses, identify up to 20 genuinely qualified leads, and use the results to improve targeting
-- **Planned daily discovery limit:** 25 leads; this is configuration only and is not enforced by a discovery module yet
+- **Default daily discovery limit:** 100 new candidates, configurable through the `DAILY_LEAD_LIMIT` repository variable
 - **Safety:** Dry run is enabled by default. Sending is not implemented or enabled.
 
 These are test assumptions, not proven conversion rates. Review lead quality and outreach response before expanding to other industries or all of Norway.
@@ -70,7 +70,7 @@ The Google Places workflow runs on weekday mornings and searches two local-busin
 
 To run a one-off search, open **Actions → Gullkornet Google Places Discovery → Run workflow** and choose a business type. The scheduled workflow requires the repository secret `GOOGLE_MAPS_API_KEY`; ensure Places API billing and quotas are configured. Google Places and website requests may incur costs or be rate-limited.
 
-This pipeline discovers candidates, audits websites, researches publicly listed contact routes, and drafts interest-first outreach. It deduplicates within each run but does **not** yet deduplicate against previous runs, guarantee new leads each day, qualify businesses automatically, or send emails. Review the generated queue and check your contact history before outreach to prevent duplicate contact. The intended operating target is 50–100 daily outreach attempts, but actual email-ready volume depends on the number of candidates with public contact addresses and must be measured from each run.
+This pipeline discovers candidates, audits websites, researches publicly listed contact routes, and drafts interest-first outreach. It deduplicates within each run but does **not** yet deduplicate against previous runs, guarantee new leads each day, qualify businesses automatically, or send emails. Review the generated queue and check your contact history before outreach to prevent duplicate contact. The intended operating target is up to 100 new candidates per weekday run. Actual email-ready volume depends on how many candidates have public contact addresses. The pipeline prepares drafts only; it does not send emails.
 
 ## Import and research workflow
 
