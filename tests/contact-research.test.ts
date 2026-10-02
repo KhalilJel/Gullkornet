@@ -65,3 +65,10 @@ test("rejects spaced-letter navigation residue inside otherwise relevant service
   const result = extractEvidence('<html><body><h1>C I F E R O A S - F O R S I D E</h1><main><p>C I F E R O A S - F O R S I D E Varjag Regnskap AS endrer nå navn til Cifero AS.</p></main></body></html>');
   assert.equal(result.serviceEvidence, undefined);
 });
+
+
+test("decodes URL-encoded whitespace and characters in public mailto addresses", () => {
+  const html = '<a href="mailto:%20fay.skogstad%40adamogeva.no">Send e-post</a>';
+  const emails = extractPublicEmails(html, "https://example.no/kontakt");
+  assert.deepEqual(emails.map((item) => item.email), ["fay.skogstad@adamogeva.no"]);
+});
