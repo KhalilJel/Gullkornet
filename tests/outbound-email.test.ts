@@ -44,7 +44,7 @@ test("live send requires explicit enablement, exact recipient and human review",
 test("live send fails closed for suppressed recipients and missing idempotency keys", () => {
   const email = prepareEmail(drafts, "post@example.no");
   assert.throws(() => assertLiveSendAllowed(email, approvedEnv, new Set(["post@example.no"])), /suppression list/);
-  assert.throws(() => assertLiveSendAllowed(email, { ...approvedEnv, GULLKORNET_SEND_IDEMPOTENCY_KEY: "" }), /idempotency key/);
+  assert.throws(() => assertLiveSendAllowed(email, { ...approvedEnv, GULLKORNET_SEND_IDEMPOTENCY_KEY: "" }), /GULLKORNET_SEND_IDEMPOTENCY_KEY/);
 });
 
 test("allows live send checks only when all gates pass and recipient is not suppressed", () => {
