@@ -70,6 +70,8 @@ The Google Places workflow runs on weekday mornings and searches two local-busin
 
 To run a one-off search, open **Actions → Gullkornet Google Places Discovery → Run workflow** and choose a business type. The scheduled workflow requires the repository secret `GOOGLE_MAPS_API_KEY`; ensure Places API billing and quotas are configured. Google Places and website requests may incur costs or be rate-limited.
 
+Workflow artifacts containing candidates, audits, contact research, and draft queues are retained for 30 days so recent runs can be inspected without downloading them immediately. This is temporary run history, not a permanent CRM or database.
+
 This pipeline discovers candidates, audits websites, researches publicly listed contact routes, and drafts interest-first outreach. It deduplicates candidates within a run and uses cached discovery history to avoid previously discovered domains and business names across runs. It cannot guarantee that 100 new candidates will be found every day; actual volume depends on category coverage and public listing availability. The pipeline prepares drafts only; it does not automatically send emails.
 
 ## Import and research workflow
