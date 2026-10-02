@@ -82,3 +82,16 @@ test("filters technical Sentry and Wix telemetry addresses from public email res
   const emails = extractPublicEmails(html, "https://example.no/kontakt");
   assert.deepEqual(emails.map((item) => item.email), ["post@example.no"]);
 });
+
+
+test("filters obvious placeholder inboxes while retaining real public addresses", () => {
+  const html = `<p>post@bekkestuatannlegesenter.no</p>
+    <p>info@website.com</p>
+    <p>hello@example.com</p>
+    <p>kontakt@clinic-example.no</p>`;
+  const emails = extractPublicEmails(html, "https://bekkestuatannlegesenter.no");
+  assert.deepEqual(emails.map((item) => item.email).sort(), [
+    "kontakt@clinic-example.no",
+    "post@bekkestuatannlegesenter.no"
+  ]);
+});

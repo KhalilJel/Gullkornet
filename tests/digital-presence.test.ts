@@ -28,3 +28,14 @@ test("does not claim social accounts are absent when homepage has no social link
   const profiles = extractSocialProfiles('<a href="https://example.no/kontakt">Kontakt</a>', "https://example.no");
   assert.deepEqual(profiles, []);
 });
+
+
+test("ignores generic template social profile links", () => {
+  const html = `
+    <a href="https://facebook.com/yoururl">Facebook template</a>
+    <a href="https://www.instagram.com/hjemmesidehuset/">Website vendor profile</a>
+    <a href="https://www.instagram.com/realclinic/">Clinic profile</a>
+  `;
+  const profiles = extractSocialProfiles(html, "https://example.no");
+  assert.deepEqual(profiles.map((item) => item.url), ["https://www.instagram.com/realclinic/"]);
+});
