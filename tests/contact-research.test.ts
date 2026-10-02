@@ -15,7 +15,7 @@ test("extractPublicEmails finds only publicly visible mailto and text addresses"
 
 test("creates an interest-first draft without requiring a concrete website finding", () => {
   const result = createPersonalizedDraft({ companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" });
-  assert.equal(result.subject, "Et lite spørsmål til Eksempel Regnskap AS");
+  assert.equal(result.subject, "Dette la vi merke til hos dere");
   assert.ok(result.draftBody?.includes("Jeg kom over Eksempel Regnskap AS"));
   assert.ok(result.draftBody?.includes("Er det greit at jeg sender en kort idé som kan være relevant for dere?"));
   assert.ok(result.draftBody?.includes("Mvh Jelassi"));

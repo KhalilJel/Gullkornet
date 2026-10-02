@@ -217,7 +217,7 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
     notes.push("No meaningful page content was extracted. Draft is a general conversation opener and requires human review.");
   }
 
-  const subject = "Et lite spørsmål til " + company;
+  const subject = "Dette la vi merke til hos dere";
   const draftBody = [
     "Hei!",
     "",
