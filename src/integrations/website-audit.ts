@@ -24,7 +24,6 @@ export type WebsiteAudit = {
   metaDescription?: string;
   hasViewportMeta?: boolean;
   hasContactPath?: boolean;
-  hasServiceContent?: boolean;
   hasEmailLink?: boolean;
   responseTimeMs?: number;
   flags: string[];
@@ -118,12 +117,11 @@ function getMetaContent(html: string, name: string): string | undefined {
 }
 
 export function extractWebsiteSignals(html: string): Pick<WebsiteAudit,
-  "title" | "metaDescription" | "hasViewportMeta" | "hasContactPath" | "hasServiceContent" | "hasEmailLink" | "flags"> {
+  "title" | "metaDescription" | "hasViewportMeta" | "hasContactPath" | "hasEmailLink" | "flags"> {
   const title = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1];
   const metaDescription = getMetaContent(html, "description");
   const hasViewportMeta = /<meta\b[^>]*name\s*=\s*["']?viewport\b/i.test(html);
   const hasContactPath = /href\s*=\s*["'][^"']*(kontakt|contact|book|bestill|avtal|appointment)[^"']*["']/i.test(html);
-  const hasServiceContent = /\b(regnskap|regnskapsfør|bokfør|tjenester|services|accounting|bookkeeping)\b/i.test(stripTags(html));
   const hasEmailLink = /href\s*=\s*["']mailto:/i.test(html);
   const flags: string[] = [];
 
@@ -131,7 +129,6 @@ export function extractWebsiteSignals(html: string): Pick<WebsiteAudit,
   if (!metaDescription) flags.push("MISSING_META_DESCRIPTION");
   if (!hasViewportMeta) flags.push("MISSING_VIEWPORT_META");
   if (!hasContactPath) flags.push("NO_OBVIOUS_CONTACT_PATH");
-  if (!hasServiceContent) flags.push("NO_OBVIOUS_ACCOUNTING_SERVICE_TEXT");
   if (!hasEmailLink) flags.push("NO_EMAIL_LINK_DETECTED");
 
   return {
@@ -139,7 +136,6 @@ export function extractWebsiteSignals(html: string): Pick<WebsiteAudit,
     metaDescription,
     hasViewportMeta,
     hasContactPath,
-    hasServiceContent,
     hasEmailLink,
     flags
   };
