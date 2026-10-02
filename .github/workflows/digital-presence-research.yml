@@ -1,0 +1,67 @@
+name: Gullkornet Digital Presence Research
+
+on:
+  workflow_run:
+    workflows: ["Gullkornet Website Audit"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      audit_run_id:
+        description: "Successful Website Audit workflow run ID whose candidate artifact should be checked"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  research:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Download website audit and candidate inputs
+        uses: actions/download-artifact@v4
+        with:
+          name: gullkornet-website-audit
+          path: data/input
+          run-id: ${{ github.event_name == 'workflow_dispatch' && inputs.audit_run_id || github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Research website and social profile links
+        run: |
+          test -f data/input/source/google-candidates.json
+          npx tsx src/cli/research-digital-presence.ts data/input/source/google-candidates.json > data/digital-presence-results.json
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const rows = JSON.parse(readFileSync("data/digital-presence-results.json", "utf8"));
+            const count = (segment) => rows.filter((row) => row.segment === segment).length;
+            console.log(JSON.stringify({
+              total: rows.length,
+              noWebsiteListed: count("NO_WEBSITE_LISTED"),
+              withSocialLinks: count("WEBSITE_WITH_SOCIAL_LINKS"),
+              withoutDetectedSocialLinks: count("WEBSITE_WITHOUT_DETECTED_SOCIAL_LINKS"),
+              errors: count("FETCH_ERROR") + count("BLOCKED_URL")
+            }, null, 2));
+            console.log("No emails were sent. Missing links are not proof of absent websites or social accounts.");
+          '
+
+      - name: Upload digital presence research
+        uses: actions/upload-artifact@v4
+        with:
+          name: gullkornet-digital-presence-research
+          path: data/digital-presence-results.json
+          retention-days: 3
