@@ -14,7 +14,6 @@ test("extractWebsiteSignals identifies basic website signals", () => {
   assert.equal(result.metaDescription, "Regnskap og bokføring for små bedrifter");
   assert.equal(result.hasViewportMeta, true);
   assert.equal(result.hasContactPath, true);
-  assert.equal(result.hasServiceContent, true);
   assert.equal(result.hasEmailLink, true);
   assert.deepEqual(result.flags, []);
 });
@@ -27,6 +26,7 @@ test("extractWebsiteSignals flags missing metadata and contact signals", () => {
   assert.ok(result.flags.includes("MISSING_TITLE"));
   assert.ok(result.flags.includes("MISSING_META_DESCRIPTION"));
   assert.ok(result.flags.includes("NO_OBVIOUS_CONTACT_PATH"));
+  assert.ok(!result.flags.some((flag) => flag.includes("ACCOUNTING_SERVICE")));
 });
 
 test("isSafePublicUrl rejects local and non-web URLs", async () => {
