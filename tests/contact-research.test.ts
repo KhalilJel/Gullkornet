@@ -92,7 +92,7 @@ test("draft avoids repeating long service evidence and uses a concrete, concise 
 });
 
 
-test("creates a general interest-first draft when the audit has no actionable finding", () => {
+test("does not create a generic draft when the audit has no actionable finding", () => {
   const result = createPersonalizedDraft(
     { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
     "Eksempel Regnskap",
@@ -107,10 +107,9 @@ test("creates a general interest-first draft when the audit has no actionable fi
       metaDescription: undefined
     }
   );
-  assert.ok(result.draftBody);
-  assert.ok(result.draftBody.includes("ble nysgjerrig på om dere vurderer å videreutvikle den digitale presentasjonen"));
-  assert.ok(!result.draftBody.includes("mangler metabeskrivelse"));
-  assert.ok(result.notes.some((note) => note.includes("Draft is not sent")) === false);
+  assert.equal(result.draftBody, undefined);
+  assert.equal(result.subject, undefined);
+  assert.ok(result.notes.some((note) => note.includes("Do not send a generic digital-presence pitch")));
 });
 
 
@@ -249,7 +248,7 @@ test("rejects Norwegian skip-to-content phrases from service evidence", () => {
 });
 
 
-test("uses a general interest-first draft rather than claiming weak technical signals are defects", () => {
+test("does not create drafts from weak technical signals alone", () => {
   for (const flag of ["NOT_HTTPS", "MISSING_VIEWPORT_META", "NO_EMAIL_LINK_DETECTED", "NO_OBVIOUS_ACCOUNTING_SERVICE_TEXT"]) {
     const result = createPersonalizedDraft(
       { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
@@ -265,10 +264,8 @@ test("uses a general interest-first draft rather than claiming weak technical si
         metaDescription: undefined
       }
     );
-    assert.ok(result.draftBody, `Expected a general draft for audited site with weak signal: ${flag}`);
-    assert.ok(!result.draftBody!.includes("ikke HTTPS"));
-    assert.ok(!result.draftBody!.includes("viewport"));
-    assert.ok(!result.draftBody!.includes("e-postlenke"));
+    assert.equal(result.draftBody, undefined, `Unexpected generic draft for weak signal: ${flag}`);
+    assert.equal(result.subject, undefined);
   }
 });
 
