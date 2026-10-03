@@ -58,11 +58,22 @@ function duplicateKey(item: ResearchRecord): string {
 function getStatus(item: ResearchRecord, existing?: AirtableRecord): string {
   const existingStatus = existing?.fields["Lead Status"];
   const doNotContact = existing?.fields["Do Not Contact"] === true;
+  const hasCurrentEmail = Boolean(item.emails?.length);
+  const hasExistingEmail = typeof existing?.fields["Email"] === "string" && Boolean((existing.fields["Email"] as string).trim());
+  const hasCurrentDraft = Boolean(item.subject && item.draftBody);
+  const hasExistingDraft = typeof existing?.fields["Outreach Subject"] === "string"
+    && Boolean((existing.fields["Outreach Subject"] as string).trim())
+    && typeof existing?.fields["Outreach Draft"] === "string"
+    && Boolean((existing.fields["Outreach Draft"] as string).trim());
+
   if (doNotContact || existingStatus === "Suppressed") return "Suppressed";
   if (["Sent", "Replied", "Approved", "Follow-up"].includes(String(existingStatus))) return String(existingStatus);
   if (item.notes?.some((note) => note.includes("MANUAL REVIEW:"))) return "Needs Review";
-  if (item.emails?.length && item.subject && item.draftBody) return "Draft Ready";
-  if (item.emails?.length) return "Researched";
+  // The sync only overwrites non-empty fields, so a missing email/draft in a later
+  // research run does not erase an older saved value. Status must reflect that
+  // retained data rather than incorrectly labeling the record "No Public Email".
+  if ((hasCurrentEmail || hasExistingEmail) && (hasCurrentDraft || hasExistingDraft)) return "Draft Ready";
+  if (hasCurrentEmail || hasExistingEmail) return "Researched";
   if (item.researchStatus === "NO_WEBSITE" || item.emails?.length === 0) return "No Public Email";
   return "Needs Review";
 }
