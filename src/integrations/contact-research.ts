@@ -10,6 +10,7 @@ export type ContactResearchDraft = {
   companyName: string;
   websiteUrl?: string;
   city?: string;
+  industry?: string;
   sourceUrl?: string;
   researchStatus: "RESEARCHED" | "NO_WEBSITE" | "FETCH_ERROR" | "BLOCKED_URL";
   emails: PublicEmail[];
@@ -265,6 +266,7 @@ export async function researchContactAndDraft(candidate: GoogleCandidate, audit?
     companyName: candidate.companyName,
     websiteUrl: candidate.websiteUrl,
     city: candidate.city,
+    industry: candidate.industry,
     sourceUrl: candidate.sourceUrl,
     requiresHumanReview: true as const,
     researchedAt,
