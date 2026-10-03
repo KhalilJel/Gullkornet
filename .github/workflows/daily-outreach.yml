@@ -41,7 +41,7 @@ jobs:
 
       - name: Send up to 20 eligible emails
         env:
-          GULLKORNET_ENABLE_LIVE_SEND: ${{ vars.GULLKORNET_ENABLE_LIVE_SEND }}
+          GULLKORNET_ENABLE_LIVE_SEND: ${{ secrets.GULLKORNET_ENABLE_LIVE_SEND }}
           GULLKORNET_DAILY_SEND_LIMIT: "20"
           AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
           GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
