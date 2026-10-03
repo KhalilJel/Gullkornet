@@ -39,10 +39,10 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Send up to 5 eligible emails
+      - name: Send up to 20 eligible emails
         env:
           GULLKORNET_ENABLE_LIVE_SEND: ${{ vars.GULLKORNET_ENABLE_LIVE_SEND }}
-          GULLKORNET_DAILY_SEND_LIMIT: "5"
+          GULLKORNET_DAILY_SEND_LIMIT: "20"
           AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
           GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
           GULLKORNET_AIRTABLE_TABLE: ${{ vars.GULLKORNET_AIRTABLE_TABLE || 'Leads' }}
