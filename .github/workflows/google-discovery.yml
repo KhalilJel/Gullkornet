@@ -1,10 +1,10 @@
 name: Gullkornet Google Places Discovery
 
 on:
-  # Run each weekday morning. Downstream audit and contact-research workflows
+  # Run every day, including weekends. Downstream audit and contact-research workflows
   # continue automatically from the completed discovery run.
   schedule:
-    - cron: "30 6 * * 1-5"
+    - cron: "30 6 * * *"
   workflow_dispatch:
     inputs:
       search_term:
@@ -39,7 +39,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "terms=${REQUESTED_TERM}" >> "$GITHUB_OUTPUT"
           else
-            # Two segments per weekday rotate through ten local-business categories.
+            # Two segments per day rotate through fourteen local-business categories.
             # Manual runs stay single-segment to keep ad-hoc API use controlled.
             case "$(date -u +%u)" in
               1) echo "terms=frisør|restaurant" >> "$GITHUB_OUTPUT" ;;
@@ -47,6 +47,8 @@ jobs:
               3) echo "terms=bilverksted|elektriker" >> "$GITHUB_OUTPUT" ;;
               4) echo "terms=rørlegger|renhold" >> "$GITHUB_OUTPUT" ;;
               5) echo "terms=fysioterapeut|treningssenter" >> "$GITHUB_OUTPUT" ;;
+              6) echo "terms=frisør|hudpleie" >> "$GITHUB_OUTPUT" ;;
+              7) echo "terms=advokat|eiendomsmegler" >> "$GITHUB_OUTPUT" ;;
             esac
           fi
 
