@@ -274,17 +274,16 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   }
 
   const subject = "Dette la vi merke til hos dere";
-  const opener = observedServices.length
-    ? "Jeg så på nettsiden deres at dere blant annet jobber med " + observedServices.join(" og ") + ", og ville høre om dere er åpne for å se på muligheter rundt nettside og digital profil."
-    : "Jeg kom over " + company + " og ville høre om dere er åpne for å se på muligheter rundt nettside og digital profil.";
+  // Keep the approved Cidea outreach template consistent. Website-derived
+  // service cues remain internal evidence and are not inserted into the email.
   const draftBody = [
     "Hei!",
     "",
-    opener,
+    "Vi kom over bedriften deres og la merke til noen interessante ting vi gjerne ville dele med dere.",
     "",
-    "Jeg jobber med Cidea, hvor vi hjelper bedrifter med nettsider, visuell profil og andre digitale forbedringer ut fra hva som passer den enkelte virksomheten.",
+    "Vi i Cidea jobber med nettsider og digital synlighet for bedrifter, og ser ofte muligheter som kan være verdt å utforske.",
     "",
-    "Er det greit at jeg sender en kort idé som kan være relevant for dere?",
+    "Vi har et par konkrete ideer vi gjerne vil vise dere, og tenkte derfor å høre om det kunne være interessant for dere å ta en titt.",
     "",
     "Mvh Jelassi"
   ].join("\n");
@@ -292,9 +291,7 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   return {
     subject,
     draftBody,
-    personalizationEvidence: observedServices.length
-      ? "Draft opener uses service categories inferred from public website text; confirm accuracy before use."
-      : "Business name and interest-first conversation opener; no specific website claim.",
+    personalizationEvidence: "Uses the approved general Cidea outreach template; website observations remain internal and are not asserted in the email.",
     notes
   };
 }

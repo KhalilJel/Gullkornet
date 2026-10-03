@@ -16,8 +16,8 @@ test("extractPublicEmails finds only publicly visible mailto and text addresses"
 test("creates an interest-first draft without requiring a concrete website finding", () => {
   const result = createPersonalizedDraft({ companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" });
   assert.equal(result.subject, "Dette la vi merke til hos dere");
-  assert.ok(result.draftBody?.includes("Jeg kom over Eksempel Regnskap AS"));
-  assert.ok(result.draftBody?.includes("Er det greit at jeg sender en kort idé som kan være relevant for dere?"));
+  assert.ok(result.draftBody?.includes("Vi kom over bedriften deres og la merke til noen interessante ting vi gjerne ville dele med dere."));
+  assert.ok(result.draftBody?.includes("Vi har et par konkrete ideer vi gjerne vil vise dere, og tenkte derfor å høre om det kunne være interessant for dere å ta en titt."));
   assert.ok(result.draftBody?.includes("Mvh Jelassi"));
 });
 
@@ -63,8 +63,8 @@ test("uses only supported observed service cues in the draft opener", () => {
     "Regnskap for små bedrifter",
     "Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo."
   );
-  assert.ok(result.draftBody?.includes("dere blant annet jobber med regnskap og lønn"));
-  assert.ok(result.personalizationEvidence?.includes("confirm accuracy"));
+  assert.ok(result.draftBody?.includes("Vi har et par konkrete ideer vi gjerne vil vise dere, og tenkte derfor å høre om det kunne være interessant for dere å ta en titt."));
+  assert.ok(result.personalizationEvidence?.includes("approved general Cidea outreach template"));
   assert.equal(result.subject, "Dette la vi merke til hos dere");
 });
 
@@ -75,7 +75,7 @@ test("falls back to a general opener when no supported service cue is found", ()
     "Vi hjelper kundene våre",
     "Vi tilbyr fleksible løsninger tilpasset kundene."
   );
-  assert.ok(result.draftBody?.includes("Jeg kom over Eksempel AS"));
+  assert.ok(result.draftBody?.includes("Vi kom over bedriften deres og la merke til noen interessante ting vi gjerne ville dele med dere."));
 });
 
 test("extracts relevant service evidence while ignoring navigation noise", () => {
