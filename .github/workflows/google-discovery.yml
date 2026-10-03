@@ -5,6 +5,7 @@ on:
   # continue automatically from the completed discovery run.
   schedule:
     - cron: "30 6 * * *"
+    - cron: "30 12 * * *"
   workflow_dispatch:
     inputs:
       search_term:
