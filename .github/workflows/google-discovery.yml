@@ -31,25 +31,80 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Check current Airtable draft queue
+        id: queue
+        env:
+          AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
+          AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
+          AIRTABLE_TABLE: ${{ vars.GULLKORNET_AIRTABLE_TABLE || 'Leads' }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from "node:fs";
+          const token = process.env.AIRTABLE_API_TOKEN?.trim();
+          const baseId = process.env.AIRTABLE_BASE_ID?.trim();
+          const table = process.env.AIRTABLE_TABLE?.trim() || "Leads";
+          let count = 999;
+          if (!token || !baseId) {
+            console.log("Airtable queue check unavailable; using normal discovery schedule.");
+          } else {
+            try {
+              let offset;
+              count = 0;
+              do {
+                const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`);
+                url.searchParams.set("pageSize", "100");
+                url.searchParams.set("filterByFormula", '{Lead Status}="Draft Ready"');
+                url.searchParams.append("fields[]", "Lead Status");
+                if (offset) url.searchParams.set("offset", offset);
+                const response = await fetch(url, {
+                  headers: { Authorization: `Bearer ${token}` },
+                  signal: AbortSignal.timeout(15000)
+                });
+                if (!response.ok) throw new Error(`Airtable HTTP ${response.status}`);
+                const page = await response.json();
+                count += page.records?.length ?? 0;
+                offset = page.offset;
+              } while (offset);
+              console.log(`Current Draft Ready queue: ${count}`);
+            } catch (error) {
+              console.log(`Airtable queue check failed; using normal discovery schedule: ${error instanceof Error ? error.message : "unknown error"}`);
+              count = 999;
+            }
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `count=${count}\n`);
+          NODE
+
       - name: Select daily business segments
         id: segment
         env:
           REQUESTED_TERM: ${{ inputs.search_term }}
+          QUEUE_COUNT: ${{ steps.queue.outputs.count }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "terms=${REQUESTED_TERM}" >> "$GITHUB_OUTPUT"
           else
-            # Two segments per day rotate through fourteen local-business categories.
-            # Manual runs stay single-segment to keep ad-hoc API use controlled.
-            case "$(date -u +%u)" in
-              1) echo "terms=frisør|restaurant" >> "$GITHUB_OUTPUT" ;;
-              2) echo "terms=regnskapsfører|tannlege" >> "$GITHUB_OUTPUT" ;;
-              3) echo "terms=bilverksted|elektriker" >> "$GITHUB_OUTPUT" ;;
-              4) echo "terms=rørlegger|renhold" >> "$GITHUB_OUTPUT" ;;
-              5) echo "terms=fysioterapeut|treningssenter" >> "$GITHUB_OUTPUT" ;;
-              6) echo "terms=frisør|hudpleie" >> "$GITHUB_OUTPUT" ;;
-              7) echo "terms=advokat|eiendomsmegler" >> "$GITHUB_OUTPUT" ;;
+            # Normally search two categories. When the Airtable draft queue is low,
+            # add the next day's categories to replenish stock before it runs out.
+            day="$(date -u +%u)"
+            case "$day" in
+              1) primary="frisør|restaurant"; next="regnskapsfører|tannlege"; later="bilverksted|elektriker" ;;
+              2) primary="regnskapsfører|tannlege"; next="bilverksted|elektriker"; later="rørlegger|renhold" ;;
+              3) primary="bilverksted|elektriker"; next="rørlegger|renhold"; later="fysioterapeut|treningssenter" ;;
+              4) primary="rørlegger|renhold"; next="fysioterapeut|treningssenter"; later="frisør|hudpleie" ;;
+              5) primary="fysioterapeut|treningssenter"; next="frisør|hudpleie"; later="advokat|eiendomsmegler" ;;
+              6) primary="frisør|hudpleie"; next="advokat|eiendomsmegler"; later="frisør|restaurant" ;;
+              7) primary="advokat|eiendomsmegler"; next="frisør|restaurant"; later="regnskapsfører|tannlege" ;;
             esac
+            terms="$primary"
+            if [ "${QUEUE_COUNT:-999}" -lt 40 ]; then
+              terms="$terms|$next"
+              echo "Draft queue below 40; expanding discovery to four categories."
+            fi
+            if [ "${QUEUE_COUNT:-999}" -lt 20 ]; then
+              terms="$terms|$later"
+              echo "Draft queue below 20; expanding discovery to six categories."
+            fi
+            echo "terms=$terms" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Restore discovery history
