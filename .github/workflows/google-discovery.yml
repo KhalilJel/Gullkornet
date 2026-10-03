@@ -96,13 +96,13 @@ jobs:
               7) primary="advokat|eiendomsmegler"; next="frisør|restaurant"; later="regnskapsfører|tannlege" ;;
             esac
             terms="$primary"
-            if [ "${QUEUE_COUNT:-999}" -lt 40 ]; then
+            if [ "${QUEUE_COUNT:-999}" -lt 60 ]; then
               terms="$terms|$next"
-              echo "Draft queue below 40; expanding discovery to four categories."
+              echo "Draft queue below 60; expanding discovery to four categories."
             fi
-            if [ "${QUEUE_COUNT:-999}" -lt 20 ]; then
+            if [ "${QUEUE_COUNT:-999}" -lt 30 ]; then
               terms="$terms|$later"
-              echo "Draft queue below 20; expanding discovery to six categories."
+              echo "Draft queue below 30; expanding discovery to six categories."
             fi
             echo "terms=$terms" >> "$GITHUB_OUTPUT"
           fi
