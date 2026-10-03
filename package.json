@@ -15,7 +15,8 @@
     "report:leads": "tsx src/cli/report-leads.ts",
     "review-queue": "tsx src/cli/build-review-queue.ts",
     "send:email": "tsx src/cli/send-email.ts",
-    "sync:airtable": "tsx src/cli/sync-airtable-leads.ts"
+    "sync:airtable": "tsx src/cli/sync-airtable-leads.ts",
+    "send:daily": "tsx src/cli/send-daily-outreach.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
