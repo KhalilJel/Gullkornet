@@ -9,6 +9,9 @@ type ResearchRecord = {
   industry?: string;
   sourceUrl?: string;
   researchStatus?: string;
+  pageTitle?: string;
+  headline?: string;
+  serviceEvidence?: string;
   emails?: EmailSource[];
   subject?: string;
   draftBody?: string;
@@ -116,7 +119,15 @@ function fieldsFor(item: ResearchRecord, key: string, existing?: AirtableRecord)
   put("Email", item.emails?.[0]?.email);
   put("Outreach Subject", item.subject);
   put("Outreach Draft", item.draftBody);
-  put("Personalization Evidence", item.personalizationEvidence);
+  const observedEvidence = [
+    item.pageTitle ? `Sidetittel: ${item.pageTitle}` : "",
+    item.headline ? `Overskrift: ${item.headline}` : "",
+    item.serviceEvidence ? `Tjenestetekst: ${item.serviceEvidence}` : ""
+  ].filter(Boolean);
+  const evidenceSummary = observedEvidence.length
+    ? `Automatisk hentet fra offentlig nettside, ikke uavhengig verifisert og ikke fremsatt som et konkret problem i e-postutkastet: ${observedEvidence.join(" | ")}`
+    : item.personalizationEvidence;
+  put("Personalization Evidence", evidenceSummary);
   put("Research Notes", item.notes?.join("\n"));
   if (!existing?.fields["First Seen"]) fields["First Seen"] = item.researchedAt || new Date().toISOString();
   // Never clear or uncheck an existing do-not-contact flag.
