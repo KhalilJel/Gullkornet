@@ -230,20 +230,46 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   const company = candidate.companyName.trim();
   const notes: string[] = [];
 
-  // Website audit signals remain internal context. The customer-facing email is
-  // an honest interest opener and does not pretend a specific defect was found.
+  // Only use a narrow, pre-defined service vocabulary that is directly supported
+  // by extracted public-page text. Never turn audit flags into customer-facing claims.
   if (audit?.status === "AUDITED" && audit.flags.length > 0) {
     notes.push("Website signals are internal research context only; they are not presented as a specific customer-facing finding.");
   }
+
+  const evidenceText = [title, headline, serviceEvidence].filter(Boolean).join(" ");
+  const serviceVocabulary: Array<[RegExp, string]> = [
+    [/regnskapsfør|regnskap|bokfør|accounting|bookkeeping/i, "regnskap"],
+    [/lønn|payroll/i, "lønn"],
+    [/årsoppgjør|annual accounts/i, "årsoppgjør"],
+    [/skatt|tax/i, "skatterådgivning"],
+    [/tannlege|tannbehandling|dental/i, "tannbehandling"],
+    [/fysioterapi|fysioterapeut|physiotherapy/i, "fysioterapi"],
+    [/frisør|frisørsalong|hair salon/i, "frisørtjenester"],
+    [/elektriker|elektroinstallasjon|electrical installation/i, "elektrikertjenester"],
+    [/rørlegger|rørleggertjenester|plumbing/i, "rørleggertjenester"],
+    [/bilverksted|bilreparasjon|auto repair/i, "bilservice"],
+    [/renhold|rengjøring|cleaning services/i, "renhold"],
+    [/restaurant|spisested|servering/i, "servering"],
+    [/treningssenter|personlig trener|fitness center|gym/i, "trening"]
+  ];
+  const observedServices = serviceVocabulary
+    .filter(([pattern]) => pattern.test(evidenceText))
+    .map(([, label]) => label)
+    .filter((label, index, all) => all.indexOf(label) === index)
+    .slice(0, 2);
+
   if (!title && !headline && !serviceEvidence) {
     notes.push("No meaningful page content was extracted. Draft is a general conversation opener and requires human review.");
   }
 
   const subject = "Dette la vi merke til hos dere";
+  const opener = observedServices.length
+    ? "Jeg så på nettsiden deres at dere blant annet jobber med " + observedServices.join(" og ") + ", og ville høre om dere er åpne for å se på muligheter rundt nettside og digital profil."
+    : "Jeg kom over " + company + " og ville høre om dere er åpne for å se på muligheter rundt nettside og digital profil.";
   const draftBody = [
     "Hei!",
     "",
-    "Jeg kom over " + company + " og ville høre om dere er åpne for å se på muligheter rundt nettside og digital profil.",
+    opener,
     "",
     "Jeg jobber med Cidea, hvor vi hjelper bedrifter med nettsider, visuell profil og andre digitale forbedringer ut fra hva som passer den enkelte virksomheten.",
     "",
@@ -255,7 +281,9 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   return {
     subject,
     draftBody,
-    personalizationEvidence: "Business name and interest-first conversation opener; no specific website claim.",
+    personalizationEvidence: observedServices.length
+      ? "Draft opener uses service categories inferred from public website text; confirm accuracy before use."
+      : "Business name and interest-first conversation opener; no specific website claim.",
     notes
   };
 }
