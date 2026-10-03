@@ -29,7 +29,9 @@ async function listAll(): Promise<AirtableRecord[]> {
   do {
     const url = new URL(`${apiRoot}/${baseId}/${encodeURIComponent(tableName)}`);
     url.searchParams.set("pageSize", "100");
-    for (const field of ["Email", "Lead Status", "Do Not Contact", "Duplicate Key"]) url.searchParams.append("fields[]", field);
+    for (const field of ["Company", "Email", "Lead Status", "Do Not Contact", "Duplicate Key", "Outreach Subject", "Outreach Draft"]) {
+      url.searchParams.append("fields[]", field);
+    }
     if (offset) url.searchParams.set("offset", offset);
     const page = await airtable<AirtableListResponse>(url.toString());
     records.push(...page.records);
@@ -61,30 +63,35 @@ async function main(): Promise<void> {
   let suppressed = new Set<string>();
   try { suppressed = parseSuppressionList(await readFile("data/suppressed-emails.txt", "utf8")); } catch { /* Airtable suppression flags still apply. */ }
 
-  const inputPath = process.argv[2] || "data/contact-research-drafts.json";
-  const parsed: unknown = JSON.parse(await readFile(inputPath, "utf8"));
-  if (!Array.isArray(parsed)) throw new Error("Draft input must be a JSON array.");
-  const drafts = parsed as OutreachDraft[];
+  // Airtable is the persistent queue. Do not limit sending to the newest research artifact:
+  // that artifact may contain only a few leads even when the registry has many ready drafts.
   const airtableRecords = await listAll();
-  const recordByEmail = new Map<string, AirtableRecord>();
-  for (const record of airtableRecords) {
-    const email = normalizedEmail(record.fields.Email);
-    if (email) recordByEmail.set(email, record);
-  }
-
   const candidates: Array<{ draft: OutreachDraft; email: string; record: AirtableRecord }> = [];
   const seen = new Set<string>();
-  for (const draft of drafts) {
-    const email = normalizedEmail(draft.emails?.[0]?.email);
-    if (!email || seen.has(email)) continue;
+  const counts = { draftReady: 0, missingEmail: 0, missingDraft: 0, suppressed: 0, duplicate: 0, otherStatus: 0 };
+
+  for (const record of airtableRecords) {
+    const fields = record.fields;
+    const status = String(fields["Lead Status"] || "");
+    if (status !== "Draft Ready") { counts.otherStatus++; continue; }
+    counts.draftReady++;
+
+    const email = normalizedEmail(fields.Email);
+    if (!email) { counts.missingEmail++; continue; }
+    if (seen.has(email)) { counts.duplicate++; continue; }
     seen.add(email);
-    const record = recordByEmail.get(email);
-    if (!record) continue;
-    const status = String(record.fields["Lead Status"] || "");
-    if (record.fields["Do Not Contact"] === true || ["Sent", "Replied", "Follow-up", "Approved", "Suppressed"].includes(status)) continue;
-    if (status !== "Draft Ready") continue;
-    if (!draft.subject?.trim() || !draft.draftBody?.trim()) continue;
-    if (suppressed.has(email)) continue;
+    if (fields["Do Not Contact"] === true || suppressed.has(email)) { counts.suppressed++; continue; }
+
+    const subject = typeof fields["Outreach Subject"] === "string" ? fields["Outreach Subject"].trim() : "";
+    const draftBody = typeof fields["Outreach Draft"] === "string" ? fields["Outreach Draft"].trim() : "";
+    if (!subject || !draftBody) { counts.missingDraft++; continue; }
+
+    const draft: OutreachDraft = {
+      companyName: String(fields.Company || "Ukjent bedrift"),
+      emails: [{ email }],
+      subject,
+      draftBody
+    };
     candidates.push({ draft, email, record });
   }
 
@@ -103,7 +110,11 @@ async function main(): Promise<void> {
       console.error(`SEND_FAILED company="${candidate.draft.companyName}" email="${candidate.email}" error="${error instanceof Error ? error.message : "Unknown error"}"`);
     }
   }
-  console.log(JSON.stringify({ mode: "live", dailyLimit, eligible: candidates.length, attempted: Math.min(candidates.length, dailyLimit), sent, failed, skipped: Math.max(0, candidates.length - dailyLimit) }));
+  console.log(JSON.stringify({
+    mode: "live", dailyLimit, airtableRecords: airtableRecords.length, ...counts,
+    eligible: candidates.length, attempted: Math.min(candidates.length, dailyLimit),
+    sent, failed, remainingReady: Math.max(0, candidates.length - sent - failed)
+  }));
   if (failed > 0) process.exitCode = 1;
 }
 
