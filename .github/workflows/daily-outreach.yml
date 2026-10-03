@@ -5,6 +5,7 @@ on:
     workflows: ["Gullkornet Contact Research and Drafts"]
     types: [completed]
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   actions: read
@@ -16,7 +17,7 @@ concurrency:
 
 jobs:
   send:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -32,6 +33,7 @@ jobs:
         run: npm install
 
       - name: Download researched drafts
+        if: ${{ github.event_name == 'workflow_run' }}
         uses: actions/download-artifact@v4
         with:
           name: gullkornet-contact-research-drafts
