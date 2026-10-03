@@ -56,6 +56,28 @@ test("does not quote generic headings or long service evidence in outreach", () 
   assert.ok(!result.draftBody!.includes("atilaa - Hjem"));
 });
 
+test("uses only supported observed service cues in the draft opener", () => {
+  const result = createPersonalizedDraft(
+    { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
+    "Eksempel Regnskap",
+    "Regnskap for små bedrifter",
+    "Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo."
+  );
+  assert.ok(result.draftBody?.includes("dere blant annet jobber med regnskap og lønn"));
+  assert.ok(result.personalizationEvidence?.includes("confirm accuracy"));
+  assert.equal(result.subject, "Dette la vi merke til hos dere");
+});
+
+test("falls back to a general opener when no supported service cue is found", () => {
+  const result = createPersonalizedDraft(
+    { companyName: "Eksempel AS", websiteUrl: "https://example.no" },
+    "Velkommen",
+    "Vi hjelper kundene våre",
+    "Vi tilbyr fleksible løsninger tilpasset kundene."
+  );
+  assert.ok(result.draftBody?.includes("Jeg kom over Eksempel AS"));
+});
+
 test("extracts relevant service evidence while ignoring navigation noise", () => {
   const result = extractEvidence('<html><body><nav>Hjem Kontakt Finn oss 66 96 53 00</nav><main><p>Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo.</p></main><footer>Personvern Cookies</footer></body></html>');
   assert.equal(result.serviceEvidence, "Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo.");
