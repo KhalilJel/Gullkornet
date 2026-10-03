@@ -1,0 +1,53 @@
+name: Gullkornet Pipeline Failure Alerts
+
+on:
+  workflow_run:
+    workflows:
+      - "Gullkornet Google Places Discovery"
+      - "Gullkornet Website Audit"
+      - "Gullkornet Contact Research and Drafts"
+      - "Gullkornet Digital Presence Research"
+    types: [completed]
+    branches: [main]
+
+permissions:
+  actions: read
+  issues: write
+
+jobs:
+  alert:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or update the open pipeline alert
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          FAILED_WORKFLOW: ${{ github.event.workflow.name }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          title="[Gullkornet Pipeline Alert] Workflow failures"
+          body=$(cat <<EOF
+          Gullkornet detected a failed automated workflow.
+
+          - Workflow: ${FAILED_WORKFLOW}
+          - Run: ${RUN_URL}
+          - Run ID: ${RUN_ID}
+          - Branch: ${BRANCH}
+          - Commit: ${HEAD_SHA}
+
+          This alert does not send email to any prospect. Inspect the failed run and its logs, fix the cause, and close this issue after the pipeline is healthy.
+          EOF
+          )
+          existing=$(gh issue list --repo "$REPO" --state open --search '"[Gullkornet Pipeline Alert]" in:title' --json number,title --jq '.[] | select(.title == "[Gullkornet Pipeline Alert] Workflow failures") | .number' | head -n 1 || true)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$REPO" --body "$body"
+            echo "Updated existing pipeline alert issue #$existing."
+          else
+            gh issue create --repo "$REPO" --title "$title" --body "$body" --label "bug"
+            echo "Created a pipeline alert issue."
+          fi
