@@ -85,18 +85,29 @@ async function fetchHtml(rawUrl: string): Promise<{ html: string; finalUrl: stri
   let currentUrl = rawUrl;
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
     if (!(await isSafePublicUrl(currentUrl))) throw new Error("BLOCKED_URL");
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    let response: Response;
-    try {
-      response = await fetch(currentUrl, {
-        redirect: "manual",
-        signal: controller.signal,
-        headers: { "user-agent": "GullkornetContactResearch/0.1 (public business website research)" }
-      });
-    } finally {
-      clearTimeout(timeout);
+    let response: Response | undefined;
+    let lastError: unknown;
+    // Retry one transient network/timeout failure. Keep the retry bounded and
+    // do not retry HTTP responses, redirects, or URL safety rejections.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      try {
+        response = await fetch(currentUrl, {
+          redirect: "manual",
+          signal: controller.signal,
+          headers: { "user-agent": "GullkornetContactResearch/0.1 (public business website research)" }
+        });
+        lastError = undefined;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt === 1) throw error;
+      } finally {
+        clearTimeout(timeout);
+      }
     }
+    if (!response) throw lastError instanceof Error ? lastError : new Error("FETCH_FAILED");
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get("location");
       await response.body?.cancel().catch(() => undefined);
