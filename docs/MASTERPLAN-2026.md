@@ -114,3 +114,14 @@ The first 30 days are successful when:
 - No SmartSvar production changes as part of the sales-engine pilot.
 - No unsupported customer claims.
 - No treating automated website flags as proof of commercial opportunity.
+
+## Execution status — 2026-10-04
+
+- Step 1 commercial architecture: defined and locked for the current pilot.
+- Step 2 sales offers: defined for Cidea and SmartSvar.
+- Step 3 sales pipeline: active. Existing Gullkornet records are being re-reviewed instead of starting with a duplicate dataset.
+- First verified Cidea opportunity: Tveita Regnskap AS — website presentation/conversion signals documented and outreach draft prepared. Review status remains Needs review.
+- Second reviewed opportunity: Solid Regnskap AS — potential SEO/content-architecture opportunity around multiple public domains. This remains a hypothesis and review is required before outreach.
+- Cidea priority scoring is now available as a transparent, review-required CLI signal.
+
+No outbound message has been sent as part of this execution. No DNS/MX changes were made.
