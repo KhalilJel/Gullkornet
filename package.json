@@ -10,6 +10,8 @@
     "discover:registry": "tsx src/cli/discover-registry.ts",
     "discover:google": "tsx src/cli/discover-google.ts",
     "audit:websites": "tsx src/cli/audit-websites.ts",
+    "export:market-insight": "tsx src/cli/export-market-insight.ts",
+    "prioritize:cidea": "tsx src/cli/prioritize-cidea.ts",
     "research:contacts": "tsx src/cli/research-contacts.ts",
     "import:leads": "tsx src/cli/import-leads.ts",
     "report:leads": "tsx src/cli/report-leads.ts",
