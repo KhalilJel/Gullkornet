@@ -76,6 +76,34 @@ Runtime verification completed on 2026-10-06:
 
 **Phase 3 is complete.**
 
+## Phase 4 — JEV Ultrafast verification
+
+JEV Ultrafast 0.1.0 is installed in the persistent Railway volume at `/opt/data/jev-venv` using Python 3.13.5. The package is installed from the official upstream GitHub repository `browser-use/jev-ultrafast`.
+
+Verified:
+
+- `jev-ultrafast` package import: PASS
+- `jev_ultrafast.model` import: PASS
+- Browser Harness 0.1.13 dependency: installed and importable
+- Chromium 154.0.8037.92: installed from Debian 13 package
+- Chromium CDP endpoint `127.0.0.1:9222`: PASS
+- Browser Harness `BU_CDP_URL=http://127.0.0.1:9222`: configured for the runtime session
+- Browser Harness daemon: PASS
+- Active browser connection: PASS, 1 local connection
+- Browser Harness log confirms attachment to Chromium and local socket availability
+- Browser Use Cloud authentication: not configured; cloud is optional for the local browser path
+
+Important dependency boundary:
+
+- OpenRouter `TEXT_MODEL_API_KEY` is used by JEV's OpenAI-compatible text helper.
+- TypeSafe `TYPESAFE_API_KEY` is a separate requirement for JEV's operation/target decision layer.
+- OpenRouter does not replace TypeSafe.
+- Actual JEV decision-making remains blocked until TypeSafe access is available.
+
+Current JEV status: **runtime/browser foundation READY; TypeSafe decision layer BLOCKED**.
+
+No DNS/MX changes were made.
+
 ## Phase 1 verification summary
 
 - Railway service: LIVE
@@ -92,6 +120,8 @@ Runtime verification completed on 2026-10-06:
 ## Browser Use decision
 
 Browser Use is part of the locked plan. It will be evaluated as the adaptive browser agent alongside JEV Ultrafast. The two should not be treated as interchangeable until benchmark results are available.
+
+The current Browser Harness runtime provides the local browser foundation for this evaluation. A separate Browser Use stack has not been added because JEV already brings `browser-harness==0.1.13`.
 
 ## Documentation rule
 
