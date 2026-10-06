@@ -28,13 +28,34 @@ Implement → test/verify → document → commit → verify → next phase.
 
 ## Current phase
 
-Phase 1 — Hermes is complete.
+Phase 2 — Agent Reach is in implementation and verification.
 
-Hermes is deployed and running in Railway with persistent storage. Nous Portal OAuth authentication is configured, GPT-6 Astra is the active model, Local Browser is configured, and DDGS web search is configured.
+Hermes is the runtime owner for Agent Reach. Agent Reach 1.5.0 is installed in the persistent Railway volume at `/opt/data/agent-reach-venv`, and the Agent Reach skill is registered for Hermes.
 
-The Hermes service was restarted and verified healthy. A fresh SSH session confirmed that authentication and model configuration persisted. A fresh Hermes chat then successfully executed web search after restart.
+The installation was performed in an isolated Python 3.11 virtual environment rather than modifying the container's externally managed system Python. The Railway volume is 5 GB and is mounted at `/opt/data`.
 
-The Phase 1 gate is therefore passed.
+The Agent Reach installer completed with the following baseline capabilities:
+
+- Jina Reader for arbitrary public web pages
+- RSS/Atom
+- V2EX public API
+- Bilibili public search backend
+- GitHub CLI installed with authentication configuration detected
+- Exa semantic search configured through mcporter
+
+The Agent Reach doctor currently reports 4/16 channels directly available. GitHub and Exa are configured but not live-probed by Doctor in this environment. YouTube is not currently detected because `yt-dlp` is not exposed where Doctor expects it. Optional logged-in social channels were deliberately not installed.
+
+Gullkornet's existing evidence model remains the normalization boundary. Agent Reach is a research capability layer, not a replacement for Gullkornet's evidence, qualification or opportunity logic.
+
+See `docs/AGENT-REACH.md` for the integration boundary and safety rules.
+
+## Phase 2 gate
+
+Phase 2 is **not marked complete yet**.
+
+The remaining verification is a runtime smoke test from the Hermes container for the installed upstream research backends, followed by persistence verification when the service is next restarted/redeployed through the normal Railway workflow.
+
+No DNS/MX changes are part of this phase.
 
 ## Phase 1 verification summary
 
