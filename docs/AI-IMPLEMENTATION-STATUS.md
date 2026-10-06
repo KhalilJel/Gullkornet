@@ -14,7 +14,7 @@ Implement → test/verify → document → commit → verify → next phase.
 
 - [x] Phase 0 — Architecture and guardrails
 - [x] Phase 1 — Hermes
-- [ ] Phase 2 — Agent Reach
+- [x] Phase 2 — Agent Reach
 - [ ] Phase 3 — Firecrawl
 - [ ] Phase 4 — JEV Ultrafast
 - [ ] Phase 5 — Browser Use
@@ -28,34 +28,52 @@ Implement → test/verify → document → commit → verify → next phase.
 
 ## Current phase
 
-Phase 2 — Agent Reach is in implementation and verification.
+Phase 3 — Firecrawl is the active phase.
+
+## Phase 2 — Agent Reach verification
 
 Hermes is the runtime owner for Agent Reach. Agent Reach 1.5.0 is installed in the persistent Railway volume at `/opt/data/agent-reach-venv`, and the Agent Reach skill is registered for Hermes.
 
-The installation was performed in an isolated Python 3.11 virtual environment rather than modifying the container's externally managed system Python. The Railway volume is 5 GB and is mounted at `/opt/data`.
+The installation was performed in an isolated Python 3.11 virtual environment. The Railway volume is 5 GB and is mounted at `/opt/data`.
 
-The Agent Reach installer completed with the following baseline capabilities:
+Runtime smoke tests verified:
 
-- Jina Reader for arbitrary public web pages
-- RSS/Atom
-- V2EX public API
-- Bilibili public search backend
-- GitHub CLI installed with authentication configuration detected
-- Exa semantic search configured through mcporter
+- Exa semantic search: PASS
+- GitHub CLI access to `KhalilJel/Gullkornet`: PASS
+- Jina Reader transport: PASS; the tested `www.cidea.no` hostname could not be resolved by Jina, so that specific website read is not counted as a content-read success.
+- Persistence after normal Hermes restart: PASS
+- `/opt/data/agent-reach-venv/bin/agent-reach --version`: Agent Reach v1.5.0 after restart
 
-The Agent Reach doctor currently reports 4/16 channels directly available. GitHub and Exa are configured but not live-probed by Doctor in this environment. YouTube is not currently detected because `yt-dlp` is not exposed where Doctor expects it. Optional logged-in social channels were deliberately not installed.
+The Agent Reach Doctor reported 4/16 channels directly available. Optional logged-in social channels were deliberately not installed. YouTube was not detected in the Doctor environment and is not a Phase 2 blocker.
 
-Gullkornet's existing evidence model remains the normalization boundary. Agent Reach is a research capability layer, not a replacement for Gullkornet's evidence, qualification or opportunity logic.
+**Phase 2 is complete.**
 
-See `docs/AGENT-REACH.md` for the integration boundary and safety rules.
+## Phase 3 — Firecrawl preparation
 
-## Phase 2 gate
+Firecrawl implementation is prepared on the `feat/firecrawl-phase-3` branch.
 
-Phase 2 is **not marked complete yet**.
+The adapter:
 
-The remaining verification is a runtime smoke test from the Hermes container for the installed upstream research backends, followed by persistence verification when the service is next restarted/redeployed through the normal Railway workflow.
+- keeps provider-specific responses outside the domain layer
+- reuses Gullkornet public-URL safety checks
+- supports v2 `/scrape` and `/crawl`
+- requires `FIRECRAWL_API_KEY` only at runtime
+- does not change DNS/MX
+- does not replace the existing website audit until real runtime verification succeeds
 
-No DNS/MX changes are part of this phase.
+See `docs/FIRECRAWL.md`.
+
+## Phase 3 gate
+
+Phase 3 is not complete until:
+
+1. TypeScript typecheck passes.
+2. Unit tests pass.
+3. `FIRECRAWL_API_KEY` is configured only in the runtime secret store.
+4. A real scrape smoke test succeeds against a public website.
+5. A real crawl smoke test succeeds against a small public website.
+6. The service is restarted/redeployed and the configuration remains available.
+7. No DNS/MX changes occur.
 
 ## Phase 1 verification summary
 
@@ -69,8 +87,6 @@ No DNS/MX changes are part of this phase.
 - Post-restart web search: verified
 - Railway post-restart health: 1/1 replicas, 0 crashes, 0 warnings, 0 critical issues
 - DNS/MX: unchanged
-
-Optional tool integrations such as GitHub token, speech-to-text or paid managed tool providers are not required for the Phase 1 gate.
 
 ## Browser Use decision
 
