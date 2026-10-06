@@ -1,12 +1,12 @@
 # Hermes Agent Integration
 
-Status: Phase 1 — in progress
+Status: Phase 1 — complete
 
 Last updated: 2026-10-06
 
 ## Role
 
-Hermes is the primary orchestrator for the Cidea AI layer. It will own agent context, memory, skills and delegation while specialized components provide internet research, crawling, browser actions and lead operations.
+Hermes is the primary orchestrator for the Cidea AI layer. It owns agent context, memory, skills and delegation while specialized components provide internet research, crawling, browser actions and lead operations.
 
 ## Upstream
 
@@ -43,23 +43,58 @@ The gateway reaches its startup state successfully. Railway reports no active se
 
 ## Provider setup
 
-The remaining Phase 1 blocker is provider authentication.
+Nous Portal OAuth authentication was completed interactively through the Railway SSH session using:
 
-The current Hermes runtime reports that Nous Portal authentication is missing:
+`hermes setup --portal`
 
-`Nous Portal runtime credentials unavailable`
+The Hermes runtime now reports:
 
-`run hermes model to re-authenticate`
+- Nous Portal Auth: logged in
+- Model: GPT-6 Astra through Nous inference
+- Browser automation: Local browser
 
-`run hermes auth`
+Credentials remain on the persistent Hermes volume and are not committed to GitHub.
 
-Hermes documentation confirms that `hermes setup --portal` performs the Nous OAuth flow and persists the refresh token under `~/.hermes/auth.json`. This interactive OAuth step cannot be completed through the available Railway connector because it has no interactive container terminal/browser session.
+## Web search
 
-Credentials must never be committed to GitHub.
+A free DDGS web-search backend was configured in the persistent Hermes configuration:
+
+```yaml
+web:
+  backend: ddgs
+```
+
+The configuration was verified after `hermes setup` and after a Railway restart.
+
+Functional web-search verification was completed twice:
+
+1. Hermes searched for the official OpenAI website and returned `openai.com`.
+2. After restart and a fresh SSH session, Hermes searched for the official Railway website and returned `railway.com`.
+
+The second test verifies that the web-search configuration remained functional after restart.
+
+## Runtime and persistence verification
+
+The Hermes Railway service was explicitly restarted after provider and web configuration.
+
+Post-restart Railway status:
+
+- Service: Online
+- Deployment: SUCCESS
+- Running replicas: 1/1
+- Crashed replicas: 0
+- Active warnings: 0
+- Active critical issues: 0
+- Recent failures: 0
+- Persistent volume attached: yes
+
+A fresh SSH session was then opened and `hermes portal info` confirmed that Nous Portal authentication and the selected model persisted.
+
+A fresh Hermes chat then successfully executed `web_search`, confirming that the persistent runtime configuration was usable after restart.
 
 ## Runtime note
 
-The Hermes image's current entrypoint design uses an entrypoint dispatcher and s6 supervision. Railway currently starts the requested gateway command successfully, but the runtime logs a PID 1/init warning. The service remains healthy and online. This warning is not currently blocking gateway startup, so it is not being treated as a separate Phase 1 gate failure.
+The Hermes image's current entrypoint design uses an entrypoint dispatcher and s6 supervision. Railway currently starts the requested gateway command successfully, but the runtime logs a PID 1/init warning. The service remains healthy and online. This warning did not block gateway startup and did not prevent the Phase 1 verification tests from passing.
 
 ## Phase 1 verification
 
@@ -73,18 +108,25 @@ Completed:
 - [x] Verify service remains online
 - [x] Verify no public domain is configured
 - [x] Verify no DNS/MX changes were made
+- [x] Configure Nous Portal authentication
+- [x] Select GPT-6 Astra as the active model
+- [x] Configure Local Browser
+- [x] Configure DDGS web search
+- [x] Run `hermes doctor` and apply available safe fix
+- [x] Complete normal web-search chat
+- [x] Restart Railway Hermes service
+- [x] Verify auth/model persistence after restart
+- [x] Verify web-search functionality after restart
+- [x] Document verification result
 
-Remaining:
+Remaining non-blocking items:
 
-- [ ] Configure model/provider authentication
-- [ ] Run `hermes doctor`
-- [ ] Complete one normal clean chat
-- [ ] Verify persisted auth/config state after restart
-- [ ] Document clean-chat result
-- [ ] Pass Phase 1 gate
+- Optional setup of additional tools such as GitHub token, speech-to-text or paid managed tool providers is not required for the Phase 1 gate.
 
 ## Gate
 
-Phase 1 is complete only when Hermes can successfully complete a normal chat in the intended runtime and the result is documented in GitHub.
+Phase 1 is complete. Hermes can run in the intended Railway runtime, authenticate with Nous Portal, retain its persistent configuration across restart, and successfully perform web research after restart.
 
-No Agent Reach, Firecrawl, JEV, TypeSafe, KeeLead or OpenOutreach implementation starts before this gate is passed.
+The locked implementation sequence can now proceed to Phase 2 — Agent Reach.
+
+No Phase 3+ implementation is being started early.
