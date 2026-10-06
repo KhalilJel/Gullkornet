@@ -95,6 +95,7 @@ Verified:
 - Navigation to `https://example.com/`: PASS
 - Page state retrieval: PASS; URL, title, viewport and document dimensions returned
 - Tab enumeration: PASS; active tab returned with target ID, title and URL
+- Accessibility tree inspection: PASS; semantic link `Learn more` identified with backend DOM node ID 27
 - Browser Use Cloud authentication: not configured; cloud is optional for the local browser path
 
 Important dependency boundary:
@@ -102,9 +103,11 @@ Important dependency boundary:
 - OpenRouter `TEXT_MODEL_API_KEY` is used by JEV's OpenAI-compatible text helper.
 - TypeSafe `TYPESAFE_API_KEY` is a separate requirement for JEV's operation/target decision layer.
 - OpenRouter does not replace TypeSafe.
-- Actual JEV decision-making remains blocked until TypeSafe access is available.
+- TypeSafe API access is deliberately not being purchased/activated at this stage because it has a cost.
+- JEV browser/runtime work continues independently of TypeSafe.
+- Actual JEV autonomous operation/target selection requiring TypeSafe remains deferred until TypeSafe access is intentionally enabled.
 
-Current JEV status: **runtime/browser foundation READY; TypeSafe decision layer BLOCKED**.
+Current JEV status: **browser/runtime foundation READY; TypeSafe-dependent decision layer DEFERRED by cost decision**.
 
 No DNS/MX changes were made.
 
