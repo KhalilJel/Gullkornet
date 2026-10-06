@@ -13,7 +13,7 @@ Implement → test/verify → document → commit → verify → next phase.
 ## Phase status
 
 - [x] Phase 0 — Architecture and guardrails
-- [ ] Phase 1 — Hermes **in progress**
+- [x] Phase 1 — Hermes
 - [ ] Phase 2 — Agent Reach
 - [ ] Phase 3 — Firecrawl
 - [ ] Phase 4 — JEV Ultrafast
@@ -28,13 +28,32 @@ Implement → test/verify → document → commit → verify → next phase.
 
 ## Current phase
 
-Hermes is deployed and running in Railway with persistent storage. The gateway starts successfully and the service is healthy. The remaining blocker is interactive provider authentication for Nous Portal, followed by clean-chat and persistence verification.
+Phase 1 — Hermes is complete.
 
-The Railway connector does not provide an interactive container terminal/browser session, so the OAuth step cannot be completed automatically from the current tool surface.
+Hermes is deployed and running in Railway with persistent storage. Nous Portal OAuth authentication is configured, GPT-6 Astra is the active model, Local Browser is configured, and DDGS web search is configured.
+
+The Hermes service was restarted and verified healthy. A fresh SSH session confirmed that authentication and model configuration persisted. A fresh Hermes chat then successfully executed web search after restart.
+
+The Phase 1 gate is therefore passed.
+
+## Phase 1 verification summary
+
+- Railway service: LIVE
+- Persistent volume: `/opt/data`
+- Gateway: `hermes gateway run`
+- Nous Portal: authenticated
+- Model: GPT-6 Astra
+- Browser: Local Browser
+- Web search: DDGS
+- Post-restart web search: verified
+- Railway post-restart health: 1/1 replicas, 0 crashes, 0 warnings, 0 critical issues
+- DNS/MX: unchanged
+
+Optional tool integrations such as GitHub token, speech-to-text or paid managed tool providers are not required for the Phase 1 gate.
 
 ## Browser Use decision
 
-Browser Use is now part of the locked plan. It will be evaluated as the adaptive browser agent alongside JEV Ultrafast. The two should not be treated as interchangeable until benchmark results are available.
+Browser Use is part of the locked plan. It will be evaluated as the adaptive browser agent alongside JEV Ultrafast. The two should not be treated as interchangeable until benchmark results are available.
 
 ## Documentation rule
 
