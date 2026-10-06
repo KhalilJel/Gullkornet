@@ -28,7 +28,9 @@ Implement → test/verify → document → commit → verify → next phase.
 
 ## Current phase
 
-Hermes is staged in Railway with persistent data storage. Deployment and provider configuration are intentionally pending because deploying requires explicit approval and provider credentials/OAuth.
+Hermes is deployed and running in Railway with persistent storage. The gateway starts successfully and the service is healthy. The remaining blocker is interactive provider authentication for Nous Portal, followed by clean-chat and persistence verification.
+
+The Railway connector does not provide an interactive container terminal/browser session, so the OAuth step cannot be completed automatically from the current tool surface.
 
 ## Browser Use decision
 
