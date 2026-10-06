@@ -28,7 +28,7 @@ Implement → test/verify → document → commit → verify → next phase.
 
 ## Current phase
 
-Phase 2 — Agent Reach is in implementation and verification.
+Phase 2 — Agent Reach remains the active phase until its persistence gate is closed.
 
 Hermes is the runtime owner for Agent Reach. Agent Reach 1.5.0 is installed in the persistent Railway volume at `/opt/data/agent-reach-venv`, and the Agent Reach skill is registered for Hermes.
 
@@ -43,17 +43,36 @@ The Agent Reach installer completed with the following baseline capabilities:
 - GitHub CLI installed with authentication configuration detected
 - Exa semantic search configured through mcporter
 
-The Agent Reach doctor currently reports 4/16 channels directly available. GitHub and Exa are configured but not live-probed by Doctor in this environment. YouTube is not currently detected because `yt-dlp` is not exposed where Doctor expects it. Optional logged-in social channels were deliberately not installed.
+The Agent Reach doctor currently reports 4/16 channels directly available. YouTube is not currently detected because `yt-dlp` is not exposed where Doctor expects it. Optional logged-in social channels were deliberately not installed.
 
-Gullkornet's existing evidence model remains the normalization boundary. Agent Reach is a research capability layer, not a replacement for Gullkornet's evidence, qualification or opportunity logic.
+## Phase 2 runtime smoke test
 
-See `docs/AGENT-REACH.md` for the integration boundary and safety rules.
+The latest Hermes-container smoke test verified:
 
-## Phase 2 gate
+- Exa semantic search: PASS
+- GitHub CLI access to `KhalilJel/Gullkornet`: PASS
+- Jina Reader invocation: PASS at the transport level, but the tested `www.cidea.no` hostname could not be resolved by Jina, so this is not counted as a successful website-content read
 
-Phase 2 is **not marked complete yet**.
+The Jina result is treated as a target-domain DNS/resolution issue, not evidence that Agent Reach itself is broken.
 
-The remaining verification is a runtime smoke test from the Hermes container for the installed upstream research backends, followed by persistence verification when the service is next restarted/redeployed through the normal Railway workflow.
+The remaining Phase 2 gate is persistence verification after a normal Hermes service restart/redeploy. Do not mark Phase 2 complete until that verification is observed.
+
+## Phase 3 preparation
+
+Firecrawl implementation has been prepared on the `feat/firecrawl-phase-3` branch but is intentionally not merged into `main` while the Phase 2 gate remains open.
+
+The Firecrawl adapter:
+
+- keeps provider-specific responses outside the domain layer
+- reuses Gullkornet public-URL safety checks
+- supports v2 `/scrape` and `/crawl`
+- requires `FIRECRAWL_API_KEY` only at runtime
+- does not change DNS/MX
+- does not replace the existing website audit until real runtime verification succeeds
+
+See `docs/FIRECRAWL.md`.
+
+## Phase 2 safety boundary
 
 No DNS/MX changes are part of this phase.
 
