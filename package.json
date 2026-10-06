@@ -18,7 +18,8 @@
     "send:email": "tsx src/cli/send-email.ts",
     "sync:airtable": "tsx src/cli/sync-airtable-leads.ts",
     "send:daily": "tsx src/cli/send-daily-outreach.ts",
-    "audit:all": "tsx src/cli/audit-all-cidea-sites.ts"
+    "audit:all": "tsx src/cli/audit-all-cidea-sites.ts",
+    "audit:website:full": "tsx src/cli/audit-website-full.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
