@@ -11,7 +11,8 @@ Hermes is the top-level orchestrator. It delegates evidence collection and brows
 - Firecrawl: website extraction and structured page research.
 - Agent Reach: external/public context and competitor intelligence.
 - Agent Reach: external/public context and competitor intelligence.
-- Browser Use: interactive UX and journey testing.
+- JEV: interactive browser execution for UX journeys.
+- TypeSafe: validates browser actions and observations before they enter the audit pipeline.
 
 ## Reasoning layers
 
