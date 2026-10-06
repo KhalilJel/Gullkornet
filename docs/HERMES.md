@@ -14,43 +14,73 @@ Official project: https://github.com/NousResearch/hermes-agent
 
 Official documentation: https://hermes-agent.nousresearch.com/docs/
 
-Current upstream guidance says to get one clean normal chat working before adding gateway, cron, skills, voice or routing.
+Hermes upstream currently recommends configuring one provider and verifying a normal chat before expanding the runtime.
 
-## Railway staging
+## Railway deployment
 
-A dedicated `hermes-agent` service has been staged in the existing Railway `powerful-patience` production environment using:
+A dedicated `hermes-agent` service is live in the existing Railway `powerful-patience` production environment using:
 
 `nousresearch/hermes-agent:latest`
 
-Persistent Hermes data is staged at:
+Persistent Hermes data is mounted at:
 
 `/opt/data`
 
-The current Railway plan permits a maximum 500 MB volume, so the staged Hermes volume is 500 MB. This can be expanded later if the plan permits.
+The current Railway plan permits a maximum 500 MB volume, so the live Hermes volume is 500 MB.
 
-**The staged changes have not been deployed.** No production deployment or external action was triggered in this phase.
+Current runtime verification:
+
+- Railway service state: LIVE
+- Latest deployment: `095f8e00-9f94-4f24-a4c7-0e3535f195b3`
+- Deployment status: SUCCESS
+- Running replicas: 1/1
+- Restart policy: ALWAYS
+- Gateway command: `hermes gateway run`
+- No public domain is configured
+- No DNS or MX changes were made
+
+The gateway reaches its startup state successfully. Railway reports no active service warnings or critical issues.
 
 ## Provider setup
 
-Hermes requires a configured model/provider before the clean-chat verification gate can pass.
+The remaining Phase 1 blocker is provider authentication.
 
-The preferred path is to use Hermes' supported setup flow. Current Hermes documentation describes `hermes setup --portal` as the fastest path when using Nous Portal; it configures the provider and tool gateway through OAuth.
+The current Hermes runtime reports that Nous Portal authentication is missing:
 
-Credentials must be configured as runtime secrets/auth files and must never be committed to GitHub.
+`Nous Portal runtime credentials unavailable`
 
-## Phase 1 checklist
+`run hermes model to re-authenticate`
+
+`run hermes auth`
+
+Hermes documentation confirms that `hermes setup --portal` performs the Nous OAuth flow and persists the refresh token under `~/.hermes/auth.json`. This interactive OAuth step cannot be completed through the available Railway connector because it has no interactive container terminal/browser session.
+
+Credentials must never be committed to GitHub.
+
+## Runtime note
+
+The Hermes image's current entrypoint design uses an entrypoint dispatcher and s6 supervision. Railway currently starts the requested gateway command successfully, but the runtime logs a PID 1/init warning. The service remains healthy and online. This warning is not currently blocking gateway startup, so it is not being treated as a separate Phase 1 gate failure.
+
+## Phase 1 verification
+
+Completed:
 
 - [x] Define Hermes role
-- [x] Create dedicated staged Railway service
-- [x] Stage persistent Hermes data volume
-- [x] Document installation/runtime boundary
-- [ ] Commit/accept Railway staged changes after explicit deployment approval
-- [ ] Configure model/provider
-- [ ] Start Hermes
+- [x] Create dedicated Railway service
+- [x] Persistent Hermes data volume mounted
+- [x] Deploy gateway runtime
+- [x] Verify successful Railway deployment
+- [x] Verify service remains online
+- [x] Verify no public domain is configured
+- [x] Verify no DNS/MX changes were made
+
+Remaining:
+
+- [ ] Configure model/provider authentication
 - [ ] Run `hermes doctor`
 - [ ] Complete one normal clean chat
-- [ ] Verify persistent data location
-- [ ] Document verification result
+- [ ] Verify persisted auth/config state after restart
+- [ ] Document clean-chat result
 - [ ] Pass Phase 1 gate
 
 ## Gate
