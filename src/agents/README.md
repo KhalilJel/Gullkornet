@@ -2,9 +2,14 @@
 
 The website engine uses specialized agents behind one orchestration layer.
 
+## Orchestration order
+
+Hermes is the top-level orchestrator. It delegates evidence collection and browser work instead of performing those tasks itself.
+
 ## Research agents
 
 - Firecrawl: website extraction and structured page research.
+- Agent Reach: external/public context and competitor intelligence.
 - Agent Reach: external/public context and competitor intelligence.
 - Browser Use: interactive UX and journey testing.
 
