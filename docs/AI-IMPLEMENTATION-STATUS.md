@@ -15,7 +15,7 @@ Implement → test/verify → document → commit → verify → next phase.
 - [x] Phase 0 — Architecture and guardrails
 - [x] Phase 1 — Hermes
 - [x] Phase 2 — Agent Reach
-- [ ] Phase 3 — Firecrawl
+- [x] Phase 3 — Firecrawl
 - [ ] Phase 4 — JEV Ultrafast
 - [ ] Phase 5 — Browser Use
 - [ ] Phase 6 — TypeSafe
@@ -28,7 +28,7 @@ Implement → test/verify → document → commit → verify → next phase.
 
 ## Current phase
 
-Phase 3 — Firecrawl is the active phase.
+Phase 4 — JEV Ultrafast is the active phase.
 
 ## Phase 2 — Agent Reach verification
 
@@ -48,9 +48,9 @@ The Agent Reach Doctor reported 4/16 channels directly available. Optional logge
 
 **Phase 2 is complete.**
 
-## Phase 3 — Firecrawl preparation
+## Phase 3 — Firecrawl verification
 
-Firecrawl implementation is prepared on the `feat/firecrawl-phase-3` branch.
+Firecrawl is implemented in `src/integrations/firecrawl.ts` with tests in `tests/firecrawl.test.ts`.
 
 The adapter:
 
@@ -59,21 +59,22 @@ The adapter:
 - supports v2 `/scrape` and `/crawl`
 - requires `FIRECRAWL_API_KEY` only at runtime
 - does not change DNS/MX
-- does not replace the existing website audit until real runtime verification succeeds
+- does not replace the existing website audit path yet
 
-See `docs/FIRECRAWL.md`.
+Runtime verification completed on 2026-10-06:
 
-## Phase 3 gate
+- Firecrawl API key configured in Railway runtime secret store: PASS
+- Hosted `/v2/scrape` against `https://example.com`: PASS, HTTP 200
+- Hosted `/v2/crawl` with limit 2: PASS, job completed 2/2
+- Hermes restart: PASS
+- Firecrawl scrape after restart: PASS
+- Hermes Railway health after restart: 1/1 online, 0 crashes, 0 warnings, 0 critical issues
+- GitHub Actions typecheck: PASS
+- GitHub Actions test suite: PASS
+- CI workflow added in PR #63 and merged to `main`
+- DNS/MX: unchanged
 
-Phase 3 is not complete until:
-
-1. TypeScript typecheck passes.
-2. Unit tests pass.
-3. `FIRECRAWL_API_KEY` is configured only in the runtime secret store.
-4. A real scrape smoke test succeeds against a public website.
-5. A real crawl smoke test succeeds against a small public website.
-6. The service is restarted/redeployed and the configuration remains available.
-7. No DNS/MX changes occur.
+**Phase 3 is complete.**
 
 ## Phase 1 verification summary
 
