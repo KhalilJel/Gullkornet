@@ -91,6 +91,10 @@ Verified:
 - Browser Harness daemon: PASS
 - Active browser connection: PASS, 1 local connection
 - Browser Harness log confirms attachment to Chromium and local socket availability
+- Real-tab creation: PASS
+- Navigation to `https://example.com/`: PASS
+- Page state retrieval: PASS; URL, title, viewport and document dimensions returned
+- Tab enumeration: PASS; active tab returned with target ID, title and URL
 - Browser Use Cloud authentication: not configured; cloud is optional for the local browser path
 
 Important dependency boundary:
