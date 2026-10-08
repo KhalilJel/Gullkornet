@@ -1,0 +1,160 @@
+export type OpenOutreachLead = {
+  id?: string;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
+  company?: string;
+  title?: string;
+  website?: string;
+  linkedin_url?: string;
+  reason?: string;
+  lead_id?: string;
+  qualified_at?: string;
+  profile_text?: string;
+  [key: string]: unknown;
+};
+
+export type OpenOutreachFindInput = {
+  count: number;
+  emails?: boolean;
+};
+
+export type OpenOutreachCommandResult = {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+};
+
+export type OpenOutreachCommandExecutor = (
+  command: string,
+  args: string[],
+  timeoutMs: number
+) => Promise<OpenOutreachCommandResult>;
+
+export type OpenOutreachClientOptions = {
+  command?: string;
+  timeoutMs?: number;
+  allowSend?: boolean;
+  executor?: OpenOutreachCommandExecutor;
+};
+
+export type OpenOutreachClient = {
+  findLeads(input: OpenOutreachFindInput): Promise<OpenOutreachLead[]>;
+  send(count?: number | "all"): Promise<OpenOutreachCommandResult>;
+};
+
+const DEFAULT_TIMEOUT_MS = 60_000;
+
+function parseLeads(stdout: string): OpenOutreachLead[] {
+  const leads: OpenOutreachLead[] = [];
+
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      throw new Error("OPENOUTREACH_INVALID_JSONL");
+    }
+
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("OPENOUTREACH_INVALID_LEAD_RECORD");
+    }
+
+    leads.push(parsed as OpenOutreachLead);
+  }
+
+  return leads;
+}
+
+export function createOpenOutreachClient(
+  options: OpenOutreachClientOptions = {}
+): OpenOutreachClient {
+  const command = options.command ?? process.env.OPENOUTREACH_COMMAND ?? "openoutreach";
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const allowSend = options.allowSend ?? process.env.OPENOUTREACH_ALLOW_SEND === "true";
+  const executor = options.executor ?? defaultExecutor;
+
+  async function run(args: string[]): Promise<OpenOutreachCommandResult> {
+    const result = await executor(command, args, timeoutMs);
+
+    if (result.exitCode !== 0) {
+      throw new Error(`OPENOUTREACH_EXIT_${result.exitCode}`);
+    }
+
+    return result;
+  }
+
+  return {
+    async findLeads(input) {
+      if (!Number.isInteger(input.count) || input.count < 1) {
+        throw new Error("OPENOUTREACH_INVALID_COUNT");
+      }
+
+      const args = ["find", String(input.count)];
+      if (input.emails) args.push("emails");
+      args.push("--json");
+
+      const result = await run(args);
+      return parseLeads(result.stdout);
+    },
+
+    async send(count = "all") {
+      if (!allowSend) {
+        throw new Error("OPENOUTREACH_SEND_DISABLED");
+      }
+
+      const args = ["send"];
+      if (count !== "all") {
+        if (!Number.isInteger(count) || count < 1) {
+          throw new Error("OPENOUTREACH_INVALID_SEND_COUNT");
+        }
+        args.push(String(count));
+      }
+
+      return run(args);
+    }
+  };
+}
+
+async function defaultExecutor(
+  command: string,
+  args: string[],
+  timeoutMs: number
+): Promise<OpenOutreachCommandResult> {
+  const { spawn } = await import("node:child_process");
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+
+    let stdout = "";
+    let stderr = "";
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error("OPENOUTREACH_TIMEOUT"));
+    }, timeoutMs);
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.once("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+
+    child.once("close", (exitCode) => {
+      clearTimeout(timeout);
+      resolve({ stdout, stderr, exitCode: exitCode ?? 1 });
+    });
+  });
+}
