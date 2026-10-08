@@ -26,10 +26,15 @@ export type OpenOutreachCommandResult = {
   exitCode: number;
 };
 
+export type OpenOutreachCommandInput = {
+  stdin?: string;
+};
+
 export type OpenOutreachCommandExecutor = (
   command: string,
   args: string[],
-  timeoutMs: number
+  timeoutMs: number,
+  input?: OpenOutreachCommandInput
 ) => Promise<OpenOutreachCommandResult>;
 
 export type OpenOutreachClientOptions = {
@@ -41,6 +46,7 @@ export type OpenOutreachClientOptions = {
 
 export type OpenOutreachClient = {
   findLeads(input: OpenOutreachFindInput): Promise<OpenOutreachLead[]>;
+  ingestLeads(leads: OpenOutreachLead[]): Promise<OpenOutreachCommandResult>;
   send(count?: number | "all"): Promise<OpenOutreachCommandResult>;
 };
 
@@ -78,8 +84,8 @@ export function createOpenOutreachClient(
   const allowSend = options.allowSend ?? process.env.OPENOUTREACH_ALLOW_SEND === "true";
   const executor = options.executor ?? defaultExecutor;
 
-  async function run(args: string[]): Promise<OpenOutreachCommandResult> {
-    const result = await executor(command, args, timeoutMs);
+  async function run(args: string[], input?: OpenOutreachCommandInput): Promise<OpenOutreachCommandResult> {
+    const result = await executor(command, args, timeoutMs, input);
 
     if (result.exitCode !== 0) {
       throw new Error(`OPENOUTREACH_EXIT_${result.exitCode}`);
@@ -100,6 +106,15 @@ export function createOpenOutreachClient(
 
       const result = await run(args);
       return parseLeads(result.stdout);
+    },
+
+    async ingestLeads(leads) {
+      if (!leads.length) {
+        throw new Error("OPENOUTREACH_EMPTY_INGEST");
+      }
+
+      const jsonl = leads.map((lead) => JSON.stringify(lead)).join("\\n") + "\\n";
+      return run(["outsend"], { stdin: jsonl });
     },
 
     async send(count = "all") {
@@ -123,17 +138,21 @@ export function createOpenOutreachClient(
 async function defaultExecutor(
   command: string,
   args: string[],
-  timeoutMs: number
+  timeoutMs: number,
+  input?: OpenOutreachCommandInput
 ): Promise<OpenOutreachCommandResult> {
   const { spawn } = await import("node:child_process");
 
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
-      stdio: ["ignore", "pipe", "pipe"]
+      stdio: [input?.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"]
     });
 
     let stdout = "";
     let stderr = "";
+    if (input?.stdin !== undefined && child.stdin) {
+      child.stdin.end(input.stdin);
+    }
     const timeout = setTimeout(() => {
       child.kill("SIGTERM");
       reject(new Error("OPENOUTREACH_TIMEOUT"));
