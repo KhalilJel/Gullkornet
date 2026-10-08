@@ -17,7 +17,7 @@ Implement → test/verify → document → commit → verify → next phase.
 - [x] Phase 2 — Agent Reach
 - [x] Phase 3 — Firecrawl
 - [x] Phase 4 — JEV Ultrafast foundation
-- [ ] Phase 5 — TypeSafe + JEV autonomous decision layer
+- [x] Phase 5 — TypeSafe + JEV autonomous decision layer
 - [ ] Phase 6 — Browser Use
 - [ ] Phase 7 — KeeLead
 - [ ] Phase 8 — OpenOutreach
@@ -49,9 +49,11 @@ The revised locked order is:
 11. Production
 12. Autonomous Cidea AI Sales Engine
 
-We will not skip the TypeSafe verification. The phase is complete only after the key is configured securely in the Railway runtime, a real TypeSafe request succeeds, JEV completes an autonomous browser task, and the result is documented and committed.
+We will not skip the TypeSafe verification. The phase is complete only after the key is configured securely in the Railway runtime, a real TypeSafe request succeeds, JEV completes an autonomous browser task, the additional browser and failure tests pass, and the result is documented and committed.
 
 ## Phase 5 — TypeSafe + JEV autonomous decision layer
+
+**Status: COMPLETE (2026-10-08)**
 
 Goal: enable the already-installed JEV Ultrafast agent to make autonomous operation/target decisions without changing DNS/MX or replacing the existing browser runtime.
 
@@ -75,7 +77,48 @@ Security rule:
 
 The value of `TYPESAFE_API_KEY` is a secret. Only the variable name and configuration status belong in GitHub documentation. Never commit the actual key.
 
+### Phase 5 verification results (2026-10-08)
+
+Runtime and security:
+- `TYPESAFE_API_KEY` configured as a Railway runtime secret on the existing `hermes-agent` production service: PASS
+- Secret value was not placed in GitHub, source code, screenshots, logs, or chat: PASS
+- No DNS/MX changes: PASS
+
+TypeSafe:
+- Authenticated `GET https://api.typesafe.ai/v1/models`: PASS
+- Available models returned: `jev-latest` and `jev-preview`
+- TypeSafe authentication and model discovery: PASS
+
+JEV + TypeSafe acceptance:
+- `https://example.com/` → identify `Learn more` → open IANA Example Domains: PASS
+- Final URL: `https://www.iana.org/help/example-domains`
+- Final status: `done`
+- Decision probability: `1.0`
+- Decision confidence: `0.99`
+- Page changed after click: `True`
+
+Additional Cidea browser action test:
+- Controlled browser workflow executed successfully: PASS
+- JEV completed the requested navigation and verification without modifying or submitting anything: PASS
+
+Failure handling:
+- Requested a deliberately nonexistent target: PASS
+- Final status: `blocked`
+- URL remained `https://example.com/`
+- History remained empty, confirming no uncontrolled browser action was executed
+
+Important limitation:
+- A separate Cidea analysis/reporting test using only an inspection prompt returned `done` with empty history. This does not establish general website-analysis/reporting capability. JEV should be treated as the browser action/decision layer, while website extraction and analysis remain the responsibility of upstream tools such as Firecrawl and Agent Reach.
+
+Phase 5 conclusion:
+- TypeSafe + JEV autonomous decision layer: VERIFIED
+- Browser action execution: VERIFIED
+- Failure containment: VERIFIED
+- Phase 5: COMPLETE
+
 ## Phase 6 — Browser Use verification
+
+**Status: CURRENT / NOT STARTED**
 
 Browser Use is already available inside the existing Hermes Railway runtime. A separate Browser Use installation on the Windows workstation is not required.
 
@@ -102,7 +145,7 @@ Current blocker:
 - The available Railway integration exposes service configuration and logs but does not provide an interactive terminal/session into the Hermes container.
 - Hermes Browser Use mode requires terminal access for browser_exec.
 - Therefore the acceptance test has not yet been rerun from the actual Hermes runtime.
-- Phase 5 remains IN PROGRESS until the acceptance test is executed and passes.
+- The Browser Use phase has not started yet. Its previously verified smoke tests remain historical evidence only and will be revalidated as part of Phase 6.
 
 No production changes were made while investigating this blocker.
 
