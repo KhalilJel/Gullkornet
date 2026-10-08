@@ -186,8 +186,8 @@ Runtime compatibility repair (2026-10-08):
 
 - OpenOutSend 0.1.39 is deployed with a startup compatibility patch for its Pydantic AI OpenAI model import (OpenAIModel -> OpenAIChatModel).
 - Initial deployments still crashed because the first startup patch was not applied correctly.
-- The corrected sed startup patch was deployed successfully in Railway deployment f557ca79-f202-40bf-a5cf-ede56c287aff.
-- Deployment status: SUCCESS.
+- The earlier deployment `f557ca79-f202-40bf-a5cf-ede56c287aff` still failed because the patch did not apply.
+- The corrected direct sed startup patch was verified by Railway deployment `902f46b6-86e8-4038-a6c5-00be80ff04c1`, status SUCCESS.
 - Sending remains gated and no test email was sent.
 
 
