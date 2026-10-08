@@ -1,0 +1,79 @@
+name: KeeLead Live Acceptance
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  keelead-live-acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check KeeLead API
+        shell: bash
+        env:
+          KEELEAD_BASE_URL: https://keelead-production-9f05.up.railway.app
+        run: |
+          set -euo pipefail
+
+          post_json() {
+            local path="$1"
+            local body="$2"
+            curl --fail-with-body --silent --show-error \
+              --connect-timeout 10 --max-time 45 \
+              -H 'content-type: application/json' \
+              -X POST "$KEELEAD_BASE_URL$path" \
+              -d "$body"
+          }
+
+          echo "Testing lead search..."
+          search="$(post_json /api/leads '{"query":"web design businesses in Oslo","count":2,"location":"Oslo","industry":"professional services"}')"
+          SEARCH="$search" python - <<'PY'
+          import json, os
+          data=json.loads(os.environ["SEARCH"])
+          assert isinstance(data.get("leads"), list), data
+          assert data.get("query") is not None, data
+          print("search: PASS", len(data["leads"]), "leads")
+          PY
+
+          echo "Testing enrichment..."
+          enrich="$(post_json /api/enrich '{"name":"Test Contact","company":"Test Company","domain":"example.com"}')"
+          ENRICH="$enrich" python - <<'PY'
+          import json, os
+          data=json.loads(os.environ["ENRICH"])
+          for key in ("company","domain","confidence"):
+              assert key in data, data
+          print("enrich: PASS")
+          PY
+
+          echo "Testing email verification..."
+          verify="$(post_json /api/verify '{"email":"test@example.com"}')"
+          VERIFY="$verify" python - <<'PY'
+          import json, os
+          data=json.loads(os.environ["VERIFY"])
+          assert isinstance(data.get("results"), list), data
+          print("verify: PASS")
+          PY
+
+          echo "Testing company research..."
+          research="$(post_json /api/research '{"query":"example.com"}')"
+          RESEARCH="$research" python - <<'PY'
+          import json, os
+          data=json.loads(os.environ["RESEARCH"])
+          assert isinstance(data, dict), data
+          assert "error" not in data, data
+          print("research: PASS")
+          PY
+
+          echo "Testing lead scoring..."
+          score="$(post_json /api/score '{"lead":{"company":"Test Company","title":"Founder","industry":"technology","location":"Oslo"},"icp":{"titles":["founder"],"industries":["technology"]}}')"
+          SCORE="$score" python - <<'PY'
+          import json, os
+          data=json.loads(os.environ["SCORE"])
+          assert isinstance(data.get("score"), (int, float)), data
+          assert 0 <= data["score"] <= 100, data
+          print("score: PASS", data["score"])
+          PY
+
+          echo "KeeLead live acceptance: PASS"
