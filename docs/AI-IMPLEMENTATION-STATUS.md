@@ -179,6 +179,14 @@ Phase 7 conclusion:
 
 ## Phase 8 — OpenOutreach
 
+Runtime compatibility repair (2026-10-08):
+- OpenOutSend 0.1.39 is deployed with a startup compatibility patch for its Pydantic AI OpenAI model import (OpenAIModel -> OpenAIChatModel).
+- Initial deployments still crashed because the first startup patch was not applied correctly.
+- The corrected sed startup patch was deployed successfully in Railway deployment f557ca79-f202-40bf-a5cf-ede56c287aff.
+- Deployment status: SUCCESS.
+- Sending remains gated and no test email was sent.
+
+
 **Status: IN PROGRESS (2026-10-08)**
 
 OpenOutSend is integrated as the outreach execution layer after KeeLead.
