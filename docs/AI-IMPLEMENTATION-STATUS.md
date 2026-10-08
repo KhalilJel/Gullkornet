@@ -177,6 +177,43 @@ Phase 7 conclusion:
 - Live acceptance: PASS
 - Phase 7: COMPLETE
 
+## Phase 8 — OpenOutreach
+
+**Status: IN PROGRESS (2026-10-08)**
+
+OpenOutreach is being integrated as the outreach execution layer after KeeLead discovery.
+
+Architecture decision:
+- Gullkornet / KeeLead remains responsible for prospect discovery, enrichment, verification and scoring.
+- OpenOutreach discovery is not used for this path because it would duplicate the lead discovery responsibility and introduce a second lead-data provider.
+- OpenOutSend, which is the sending half bundled by OpenOutreach, accepts qualified leads over a JSON Lines pipe and owns mailbox state, suppression, pacing and sending guards. citeturn4search0turn4search3
+- The Gullkornet adapter therefore hands KeeLead leads to the OpenOutSend boundary rather than asking OpenOutreach to discover them again.
+- Live sending remains explicitly disabled in the Gullkornet adapter until the runtime and approval gates are configured.
+
+Implementation:
+- `src/integrations/openoutreach.ts` added as the provider boundary.
+- Supports bounded OpenOutreach lead discovery for standalone use, JSONL ingestion into `outsend`, and explicitly gated sending.
+- Sending is disabled unless `OPENOUTREACH_ALLOW_SEND=true` is intentionally configured.
+- Command failures, malformed JSONL, empty ingest and invalid counts fail closed.
+- Tests cover the JSONL contract, command arguments, ingestion, failure handling and send gating.
+- GitHub CI: PASS.
+
+Runtime work still required:
+1. Provision the OpenOutreach/OpenOutSend runtime.
+2. Configure the required LLM and mailbox variables securely.
+3. Run `outsend check` against the real mailbox without sending.
+4. Feed a controlled KeeLead test lead through the JSONL boundary.
+5. Verify persistence, suppression and draft generation.
+6. Run a non-production send test only when an explicit recipient and human approval gate are present.
+7. Document the runtime result before marking Phase 8 COMPLETE.
+
+Security:
+- No mailbox credentials or API keys are committed to GitHub.
+- No DNS/MX changes.
+- No live sending is enabled by the current adapter.
+
+Phase 8 is intentionally not complete yet.
+
 ## Phase 6 — Browser Use verification
 
 **Status: COMPLETE (2026-10-08)**
