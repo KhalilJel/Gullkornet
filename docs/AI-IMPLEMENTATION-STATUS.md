@@ -1,6 +1,6 @@
 # AI Layer Implementation Status
 
-Last updated: 2026-10-06
+Last updated: 2026-10-08
 
 ## Rule
 
@@ -28,7 +28,40 @@ Implement → test/verify → document → commit → verify → next phase.
 
 ## Current phase
 
-Phase 4 — JEV Ultrafast is the active phase.
+Phase 5 — Browser Use is the active phase.
+
+## Phase 5 — Browser Use verification
+
+Browser Use is already available inside the existing Hermes Railway runtime. A separate Browser Use installation on the Windows workstation is not required.
+
+Verified runtime foundation:
+
+- Hermes Railway service: hermes-agent
+- Persistent Railway volume: /opt/data
+- Hermes image: nousresearch/hermes-agent:latest
+- Hermes exposes the browser_exec Browser Use tool
+- Packaged Chromium is available in the Hermes runtime
+- Browser Harness/CDP foundation was previously verified at 127.0.0.1:9222
+- Previous Browser Use smoke test successfully reached https://example.com
+- Previous model test reached Browser Use execution but failed with OpenRouter HTTP 402 because the selected Mercury model had insufficient credits
+- Intended retry: openrouter/free with use_vision=false
+
+Acceptance test:
+
+1. Open https://example.com
+2. Click Learn more
+3. Verify the final page is the IANA Example Domains page
+
+Current blocker:
+
+- The available Railway integration exposes service configuration and logs but does not provide an interactive terminal/session into the Hermes container.
+- Hermes Browser Use mode requires terminal access for browser_exec.
+- Therefore the acceptance test has not yet been rerun from the actual Hermes runtime.
+- Phase 5 remains IN PROGRESS until the acceptance test is executed and passes.
+
+No production changes were made while investigating this blocker.
+
+No DNS/MX changes were made.
 
 ## Phase 2 — Agent Reach verification
 
