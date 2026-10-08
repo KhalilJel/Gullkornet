@@ -158,13 +158,17 @@ async function defaultExecutor(
       reject(new Error("OPENOUTREACH_TIMEOUT"));
     }, timeoutMs);
 
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
+    if (child.stdout) {
+      child.stdout.on("data", (chunk) => {
+        stdout += chunk.toString();
+      });
+    }
 
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
+    if (child.stderr) {
+      child.stderr.on("data", (chunk) => {
+        stderr += chunk.toString();
+      });
+    }
 
     child.once("error", (error) => {
       clearTimeout(timeout);
