@@ -19,7 +19,7 @@ Implement → test/verify → document → commit → verify → next phase.
 - [x] Phase 4 — JEV Ultrafast foundation
 - [x] Phase 5 — TypeSafe + JEV autonomous decision layer
 - [x] Phase 6 — Browser Use
-- [ ] Phase 7 — KeeLead
+- [x] Phase 7 — KeeLead
 - [ ] Phase 8 — OpenOutreach
 - [ ] Phase 9 — End-to-end integration
 - [ ] Phase 10 — End-to-end testing
@@ -28,7 +28,7 @@ Implement → test/verify → document → commit → verify → next phase.
 
 ## Current phase
 
-Phase 7 — KeeLead is the active phase.
+Phase 8 — OpenOutreach is the active phase.
 
 ## Current architecture boundary
 
@@ -59,10 +59,10 @@ The revised locked order is:
 2. Agent Reach — DONE
 3. Firecrawl — DONE
 4. JEV Ultrafast foundation — DONE
-5. TypeSafe + JEV autonomous decision layer — CURRENT
-6. Browser Use
-7. KeeLead
-8. OpenOutreach
+5. TypeSafe + JEV autonomous decision layer — DONE
+6. Browser Use — DONE
+7. KeeLead — DONE
+8. OpenOutreach — CURRENT
 9. End-to-end integration
 10. End-to-end testing
 11. Production
@@ -137,48 +137,45 @@ Phase 5 conclusion:
 
 ## Phase 7 — KeeLead
 
-**Status: IN PROGRESS (2026-10-08)**
+**Status: COMPLETE (2026-10-08)**
 
-KeeLead is being integrated as a provider boundary for lead discovery, enrichment, verification, company research and scoring.
+KeeLead is integrated as the lead discovery, enrichment, verification, company research and scoring provider.
 
-Verified from the current public KeeLead repository:
+Implementation:
+- `src/integrations/keelead.ts` provides the provider boundary.
+- Lead search, enrichment, email verification, company research and scoring are covered.
+- Provider timeout and HTTP error handling are implemented.
+- No API keys or secrets are stored in GitHub.
+- Unit tests and CI pass.
 
-- KeeLead exposes HTTP API routes for leads, enrich, verify, research and score.
-- KeeLead also exposes an MCP server that wraps these API routes.
-- The MCP server uses `KEELEAD_API_URL` and defaults to `http://localhost:3000`.
-- KeeLead documents multiple data sources and email verification capabilities.
-- Important constraint: the public repository explicitly notes that some data sources are placeholders and require real API integrations. KeeLead results therefore must not be treated as trusted production intelligence without runtime validation.
+Runtime:
+- KeeLead is deployed on Railway as service `keelead` in the existing `powerful-patience` project.
+- The deployment is healthy with 1/1 replica online.
+- The deployed `/api/leads` route now uses KeeLead `SourceManager` rather than the legacy lead engine.
+- No DNS/MX changes were made.
 
-Gullkornet implementation:
+Live acceptance:
+- GitHub Actions workflow: `KeeLead Live Acceptance`
+- Production lead search: PASS, returned 32 leads for a web design query in Oslo.
+- Enrichment: PASS.
+- Email verification: PASS.
+- Company research: PASS.
+- Lead scoring: PASS, score returned 95 for the test ICP.
+- CI: PASS.
+- Production endpoint was tested from GitHub Actions because the direct web/container execution environment cannot resolve the Railway hostname.
 
-- `src/integrations/keelead.ts` added as the provider boundary.
-- Supports lead search, lead enrichment, email verification, company research and lead scoring.
-- Provider timeout and HTTP error handling included.
-- No API keys or secrets are stored in the repository.
-- `tests/keelead.test.ts` added.
-- CI: PASS on both implementation and test commits.
+Important limitation:
+- KeeLead's upstream documentation explicitly notes that some data sources are placeholders. Therefore SourceManager routing is verified, but individual premium/placeholder sources are not assumed production-grade without source-specific validation.
 
-Current architecture:
-
-Gullkornet discovery → KeeLead discovery/enrichment → Firecrawl website extraction → JEV/browser execution when needed → Browser Use escalation when JEV is blocked.
-
-Runtime status:
-
-- The adapter and contract are implemented and tested.
-- A live KeeLead runtime has not yet been provisioned or connected.
-- Do not mark Phase 7 COMPLETE until a real KeeLead runtime is available and its lead discovery/enrichment/verification responses have been tested.
-- No new Railway service has been created at this stage.
-- No DNS/MX changes.
-
-Next Phase 7 work:
-
-1. Provide KeeLead runtime inside the existing infrastructure without creating unnecessary infrastructure.
-2. Validate real KeeLead API/MCP responses.
-3. Test a Norway/Oslo lead discovery query relevant to Cidea.
-4. Test enrichment and email verification.
-5. Validate failure handling and timeouts against the real runtime.
-6. Document the real integration and run CI.
-7. Mark Phase 7 DONE only after live acceptance tests pass.
+Phase 7 conclusion:
+- KeeLead runtime: VERIFIED
+- SourceManager lead discovery: VERIFIED
+- Enrichment: VERIFIED
+- Email verification: VERIFIED
+- Company research: VERIFIED
+- Lead scoring: VERIFIED
+- Live acceptance: PASS
+- Phase 7: COMPLETE
 
 ## Phase 6 — Browser Use verification
 
