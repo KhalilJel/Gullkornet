@@ -379,3 +379,11 @@ Official Hermes Browser Automation documentation:
 https://hermes-agent.nousresearch.com/docs/user-guide/features/browser/
 
 Phase 6 is now **NOT STARTED**. No Browser Use provider, API key, DNS/MX record, or production deployment was changed during this clarification.
+
+### KeeLead validation findings
+
+- KeeLead is deployed and healthy on Railway.
+- A live acceptance workflow is now committed at `.github/workflows/keelead-live-acceptance.yml`.
+- The GitHub connector currently reports no workflow run for the acceptance commit, so the live HTTP acceptance test has not been falsely marked as passed.
+- Direct runtime inspection of the upstream KeeLead implementation shows that several advertised sources and enrichment paths are demo/placeholder implementations. These must not be treated as production intelligence until replaced or validated against real data.
+- Phase 7 therefore remains incomplete.
