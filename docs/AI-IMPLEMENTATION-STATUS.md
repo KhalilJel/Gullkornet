@@ -32,17 +32,17 @@ Phase 7 — KeeLead is the active phase.
 
 ## Current architecture boundary
 
-Cidea Website Intelligence is a dedicated website intelligence service, not the lead generation engine.
+Website Intelligence Engine is a dedicated website intelligence service, not the lead generation engine.
 
 - Gullkornet / KeeLead: finds and enriches prospects.
-- Cidea Website Intelligence: analyzes prospect websites and produces evidence-backed improvement opportunities.
+- Website Intelligence Engine: analyzes prospect websites and produces evidence-backed improvement opportunities.
 - Hermes: orchestrates the AI workflow.
 - OpenOutreach: handles qualification, personalization and outreach when its phase is reached.
 
 Deployment decision:
 
 - Keep these services in the existing Railway project `powerful-patience`.
-- Do not create a separate Railway project for Cidea Website Intelligence unless a concrete isolation requirement appears later.
+- Do not create a separate Railway project for Website Intelligence Engine unless a concrete isolation requirement appears later.
 - Keep the website intelligence service focused on websites only.
 - No DNS/MX changes.
 
