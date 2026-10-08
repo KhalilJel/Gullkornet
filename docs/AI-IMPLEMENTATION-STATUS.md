@@ -179,18 +179,6 @@ Phase 7 conclusion:
 
 ## Phase 8 — OpenOutreach
 
-Runtime compatibility repair (2026-10-08):
-- A later Railway deployment initially reproduced the import error because the patch command did not apply.
-- The runtime command was simplified to a direct `sed -i 's/OpenAIModel/OpenAIChatModel/g'` patch before `outsend check`.
-- Deployment `902f46b6-86e8-4038-a6c5-00be80ff04c1` completed with status SUCCESS, so the startup command completed successfully.
-
-- OpenOutSend 0.1.39 is deployed with a startup compatibility patch for its Pydantic AI OpenAI model import (OpenAIModel -> OpenAIChatModel).
-- Initial deployments still crashed because the first startup patch was not applied correctly.
-- The earlier deployment `f557ca79-f202-40bf-a5cf-ede56c287aff` still failed because the patch did not apply.
-- The corrected direct sed startup patch was verified by Railway deployment `902f46b6-86e8-4038-a6c5-00be80ff04c1`, status SUCCESS.
-- Sending remains gated and no test email was sent.
-
-
 **Status: IN PROGRESS (2026-10-08)**
 
 OpenOutSend is integrated as the outreach execution layer after KeeLead.
@@ -200,43 +188,50 @@ Architecture:
 - OpenOutSend owns lead ingestion, mailbox state, suppression, pacing and sending guards.
 - JSONL is the provider boundary between KeeLead and OpenOutSend.
 - OpenOutFind is not used because it would duplicate KeeLead discovery.
-- Live sending remains disabled unless explicitly approved and enabled.
+- Live sending remains disabled until the controlled acceptance gate is passed.
+- No DNS/MX changes.
 
 Implementation:
 - `src/integrations/openoutreach.ts` provides the provider boundary.
 - JSONL ingestion, bounded commands, failure handling and explicit send gating are covered by tests.
 - CI passes.
 - No API keys or mailbox credentials are committed.
-- No DNS/MX changes.
-
-Runtime:
-- Railway service: existing `openoutreach` service in `powerful-patience`.
-- Persistent volume: `/app/data`.
 - Runtime package: `openoutsend==0.1.39`.
-- `OUTSEND_AI_MODEL` uses the OpenAI compatible Hermes model configuration.
-- Mailbox configuration is stored only in Railway.
+- The Pydantic AI compatibility repair (OpenAIModel -> OpenAIChatModel) is applied in the runtime Docker build.
+- Persistent OpenOutSend volume remains mounted at `/app/data`.
 
 Verified:
-- OpenOutSend runtime starts successfully: PASS.
-- `outsend check` reaches the runtime: PASS.
+- OpenOutSend runtime startup: PASS.
 - Controlled JSONL ingestion: PASS.
 - Re-ingestion of the same `lead_id`: PASS.
 - SQLite persistence/idempotency assertion: PASS.
-- `outsend send --agent-draft --json` reaches the expected draft-pending gate with non-zero exit: PASS.
-- No email was sent during the acceptance run.
-- Safe runtime command has been restored to `outsend check`.
+- `outsend send --agent-draft --json` reached the expected draft-pending gate without sending: PASS.
+- IMAP TCP connectivity to `imap.migadu.com:993`: PASS.
+- SMTP TCP connectivity from Railway: FAIL on port 465 and FAIL on port 587.
+- The SMTP failures are network egress/connectivity failures, not OpenOutSend credential validation failures.
+- The service start command has been restored to safe `outsend check`.
 - `OPENOUTREACH_ALLOW_SEND` remains disabled.
 
+Runtime constraint:
+- Railway cannot currently establish the required outbound SMTP connection from this service.
+- Resend was evaluated as an HTTPS transport alternative, but the connected Resend account currently has only `smartsvar.no` verified.
+- We will not use the SmartSvar domain as a Cidea sender and will not introduce DNS/MX changes solely to work around this.
+- No new Railway project/service is being created for this workaround.
+
 Remaining Phase 8 gate:
-1. Obtain explicit human approval for one specific non-production recipient.
-2. Enable sending only for that controlled test.
-3. Send exactly one test email to the approved recipient.
-4. Verify the result.
-5. Immediately disable the send gate.
-6. Document and commit the final result.
+1. Provide an approved HTTPS email transport for `cideamarketing.com`, or move the OpenOutSend runtime to infrastructure with SMTP egress.
+2. Run `outsend check` against the real mailbox.
+3. Feed one controlled KeeLead lead through the JSONL boundary.
+4. Verify AI draft generation.
+5. Verify suppression and pacing.
+6. Perform exactly one controlled non-production send to the approved test recipient.
+7. Verify delivery and mailbox/reply handling.
+8. Immediately disable sending again.
+9. Update this document with the final runtime and acceptance results.
+10. Commit and verify the documentation.
+11. Only then mark Phase 8 COMPLETE.
 
-Phase 8 is not complete until the controlled non-production send test and documentation are complete.
-
+Phase 8 is **not complete** until the transport gate and controlled send acceptance are complete.
 
 ## Phase 6 — Browser Use verification
 
