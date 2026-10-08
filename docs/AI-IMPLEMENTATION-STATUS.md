@@ -444,3 +444,41 @@ Phase 6 is now **NOT STARTED**. No Browser Use provider, API key, DNS/MX record,
 ### KeeLead implementation boundary
 
 The deployed KeeLead service points to `KhalilJel/keelead`, but the connected GitHub integration cannot read or modify that repository (404/403). The upstream KeeLead repository documents 35 free sources and explicitly notes that some data sources are placeholder implementations. The current deployed `/api/leads` path was inspected from the upstream source and uses the legacy lead engine rather than the newer SourceManager. Therefore the next required implementation is to switch the deployed API route to the SourceManager based pipeline before production use. No new Railway service should be created just to work around repository access.
+
+
+### Phase 8 — Resend transport implementation (2026-10-08)
+
+**Transport decision: IMPLEMENTED**
+
+Railway SMTP egress is unavailable for this service on ports 465 and 587, so OpenOutSend now has an explicit HTTPS transport path using the existing Resend account.
+
+Implementation:
+- openoutsend_resend.py owns only the Resend HTTPS check/send edge.
+- OpenOutSend remains the owner of draft generation, suppression, pacing, mailbox state, IMAP reply detection, message logging and deal state.
+- OUTSEND_MAIL_TRANSPORT=resend selects the transport. SMTP remains the default when the variable is absent.
+- RESEND_API_KEY is runtime-only and is not stored in GitHub.
+- outsend check validates the Resend API key and that the sender's domain is verified with sending enabled.
+- Outbound messages preserve the OpenOutSend-generated Message-ID, threading headers, List-Unsubscribe header and BCC.
+- Resend idempotency keys are deterministic per logical message, preventing duplicate delivery on retry within Resend's idempotency window.
+- The Resend API is used over HTTPS only. No DNS/MX changes are performed by the runtime.
+- IMAP remains on Migadu and is untouched by the outbound transport.
+
+Build verification:
+- OpenOutSend 0.1.39 remains pinned.
+- Existing Pydantic AI compatibility patch remains in place.
+- The Docker build now imports and wires the Resend transport into the OpenOutSend runtime.
+- Runtime transport tests are intentionally performed in Railway after deployment because the final acceptance depends on the real RESEND_API_KEY and verified cideamarketing.com domain.
+
+**Phase 8 validation results:**
+
+- Railway build: PASS.
+- OpenOutSend runtime import path: PASS after installing the transport module into Python site-packages.
+- Permanent `outsend check`: PASS. Runtime reported the OpenOutSend model, mailbox connection and ready state with Resend transport selected.
+- Resend API/domain validation: PASS. `cideamarketing.com` is verified with sending enabled and receiving disabled.
+- Controlled runtime outbound send: PASS. OpenOutSend's Resend transport sent the Phase 8 test message to Resend's official `delivered@resend.dev` test recipient; Resend reported status `delivered`.
+- Deterministic Resend idempotency key: implemented on the runtime send path.
+- Existing suppression and pacing logic remains above the transport boundary and is unchanged by the Resend integration. Existing Phase 7 runtime tests for suppression, pacing, lead state and draft gate remain valid.
+- Migadu IMAP remains the inbound/reply path. No Resend receiving or DNS/MX changes were introduced.
+- GitHub CI: PASS for the final Phase 8 runtime commit.
+
+**Phase 8 status: COMPLETE.**
