@@ -387,3 +387,7 @@ Phase 6 is now **NOT STARTED**. No Browser Use provider, API key, DNS/MX record,
 - The GitHub connector currently reports no workflow run for the acceptance commit, so the live HTTP acceptance test has not been falsely marked as passed.
 - Direct runtime inspection of the upstream KeeLead implementation shows that several advertised sources and enrichment paths are demo/placeholder implementations. These must not be treated as production intelligence until replaced or validated against real data.
 - Phase 7 therefore remains incomplete.
+
+### KeeLead implementation boundary
+
+The deployed KeeLead service points to `KhalilJel/keelead`, but the connected GitHub integration cannot read or modify that repository (404/403). The upstream KeeLead repository documents 35 free sources and explicitly notes that some data sources are placeholder implementations. The current deployed `/api/leads` path was inspected from the upstream source and uses the legacy lead engine rather than the newer SourceManager. Therefore the next required implementation is to switch the deployed API route to the SourceManager based pipeline before production use. No new Railway service should be created just to work around repository access.
