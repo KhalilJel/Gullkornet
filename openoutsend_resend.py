@@ -1,9 +1,8 @@
-"""Resend HTTPS transport for the OpenOutSend runtime.
+"""Resend HTTPS transport used by the OpenOutSend runtime.
 
-This module is intentionally small: OpenOutSend remains the owner of drafts,
-suppression, pacing, mailbox state, IMAP reply detection and send bookkeeping.
-This module replaces only the SMTP delivery/check edge when
-OUTSEND_MAIL_TRANSPORT=resend.
+OpenOutSend remains responsible for drafts, suppression, pacing, mailbox state,
+IMAP reply detection and send bookkeeping. This module owns only the HTTPS
+delivery/check edge when OUTSEND_MAIL_TRANSPORT=resend.
 """
 from __future__ import annotations
 
@@ -22,6 +21,10 @@ class ResendTransportError(RuntimeError):
     pass
 
 
+def enabled() -> bool:
+    return (os.environ.get("OUTSEND_MAIL_TRANSPORT") or "smtp").strip().lower() == "resend"
+
+
 def _api_key() -> str:
     key = (os.environ.get("RESEND_API_KEY") or "").strip()
     if not key:
@@ -29,19 +32,18 @@ def _api_key() -> str:
     return key
 
 
-def _request(path: str, *, method: str = "GET", payload: dict | None = None):
+def _request(path: str, *, method: str = "GET", payload: dict | None = None, idempotency_key: str | None = None):
     body = None if payload is None else json.dumps(payload).encode("utf-8")
-    request = Request(
-        f"{RESEND_API}{path}",
-        data=body,
-        method=method,
-        headers={
-            "Authorization": f"Bearer {_api_key()}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "gullkornet-openoutsend-resend/1",
-        },
-    )
+    headers = {
+        "Authorization": f"Bearer {_api_key()}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": "gullkornet-openoutsend-resend/1",
+    }
+    if idempotency_key:
+        headers["Idempotency-Key"] = idempotency_key
+
+    request = Request(f"{RESEND_API}{path}", data=body, method=method, headers=headers)
     try:
         with urlopen(request, timeout=TIMEOUT_SECONDS) as response:
             raw = response.read()
@@ -60,7 +62,7 @@ def _request(path: str, *, method: str = "GET", payload: dict | None = None):
 
 
 def verify_sender(from_address: str) -> tuple[bool, str]:
-    """Validate the Resend key and the sender's verified domain without sending."""
+    """Validate the Resend key and sender domain without sending."""
     from_address = from_address.strip().lower()
     if "@" not in from_address:
         return False, "invalid sender address"
@@ -91,7 +93,7 @@ def verify_sender(from_address: str) -> tuple[bool, str]:
 
 
 def deliver(email_message: EmailMessage) -> tuple[int, bytes]:
-    """Send one OpenOutSend message through Resend and return SMTP-like acceptance data."""
+    """Send one OpenOutSend message through Resend."""
     from_address = (email_message.get("From") or "").strip()
     to_address = (email_message.get("To") or "").strip()
     bcc_address = (email_message.get("Bcc") or "").strip()
@@ -101,15 +103,15 @@ def deliver(email_message: EmailMessage) -> tuple[int, bytes]:
     if not from_address or not to_address:
         raise ResendTransportError("Resend transport requires From and To")
 
+    plain_part = email_message.get_body(preferencelist=("plain",))
+    text = plain_part.get_content() if plain_part is not None else email_message.get_content()
+
     payload: dict[str, object] = {
         "from": from_address,
         "to": [to_address],
         "subject": subject,
-        "text": email_message.get_body(preferencelist=("plain",)).get_content()
-        if email_message.get_body(preferencelist=("plain",)) is not None
-        else email_message.get_content(),
+        "text": text,
     }
-
     if bcc_address:
         payload["bcc"] = [bcc_address]
 
@@ -129,92 +131,18 @@ def deliver(email_message: EmailMessage) -> tuple[int, bytes]:
         from_address,
         to_address,
         subject,
-        str(payload.get("text", "")),
+        text,
     ]).encode("utf-8")
     idempotency_key = "openoutsend-" + hashlib.sha256(idempotency_material).hexdigest()
-    
+
     status, response = _request(
         "/emails",
         method="POST",
         payload=payload,
+        idempotency_key=idempotency_key,
     )
-    # The transport API needs the idempotency key on the actual request. The helper
-    # above intentionally handles ordinary GET/POST requests, so retry the POST here
-    # with the required header using the same payload.
-    request = Request(
-        f"{RESEND_API}/emails",
-        data=json.dumps(payload).encode("utf-8"),
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {_api_key()}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "gullkornet-openoutsend-resend/1",
-            "Idempotency-Key": idempotency_key,
-        },
-    )
-    try:
-        with urlopen(request, timeout=TIMEOUT_SECONDS) as response_obj:
-            status = response_obj.status
-            response = json.loads(response_obj.read().decode("utf-8") or "{}")
-    except HTTPError as exc:
-        raw = exc.read().decode("utf-8", errors="replace")
-        try:
-            detail = json.loads(raw)
-        except json.JSONDecodeError:
-            detail = raw
-        if isinstance(detail, dict):
-            detail = detail.get("message") or detail.get("name") or detail
-        raise ResendTransportError(f"Resend HTTP {exc.code}: {detail}") from exc
-    except URLError as exc:
-        raise ResendTransportError(f"Resend connection failed: {exc.reason}") from exc
-
     email_id = response.get("id") if isinstance(response, dict) else None
     if status != 200 or not isinstance(email_id, str) or not email_id:
         raise ResendTransportError(f"Resend returned an unexpected response: {response!r}")
 
     return status, f"resend-email-id={email_id}".encode("utf-8")
-
-
-def enabled() -> bool:
-    return (os.environ.get("OUTSEND_MAIL_TRANSPORT") or "smtp").strip().lower() == "resend"
-
-
-def install() -> None:
-    """Install the transport only when explicitly selected by environment."""
-    if not enabled():
-        return
-
-    from cold_outreach.emails import sender, smtp
-
-    def verify_auth(host: str, port: int, username: str, password: str):
-        return verify_sender(username)
-
-    def deliver_from_sender(mailbox, email_message, row):
-        from cold_outreach.emails.delivery_policy import record_acceptance, record_failure
-
-        try:
-            status, response = deliver(email_message)
-            record_acceptance(row, status, response)
-        except Exception as exc:
-            record_failure(row, exc)
-            raise
-
-    smtp.verify_auth = verify_auth
-    sender._deliver = deliver_from_sender
-
-    from cold_outreach import first_run
-    original_check_ready = first_run.check_ready
-
-    def check_ready(*, agent_draft_active: bool = False):
-        original_check_ready(agent_draft_active=agent_draft_active)
-        from cold_outreach.emails.models import Mailbox
-
-        mailbox = Mailbox.objects.order_by("pk").first()
-        if mailbox is None:
-            raise first_run.OutsendError("Resend transport selected but no mailbox is configured")
-        ok, reason = verify_sender(mailbox.from_address)
-        if not ok:
-            raise first_run.OutsendError(f"Resend transport check failed: {reason}")
-
-    first_run.check_ready = check_ready
