@@ -30,6 +30,25 @@ Implement → test/verify → document → commit → verify → next phase.
 
 Phase 7 — KeeLead is the active phase.
 
+## Current architecture boundary
+
+Cidea Website Intelligence is a dedicated website intelligence service, not the lead generation engine.
+
+- Gullkornet / KeeLead: finds and enriches prospects.
+- Cidea Website Intelligence: analyzes prospect websites and produces evidence-backed improvement opportunities.
+- Hermes: orchestrates the AI workflow.
+- OpenOutreach: handles qualification, personalization and outreach when its phase is reached.
+
+Deployment decision:
+
+- Keep these services in the existing Railway project `powerful-patience`.
+- Do not create a separate Railway project for Cidea Website Intelligence unless a concrete isolation requirement appears later.
+- Keep the website intelligence service focused on websites only.
+- No DNS/MX changes.
+
+This boundary is now part of the implementation architecture and should not be changed while the current implementation plan is being completed.
+
+
 ### Revised implementation order
 
 TypeSafe is now intentionally activated because the installed JEV Ultrafast version requires `TYPESAFE_API_KEY` for its autonomous operation/target decision layer. The previous decision to defer TypeSafe is superseded by the user's decision to purchase credits and create the API key.
