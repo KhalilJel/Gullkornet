@@ -166,3 +166,21 @@ The current Browser Harness runtime provides the local browser foundation for th
 ## Documentation rule
 
 Each completed phase must update this status file and its relevant component documentation.
+
+## Phase 5 — execution-path clarification (2026-10-08)
+
+The current Hermes documentation confirms that Browser Use mode exposes `browser_exec`, which executes model-written Python and is only offered to sessions that also have terminal access. Local Browser Use mode drives Hermes' packaged Chromium rather than the user's Windows Chrome.
+
+This confirms that the current blocker is an access-path problem, not an installation problem.
+
+Accepted ways to complete the Phase 5 acceptance test:
+
+1. Execute the existing Browser Use test from a terminal-enabled Hermes session using the existing local Chromium/browser-harness runtime.
+2. If terminal access to that runtime cannot be provided, explicitly enable a supported cloud browser path for Hermes and test the browser automation there. This requires intentional provider/credential configuration and is not being enabled automatically.
+
+The preferred path remains option 1 because Browser Use is already installed and the local Chromium/CDP foundation is verified.
+
+Official Hermes Browser Automation documentation:
+https://hermes-agent.nousresearch.com/docs/user-guide/features/browser/
+
+Phase 5 remains **IN PROGRESS**. No Browser Use provider, API key, DNS/MX record, or production deployment was changed during this clarification.
