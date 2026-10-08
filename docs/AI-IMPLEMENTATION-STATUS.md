@@ -181,6 +181,19 @@ Phase 7 conclusion:
 
 **Status: IN PROGRESS (2026-10-08)**
 
+Runtime verification update (2026-10-08):
+
+- OpenOutSend runtime: Railway service `openoutreach`, existing persistent `/app/data` volume retained.
+- Runtime package: `openoutsend==0.1.39`.
+- The previous `0.1.36` and `0.1.38` attempts failed on an incompatible `OpenAIModel` import from Pydantic AI.
+- After moving to `0.1.39`, the Railway deployment completed with status SUCCESS and the container started without the previous import failure.
+- `OUTSEND_AI_MODEL` remains configured as `openai_compatible:inception/mercury-2.5` and the LLM credentials remain Railway variables.
+- Live email sending remains disabled.
+- A controlled JSONL ingestion/draft acceptance run was attempted against the persistent runtime. Railway returned SUCCESS for the one-shot deployment, but the connector did not surface the command stdout/stderr needed to prove the ingest and draft result. Therefore persistence and draft generation are not yet marked VERIFIED.
+- No DNS/MX changes were made.
+
+Phase 8 remains IN PROGRESS until the JSONL ingest, persistence/suppression behavior and draft generation are explicitly verified.
+
 OpenOutreach is being integrated as the outreach execution layer after KeeLead discovery.
 
 Architecture decision:
