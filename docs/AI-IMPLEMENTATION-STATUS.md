@@ -116,6 +116,51 @@ Phase 5 conclusion:
 - Failure containment: VERIFIED
 - Phase 5: COMPLETE
 
+## Phase 7 — KeeLead
+
+**Status: IN PROGRESS (2026-10-08)**
+
+KeeLead is being integrated as a provider boundary for lead discovery, enrichment, verification, company research and scoring.
+
+Verified from the current public KeeLead repository:
+
+- KeeLead exposes HTTP API routes for leads, enrich, verify, research and score.
+- KeeLead also exposes an MCP server that wraps these API routes.
+- The MCP server uses `KEELEAD_API_URL` and defaults to `http://localhost:3000`.
+- KeeLead documents multiple data sources and email verification capabilities.
+- Important constraint: the public repository explicitly notes that some data sources are placeholders and require real API integrations. KeeLead results therefore must not be treated as trusted production intelligence without runtime validation.
+
+Gullkornet implementation:
+
+- `src/integrations/keelead.ts` added as the provider boundary.
+- Supports lead search, lead enrichment, email verification, company research and lead scoring.
+- Provider timeout and HTTP error handling included.
+- No API keys or secrets are stored in the repository.
+- `tests/keelead.test.ts` added.
+- CI: PASS on both implementation and test commits.
+
+Current architecture:
+
+Gullkornet discovery → KeeLead discovery/enrichment → Firecrawl website extraction → JEV/browser execution when needed → Browser Use escalation when JEV is blocked.
+
+Runtime status:
+
+- The adapter and contract are implemented and tested.
+- A live KeeLead runtime has not yet been provisioned or connected.
+- Do not mark Phase 7 COMPLETE until a real KeeLead runtime is available and its lead discovery/enrichment/verification responses have been tested.
+- No new Railway service has been created at this stage.
+- No DNS/MX changes.
+
+Next Phase 7 work:
+
+1. Provide KeeLead runtime inside the existing infrastructure without creating unnecessary infrastructure.
+2. Validate real KeeLead API/MCP responses.
+3. Test a Norway/Oslo lead discovery query relevant to Cidea.
+4. Test enrichment and email verification.
+5. Validate failure handling and timeouts against the real runtime.
+6. Document the real integration and run CI.
+7. Mark Phase 7 DONE only after live acceptance tests pass.
+
 ## Phase 6 — Browser Use verification
 
 **Status: COMPLETE (2026-10-08)**
