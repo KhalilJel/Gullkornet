@@ -28,7 +28,7 @@ Implement → test/verify → document → commit → verify → next phase.
 
 ## Current phase
 
-Phase 5 — TypeSafe + JEV autonomous decision layer is the active phase.
+Phase 6 — Browser Use is the active phase.
 
 ### Revised implementation order
 
@@ -118,38 +118,69 @@ Phase 5 conclusion:
 
 ## Phase 6 — Browser Use verification
 
-**Status: CURRENT / NOT STARTED**
+**Status: IN PROGRESS (2026-10-08)**
 
-Browser Use is already available inside the existing Hermes Railway runtime. A separate Browser Use installation on the Windows workstation is not required.
+Browser Use is available inside the existing Hermes Railway runtime. A separate Browser Use installation on the Windows workstation is not required.
 
 Verified runtime foundation:
 
 - Hermes Railway service: hermes-agent
 - Persistent Railway volume: /opt/data
 - Hermes image: nousresearch/hermes-agent:latest
-- Hermes exposes the browser_exec Browser Use tool
-- Packaged Chromium is available in the Hermes runtime
-- Browser Harness/CDP foundation was previously verified at 127.0.0.1:9222
-- Previous Browser Use smoke test successfully reached https://example.com
-- Previous model test reached Browser Use execution but failed with OpenRouter HTTP 402 because the selected Mercury model had insufficient credits
-- Intended retry: openrouter/free with use_vision=false
+- Browser Use CLI/runtime available at /opt/data/bin/uvx
+- Browser Harness 0.1.13: PASS
+- Chrome running and Browser Harness daemon alive: PASS
+- Active local browser connection: PASS
+- Browser Use Cloud authentication: not configured; cloud is optional for the local browser path
+- No DNS/MX changes
 
 Acceptance test:
 
-1. Open https://example.com
-2. Click Learn more
-3. Verify the final page is the IANA Example Domains page
+- Open https://example.com
+- Identify and click Learn more
+- Verify final page is the IANA Example Domains page
+- Result: PASS
+- Final URL: https://www.iana.org/help/example-domains
 
-Current blocker:
+Adaptive navigation test:
 
-- The available Railway integration exposes service configuration and logs but does not provide an interactive terminal/session into the Hermes container.
-- Hermes Browser Use mode requires terminal access for browser_exec.
-- Therefore the acceptance test has not yet been rerun from the actual Hermes runtime.
-- The Browser Use phase has not started yet. Its previously verified smoke tests remain historical evidence only and will be revalidated as part of Phase 6.
+- Browser Use identified the Learn more target from the live DOM and navigated using the discovered href
+- Result: PASS
+- This confirms Browser Use can adapt to the page structure rather than depending only on a hardcoded target selector
 
-No production changes were made while investigating this blocker.
+JEV fallback trigger test:
 
-No DNS/MX changes were made.
+- JEV was given a deliberately nonexistent target
+- Result: blocked
+- URL remained https://example.com/
+- No uncontrolled browser action occurred
+- Result: PASS
+
+Browser Use fallback recovery test:
+
+- Browser Use started from https://example.com/ after the controlled JEV block
+- Browser Use identified the live Learn more element, clicked it, and waited for navigation
+- Final URL: https://www.iana.org/help/example-domains
+- Result: PASS
+
+Fallback conclusion:
+
+The controlled fallback path is now verified at the execution level:
+
+Firecrawl → JEV → if JEV is blocked → Browser Use
+
+This is an execution-path verification, not yet the production orchestration implementation. The actual Gullkornet adapter/orchestrator still needs to be defined and tested before Phase 6 can be marked complete.
+
+Next Phase 6 work:
+
+1. Test Browser Use on a real Cidea website intelligence scenario.
+2. Test Browser Use failure handling on a dynamic/unavailable target.
+3. Define the minimal standard Browser Use interface for the orchestrator.
+4. Keep Browser Use as an escalation/fallback path, not the default tool for every lead.
+5. Document the final interface and security boundaries.
+6. Run CI.
+7. Commit and verify.
+8. Mark Phase 6 DONE only after all acceptance criteria pass.
 
 ## Phase 2 — Agent Reach verification
 
