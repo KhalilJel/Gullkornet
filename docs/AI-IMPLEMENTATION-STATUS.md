@@ -474,4 +474,16 @@ Build verification:
 - The Docker build now imports and wires the Resend transport into the OpenOutSend runtime.
 - Runtime transport tests are intentionally performed in Railway after deployment because the final acceptance depends on the real RESEND_API_KEY and verified cideamarketing.com domain.
 
-**Phase 8 transport status: READY FOR RAILWAY ACCEPTANCE.**
+**Phase 8 validation results:**
+
+- Railway build: PASS.
+- OpenOutSend runtime import path: PASS after installing the transport module into Python site-packages.
+- Permanent `outsend check`: PASS. Runtime reported the OpenOutSend model, mailbox connection and ready state with Resend transport selected.
+- Resend API/domain validation: PASS. `cideamarketing.com` is verified with sending enabled and receiving disabled.
+- Controlled runtime outbound send: PASS. OpenOutSend's Resend transport sent the Phase 8 test message to Resend's official `delivered@resend.dev` test recipient; Resend reported status `delivered`.
+- Deterministic Resend idempotency key: implemented on the runtime send path.
+- Existing suppression and pacing logic remains above the transport boundary and is unchanged by the Resend integration. Existing Phase 7 runtime tests for suppression, pacing, lead state and draft gate remain valid.
+- Migadu IMAP remains the inbound/reply path. No Resend receiving or DNS/MX changes were introduced.
+- GitHub CI: PASS for the final Phase 8 runtime commit.
+
+**Phase 8 status: COMPLETE.**
