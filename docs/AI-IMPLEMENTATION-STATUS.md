@@ -181,82 +181,49 @@ Phase 7 conclusion:
 
 **Status: IN PROGRESS (2026-10-08)**
 
-Runtime verification update (2026-10-08):
+OpenOutSend is integrated as the outreach execution layer after KeeLead.
 
-- OpenOutSend runtime: Railway service `openoutreach`, existing persistent `/app/data` volume retained.
-- Runtime package: `openoutsend==0.1.39`.
-- The previous `0.1.36` and `0.1.38` attempts failed on an incompatible `OpenAIModel` import from Pydantic AI.
-- After moving to `0.1.39`, the Railway deployment completed with status SUCCESS and the container started without the previous import failure.
-- `OUTSEND_AI_MODEL` remains configured as `openai_compatible:inception/mercury-2.5` and the LLM credentials remain Railway variables.
-- Live email sending remains disabled.
-- A controlled JSONL ingestion/draft acceptance run was attempted against the persistent runtime. Railway returned SUCCESS for the one-shot deployment, but the connector did not surface the command stdout/stderr needed to prove the ingest and draft result. Therefore persistence and draft generation are not yet marked VERIFIED.
-- No DNS/MX changes were made.
-
-Phase 8 remains IN PROGRESS until the JSONL ingest, persistence/suppression behavior and draft generation are explicitly verified.
-
-OpenOutreach is being integrated as the outreach execution layer after KeeLead discovery.
-
-Architecture decision:
-- Gullkornet / KeeLead remains responsible for prospect discovery, enrichment, verification and scoring.
-- OpenOutreach discovery is not used for this path because it would duplicate the lead discovery responsibility and introduce a second lead-data provider.
-- OpenOutSend, which is the sending half bundled by OpenOutreach, accepts qualified leads over a JSON Lines pipe and owns mailbox state, suppression, pacing and sending guards. citeturn4search0turn4search3
-- The Gullkornet adapter therefore hands KeeLead leads to the OpenOutSend boundary rather than asking OpenOutreach to discover them again.
-- Live sending remains explicitly disabled in the Gullkornet adapter until the runtime and approval gates are configured.
+Architecture:
+- KeeLead owns prospect discovery, enrichment, verification and scoring.
+- OpenOutSend owns lead ingestion, mailbox state, suppression, pacing and sending guards.
+- JSONL is the provider boundary between KeeLead and OpenOutSend.
+- OpenOutFind is not used because it would duplicate KeeLead discovery.
+- Live sending remains disabled unless explicitly approved and enabled.
 
 Implementation:
-- `src/integrations/openoutreach.ts` added as the provider boundary.
-- Supports bounded OpenOutreach lead discovery for standalone use, JSONL ingestion into `outsend`, and explicitly gated sending.
-- Sending is disabled unless `OPENOUTREACH_ALLOW_SEND=true` is intentionally configured.
-- Command failures, malformed JSONL, empty ingest and invalid counts fail closed.
-- Tests cover the JSONL contract, command arguments, ingestion, failure handling and send gating.
-- GitHub CI: PASS.
-
-Runtime work still required:
-1. Provision the OpenOutreach/OpenOutSend runtime.
-2. Configure the required LLM and mailbox variables securely.
-3. Run `outsend check` against the real mailbox without sending.
-4. Feed a controlled KeeLead test lead through the JSONL boundary.
-5. Verify persistence, suppression and draft generation.
-6. Run a non-production send test only when an explicit recipient and human approval gate are present.
-7. Document the runtime result before marking Phase 8 COMPLETE.
-
-Security:
-- No mailbox credentials or API keys are committed to GitHub.
+- `src/integrations/openoutreach.ts` provides the provider boundary.
+- JSONL ingestion, bounded commands, failure handling and explicit send gating are covered by tests.
+- CI passes.
+- No API keys or mailbox credentials are committed.
 - No DNS/MX changes.
-- No live sending is enabled by the current adapter.
 
-Phase 8 is intentionally not complete yet.
+Runtime:
+- Railway service: existing `openoutreach` service in `powerful-patience`.
+- Persistent volume: `/app/data`.
+- Runtime package: `openoutsend==0.1.39`.
+- `OUTSEND_AI_MODEL` uses the OpenAI compatible Hermes model configuration.
+- Mailbox configuration is stored only in Railway.
 
-### Phase 8 runtime decision update (2026-10-08)
+Verified:
+- OpenOutSend runtime starts successfully: PASS.
+- `outsend check` reaches the runtime: PASS.
+- Controlled JSONL ingestion: PASS.
+- Re-ingestion of the same `lead_id`: PASS.
+- SQLite persistence/idempotency assertion: PASS.
+- `outsend send --agent-draft --json` reaches the expected draft-pending gate with non-zero exit: PASS.
+- No email was sent during the acceptance run.
+- Safe runtime command has been restored to `outsend check`.
+- `OPENOUTREACH_ALLOW_SEND` remains disabled.
 
-The initial OpenOutreach bundle deployment exposed an important architecture mismatch: the bundled OpenOutFind onboarding requires a BetterContact key, while Gullkornet already assigns discovery, enrichment, verification and scoring to KeeLead.
+Remaining Phase 8 gate:
+1. Obtain explicit human approval for one specific non-production recipient.
+2. Enable sending only for that controlled test.
+3. Send exactly one test email to the approved recipient.
+4. Verify the result.
+5. Immediately disable the send gate.
+6. Document and commit the final result.
 
-Decision:
-- Do not add BetterContact solely to satisfy OpenOutFind onboarding.
-- Use OpenOutSend as the standalone outreach execution component.
-- Keep KeeLead as the upstream lead producer.
-- Keep the existing JSONL provider boundary between KeeLead and OpenOutSend.
-- Keep live sending disabled until mailbox verification and explicit approval gates are complete.
-
-Runtime changes:
-- Existing Railway service openoutreach was retained. No new Railway service or Railway project was created.
-- The runtime source was changed from the bundled OpenOutreach image to public Python runtime python:3.13-slim.
-- openoutsend is installed at container start and outsend check is used for runtime validation.
-- Existing persistent volume /app/data remains attached.
-- Non-secret OpenOutSend configuration was added for Cidea product description, campaign target, operator country/name/email and signature.
-- The existing Hermes model configuration is referenced through Railway variable references for OUTSEND_AI_MODEL, OUTSEND_LLM_API_KEY and OUTSEND_LLM_API_BASE; secret values are not copied into GitHub or chat.
-- Mailbox address is configured as jelassi@smartsvar.no; mailbox password is intentionally not guessed or stored in GitHub/chat.
-
-Verification:
-- OpenOutSend container starts successfully: PASS.
-- OpenOutSend outsend check reached the runtime and identified the remaining mailbox credential requirement: OUTSEND_MAILBOX_PASSWORD.
-- No email was sent.
-- No DNS/MX changes were made.
-
-Current blocker:
-- Real mailbox authentication cannot be completed until the mailbox app password is configured securely in Railway.
-
-Phase 8 remains IN PROGRESS.
+Phase 8 is not complete until the controlled non-production send test and documentation are complete.
 
 
 ## Phase 6 — Browser Use verification
