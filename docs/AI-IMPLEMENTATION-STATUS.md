@@ -16,9 +16,9 @@ Implement → test/verify → document → commit → verify → next phase.
 - [x] Phase 1 — Hermes
 - [x] Phase 2 — Agent Reach
 - [x] Phase 3 — Firecrawl
-- [x] Phase 4 — JEV Ultrafast
-- [ ] Phase 5 — Browser Use
-- [ ] Phase 6 — TypeSafe
+- [x] Phase 4 — JEV Ultrafast foundation
+- [ ] Phase 5 — TypeSafe + JEV autonomous decision layer
+- [ ] Phase 6 — Browser Use
 - [ ] Phase 7 — KeeLead
 - [ ] Phase 8 — OpenOutreach
 - [ ] Phase 9 — End-to-end integration
@@ -28,9 +28,54 @@ Implement → test/verify → document → commit → verify → next phase.
 
 ## Current phase
 
-Phase 5 — Browser Use is the active phase.
+Phase 5 — TypeSafe + JEV autonomous decision layer is the active phase.
 
-## Phase 5 — Browser Use verification
+### Revised implementation order
+
+TypeSafe is now intentionally activated because the installed JEV Ultrafast version requires `TYPESAFE_API_KEY` for its autonomous operation/target decision layer. The previous decision to defer TypeSafe is superseded by the user's decision to purchase credits and create the API key.
+
+The revised locked order is:
+
+1. Hermes — DONE
+2. Agent Reach — DONE
+3. Firecrawl — DONE
+4. JEV Ultrafast foundation — DONE
+5. TypeSafe + JEV autonomous decision layer — CURRENT
+6. Browser Use
+7. KeeLead
+8. OpenOutreach
+9. End-to-end integration
+10. End-to-end testing
+11. Production
+12. Autonomous Cidea AI Sales Engine
+
+We will not skip the TypeSafe verification. The phase is complete only after the key is configured securely in the Railway runtime, a real TypeSafe request succeeds, JEV completes an autonomous browser task, and the result is documented and committed.
+
+## Phase 5 — TypeSafe + JEV autonomous decision layer
+
+Goal: enable the already-installed JEV Ultrafast agent to make autonomous operation/target decisions without changing DNS/MX or replacing the existing browser runtime.
+
+Implementation sequence:
+
+1. Configure `TYPESAFE_API_KEY` securely in the existing Hermes Railway runtime.
+2. Do not place the key in GitHub, source code, screenshots, logs, or chat.
+3. Verify the TypeSafe API directly with a minimal authenticated request.
+4. Verify JEV can read the TypeSafe configuration and pass the decision step.
+5. Run the real JEV acceptance task:
+   `https://example.com/ → find Learn more → open IANA Example Domains`.
+6. Confirm JEV reaches the correct final URL and reports `done`.
+7. Test one additional Cidea-relevant browser task.
+8. Test failure handling and confirm a failed JEV decision does not create uncontrolled browser actions.
+9. Document the runtime configuration, tests, result, and any limits.
+10. Commit the documentation to GitHub.
+11. Verify the commit.
+12. Only then mark Phase 5 DONE and move to Phase 6 Browser Use.
+
+Security rule:
+
+The value of `TYPESAFE_API_KEY` is a secret. Only the variable name and configuration status belong in GitHub documentation. Never commit the actual key.
+
+## Phase 6 — Browser Use verification
 
 Browser Use is already available inside the existing Hermes Railway runtime. A separate Browser Use installation on the Windows workstation is not required.
 
@@ -109,7 +154,7 @@ Runtime verification completed on 2026-10-06:
 
 **Phase 3 is complete.**
 
-## Phase 4 — JEV Ultrafast verification
+## Phase 4 — JEV Ultrafast foundation verification
 
 JEV Ultrafast 0.1.0 is installed in the persistent Railway volume at `/opt/data/jev-venv` using Python 3.13.5. The package is installed from the official upstream GitHub repository `browser-use/jev-ultrafast`.
 
@@ -136,11 +181,12 @@ Important dependency boundary:
 - OpenRouter `TEXT_MODEL_API_KEY` is used by JEV's OpenAI-compatible text helper.
 - TypeSafe `TYPESAFE_API_KEY` is a separate requirement for JEV's operation/target decision layer.
 - OpenRouter does not replace TypeSafe.
-- TypeSafe API access is deliberately not being purchased/activated at this stage because it has a cost.
-- JEV browser/runtime work continues independently of TypeSafe.
-- Actual JEV autonomous operation/target selection requiring TypeSafe remains deferred until TypeSafe access is intentionally enabled.
+- TypeSafe API access was initially deferred because it has a cost.
+- The user has now intentionally purchased/activated TypeSafe credits and created a TypeSafe API key.
+- The TypeSafe key must be stored only as the Railway runtime secret `TYPESAFE_API_KEY`; it must never be committed to GitHub.
+- Actual JEV autonomous operation/target selection is now the active Phase 5 work.
 
-Current JEV status: **browser/runtime foundation READY; TypeSafe-dependent decision layer DEFERRED by cost decision**.
+Current JEV status: **browser/runtime foundation READY; autonomous decision layer BLOCKED only on secure TypeSafe runtime configuration and verification**.
 
 No DNS/MX changes were made.
 
@@ -183,4 +229,4 @@ The preferred path remains option 1 because Browser Use is already installed and
 Official Hermes Browser Automation documentation:
 https://hermes-agent.nousresearch.com/docs/user-guide/features/browser/
 
-Phase 5 remains **IN PROGRESS**. No Browser Use provider, API key, DNS/MX record, or production deployment was changed during this clarification.
+Phase 6 is now **NOT STARTED**. No Browser Use provider, API key, DNS/MX record, or production deployment was changed during this clarification.
