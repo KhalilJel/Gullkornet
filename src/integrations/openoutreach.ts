@@ -113,7 +113,7 @@ export function createOpenOutreachClient(
         throw new Error("OPENOUTREACH_EMPTY_INGEST");
       }
 
-      const jsonl = leads.map((lead) => JSON.stringify(lead)).join("\\n") + "\\n";
+      const jsonl = leads.map((lead) => JSON.stringify(lead)).join("\n") + "\n";
       return run(["outsend"], { stdin: jsonl });
     },
 
