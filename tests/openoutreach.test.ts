@@ -52,6 +52,36 @@ test("OpenOutreach rejects malformed JSON Lines", async () => {
   );
 });
 
+test("OpenOutreach ingests KeeLead leads through the JSONL pipe", async () => {
+  let captured = "";
+  const client = createOpenOutreachClient({
+    executor: async (_command, args, _timeoutMs, input) => {
+      assert.deepEqual(args, ["outsend"]);
+      captured = input?.stdin ?? "";
+      return { stdout: "", stderr: "", exitCode: 0 };
+    }
+  });
+
+  await client.ingestLeads([
+    { lead_id: "1", company: "Example AS", email: "test@example.com" },
+    { lead_id: "2", company: "Other AS", email: "other@example.com" }
+  ]);
+
+  const lines = captured.trim().split("\n").map((line) => JSON.parse(line));
+  assert.equal(lines.length, 2);
+  assert.equal(lines[0].lead_id, "1");
+  assert.equal(lines[1].company, "Other AS");
+});
+
+test("OpenOutreach rejects empty ingest", async () => {
+  const client = createOpenOutreachClient({ executor: mockExecutor({}) });
+
+  await assert.rejects(
+    () => client.ingestLeads([]),
+    /OPENOUTREACH_EMPTY_INGEST/
+  );
+});
+
 test("OpenOutreach surfaces command failures", async () => {
   const client = createOpenOutreachClient({
     executor: mockExecutor({ exitCode: 7 })
