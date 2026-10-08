@@ -214,6 +214,38 @@ Security:
 
 Phase 8 is intentionally not complete yet.
 
+### Phase 8 runtime decision update (2026-10-08)
+
+The initial OpenOutreach bundle deployment exposed an important architecture mismatch: the bundled OpenOutFind onboarding requires a BetterContact key, while Gullkornet already assigns discovery, enrichment, verification and scoring to KeeLead.
+
+Decision:
+- Do not add BetterContact solely to satisfy OpenOutFind onboarding.
+- Use OpenOutSend as the standalone outreach execution component.
+- Keep KeeLead as the upstream lead producer.
+- Keep the existing JSONL provider boundary between KeeLead and OpenOutSend.
+- Keep live sending disabled until mailbox verification and explicit approval gates are complete.
+
+Runtime changes:
+- Existing Railway service openoutreach was retained. No new Railway service or Railway project was created.
+- The runtime source was changed from the bundled OpenOutreach image to public Python runtime python:3.13-slim.
+- openoutsend is installed at container start and outsend check is used for runtime validation.
+- Existing persistent volume /app/data remains attached.
+- Non-secret OpenOutSend configuration was added for Cidea product description, campaign target, operator country/name/email and signature.
+- The existing Hermes model configuration is referenced through Railway variable references for OUTSEND_AI_MODEL, OUTSEND_LLM_API_KEY and OUTSEND_LLM_API_BASE; secret values are not copied into GitHub or chat.
+- Mailbox address is configured as jelassi@smartsvar.no; mailbox password is intentionally not guessed or stored in GitHub/chat.
+
+Verification:
+- OpenOutSend container starts successfully: PASS.
+- OpenOutSend outsend check reached the runtime and identified the remaining mailbox credential requirement: OUTSEND_MAILBOX_PASSWORD.
+- No email was sent.
+- No DNS/MX changes were made.
+
+Current blocker:
+- Real mailbox authentication cannot be completed until the mailbox app password is configured securely in Railway.
+
+Phase 8 remains IN PROGRESS.
+
+
 ## Phase 6 — Browser Use verification
 
 **Status: COMPLETE (2026-10-08)**
