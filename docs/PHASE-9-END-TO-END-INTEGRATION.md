@@ -44,3 +44,28 @@ Connect discovery, enrichment, website intelligence, qualification and the OpenO
 - CI passes.
 - Runtime acceptance proves the deployed service path is wired correctly without sending to real prospects.
 - Record evidence and commit hashes here. Phase 9 is not complete until all criteria pass.
+
+
+## Audit update — 2026-10-09
+
+### Step 1: existing component and runtime audit
+
+- The TypeScript CI workflow runs `npm run typecheck` and `npm test`.
+- KeeLead client adapter exists at `src/integrations/keelead.ts`; the deployed service is reachable at `https://keelead-production-9f05.up.railway.app`. Its upstream source repository is not available through the connected GitHub integration, and placeholder sources remain a qualification risk.
+- Website audit, digital-presence research, contact research, Firecrawl, Browser Use and OpenOutreach command adapters exist. They are not yet composed into one production runtime pipeline.
+- The existing `OpenOutreachClient` executes a local `openoutreach` command. It is not an HTTP client for the deployed Railway service.
+- Railway inspection confirms the deployed `openoutreach` service currently has no public or private service domain configured and starts with `outsend check` under `restartPolicyType=NEVER`. It is therefore a one-shot check process, not an ingestion API or continuously running worker. The TypeScript process cannot safely ingest into it using the current local-command adapter.
+- PR #66 (OpenOutSend runtime/Resend transport) remains open as a draft and is not merged into `main`. The currently deployed OpenOutSend service is pinned to the `fix/openoutsend-pydantic-compat` branch. Its deployed state must not be confused with the repository's `main` state.
+- PR #67 is the Phase 9 work branch. Earlier CI for its initial commit passed; CI for the latest hardened orchestration commit must be verified independently.
+
+### Consequence / required integration boundary
+
+Do not claim end-to-end integration or runtime acceptance until a supported, authenticated handoff exists between the Gullkornet orchestrator and OpenOutSend. The next implementation must choose and test a boundary that preserves OpenOutSend's existing draft gate, suppression, pacing, lead state and send authorization. Do not add a new Railway service merely to bypass repository access. No secrets in GitHub, no DNS/MX changes, and no real-prospect sends during Phase 9/10.
+
+### Orchestration hardening
+
+- Email syntax is validated before provider verification.
+- Candidates are deduplicated by normalized email and normalized company identity.
+- Suppression lookup failures fail closed.
+- Weak/empty evidence, incomplete drafts, human-review-required results, and invalid scores are excluded from the queue.
+- The orchestration default remains dry-run; its ingest callback is a queue boundary only and never sends email.
