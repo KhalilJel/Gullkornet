@@ -1,6 +1,6 @@
 # Phase 9 — OpenOutSend runtime acceptance runbook
 
-Status: DEPLOYED; authorized synthetic ingest passed; bounded orchestrator dry-run passed
+Status: COMPLETE
 Last updated: 2026-10-09
 
 ## Live deployment and remaining acceptance
@@ -55,3 +55,15 @@ Stop and roll back if health checks fail, authentication can be bypassed, an ing
 - GitHub Actions Phase 9 Sales Engine Acceptance #2: PASS; runtime 49s; acceptance artifact produced.
 - No real prospect email was sent. No DNS/MX changes were made. No secrets were committed.
 - Remaining: verify the acceptance artifact/Airtable review persistence, then complete Phase 9 documentation and signoff before Phase 10.
+
+
+## Phase 9 final signoff — 2026-10-09
+
+- Authorized OpenOutSend synthetic ingest: PASS. The existing Railway runtime used the secret internally and returned `accepted=1`, `mode=ingest_only`, `send_triggered=false`.
+- Startup acceptance flag was disabled again after verification.
+- Gullkornet bounded sales-engine acceptance run #3: PASS on commit `ab2a2041e8545e589776fbac64d8ebb24041bd3a`.
+- Acceptance processed 35 discovered leads, deduplicated to 26, researched 3, routed 3 to mandatory human review, queued 0 for automated outreach, and reported `emailSent=0`.
+- Airtable persistence: PASS. One new review record was created in the Gullkornet Lead Registry `Leads` table at `2026-10-09T09:13:55Z` with status `Needs Review`. The record was verified through the Airtable connector after the acceptance run.
+- GitHub Actions CI #292: PASS. KeeLead Live Acceptance #63: PASS. Phase 9 Sales Engine Acceptance #3: PASS.
+- No real prospect email was sent. No DNS/MX changes were made. No secrets were committed.
+- Phase 9 is complete. Phase 10 is the next locked phase.
