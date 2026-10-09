@@ -240,3 +240,30 @@ class ReplyStatusEndpointTests(unittest.TestCase):
             payload = json.loads(error.exception.read())
             self.assertEqual(payload["error"], "REPLY_LOOKUP_FAILED")
             self.assertNotIn("private mailbox detail", json.dumps(payload))
+
+
+    def test_reply_search_checks_all_selectable_folders_read_only(self):
+        client = unittest.mock.Mock()
+        client.list_folders.return_value = [
+            ([b"\\\\HasNoChildren"], b"/", b"INBOX"),
+            ([b"\\\\Noselect"], b"/", b"Root"),
+            ([b"\\\\HasNoChildren"], b"/", b"Junk"),
+        ]
+        client.search.side_effect = [[], [123]]
+        found = api.search_folders_for_sender(client, "michael@example.no")
+        self.assertTrue(found)
+        self.assertEqual(client.select_folder.call_args_list, [
+            unittest.mock.call(b"INBOX", readonly=True),
+            unittest.mock.call(b"Junk", readonly=True),
+        ])
+        self.assertEqual(client.search.call_args_list, [
+            unittest.mock.call(["FROM", "michael@example.no"]),
+            unittest.mock.call(["FROM", "michael@example.no"]),
+        ])
+
+    def test_reply_search_fails_closed_if_a_selectable_folder_cannot_be_checked(self):
+        client = unittest.mock.Mock()
+        client.list_folders.return_value = [([], b"/", b"INBOX"), ([], b"/", b"Junk")]
+        client.select_folder.side_effect = [None, TimeoutError("private folder detail")]
+        with self.assertRaises(TimeoutError):
+            api.search_folders_for_sender(client, "michael@example.no")
