@@ -87,14 +87,14 @@ The OpenOutSend bridge remains ingest-only. The pilot was deliberately sent thro
 - The legacy `send:daily` command was found to allow batches up to 20 without the Phase 11 recipient review gate or durable hourly/daily rate-limit enforcement. Historical Resend records confirm prior batch activity, so this path must not be used.
 - The legacy batch CLI is now hard-disabled in source during Phase 11, and a regression test asserts the lock. The GitHub Actions batch workflow remains disabled with `if: ${{ false }}`.
 - Airtable's existing `Sent` statuses are not a reliable timestamp ledger: many records have no send timestamp and some notes still describe drafts as unsent. Resend is the better historical source, and any future limits must use a durable, reconciled send ledger rather than trusting the Airtable status alone.
-- The currently deployed Railway `openoutreach` service starts only `python /app/openoutsend_ingest_api.py`. It is an ingest-only HTTP service, not an active mailbox polling worker. Therefore reply detection is not currently running in this runtime.
+- The currently deployed Railway `openoutreach` service still runs the previous ingest-only deployment, so the monitor is not active in production yet. The Phase 11 branch now contains an optional read-only IMAP monitor in the same API process. It runs the package's IMAP sync/classify/project pass only, never `outsend send`, and exposes a safe status snapshot on `/health`. It remains disabled by default until the branch is deployed and the Cidea mailbox identity is verified.
 - Mailopoly inbox access currently returns `subscription_inactive`, so it cannot be used to verify the pilot's mailbox replies right now.
 - No additional prospect emails were sent while carrying out this audit and hardening.
 
 ## Remaining Phase 11 acceptance blockers
 
-1. Confirm the actual mailbox that receives replies to jelassi@cideamarketing.com and provide an authenticated mailbox interface; Mailopoly is currently unavailable and the deployed OpenOutreach service is ingest-only.
-2. Store and process reply events so a reply blocks all follow-ups, and test that behavior end to end.
+1. Deploy and activate the read-only reply monitor after verifying `OUTSEND_MAILBOX_ADDRESS` equals `jelassi@cideamarketing.com`. The monitor requires `OPENOUTREACH_REPLY_MONITOR_ENABLED=true` and `GULLKORNET_REPLY_MONITOR_MAILBOX=jelassi@cideamarketing.com`; it stays blocked on missing/mismatched values. The runtime `/health` status and successful IMAP probe must be checked.
+2. Verify a real inbound pilot reply is mirrored/classified, and prove a reply blocks follow-up in the OpenOutSend state machine. The monitor never sends itself; all live send paths remain locked.
 3. Complete runtime acceptance of the Resend-history-backed caps: maximum 3 per run, 3 per hour, 10 per day. The CLI fails closed when it cannot establish a full recent-history window. Reconcile historical send activity before relaxing the batch lock.
 4. Run final suppression acceptance across the local suppression list, Airtable Do Not Contact and approval state, including provider/CRM failures. Automated runtime gate now checks Airtable approval and local suppression; an end-to-end live-path acceptance remains outstanding.
 5. Finish kill-switch acceptance across every send path. The one-recipient CLI checks the master kill switch, and legacy daily/OpenOutreach send paths are hard-disabled in source.
@@ -103,4 +103,4 @@ The OpenOutSend bridge remains ingest-only. The pilot was deliberately sent thro
 
 ## Phase 11 status
 
-**IN PROGRESS.** The first controlled email is delivered; legacy batch/OpenOutreach send paths are hard-disabled; the guarded CLI now requires Airtable approval and checks Resend-history rate limits and the kill switch. Reply detection, runtime reply-based follow-up blocking, complete suppression acceptance, monitoring, and final end-to-end acceptance are still outstanding. Phase 12 remains locked.
+**IN PROGRESS.** The first controlled email is delivered; legacy batch/OpenOutreach send paths are hard-disabled; the guarded CLI requires Airtable approval and checks Resend-history rate limits and the kill switch. A read-only IMAP monitor is implemented and unit-tested on the Phase 11 branch but has not yet been deployed or activated. Real reply/follow-up blocking acceptance, complete suppression acceptance, monitoring acceptance, and final end-to-end acceptance remain outstanding. Phase 12 remains locked.
