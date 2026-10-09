@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseKeeLeadSearch, parseKeeLeadVerification, createAirtableSuppressionChecker } from "../src/integrations/sales-engine-runtime.js";
+import { parseKeeLeadSearch, parseKeeLeadVerification, createAirtableSuppressionChecker, formatWebsiteAuditEvidence } from "../src/integrations/sales-engine-runtime.js";
 
 test("normalizes KeeLead search responses and website domains", () => {
   const leads = parseKeeLeadSearch({
@@ -70,4 +70,25 @@ test("rejects non-HTTP schemes and credential-bearing website URLs", () => {
   assert.equal(leads[0]?.website, undefined);
   assert.equal(leads[1]?.website, undefined);
   assert.equal(leads[2]?.website, "https://www.example.no/");
+});
+
+test("formats website audit findings with provenance and explicit automated-signal labels", () => {
+  const evidence = formatWebsiteAuditEvidence({
+    companyName: "Example AS", websiteUrl: "https://example.no", checkedAt: "2026-10-09T10:00:00.000Z",
+    status: "AUDITED", httpStatus: 200, finalUrl: "https://example.no/", https: true, title: "Example",
+    flags: ["MISSING_META_DESCRIPTION"], note: "Automated signals only"
+  });
+  assert.ok(evidence.some((item) => item.includes("checked at 2026-10-09T10:00:00.000Z")));
+  assert.ok(evidence.some((item) => item.includes("final URL: https://example.no/")));
+  assert.ok(evidence.some((item) => item.includes("Automated website signal (requires human verification): MISSING_META_DESCRIPTION")));
+});
+
+test("website audit evidence does not invent a final URL or HTTP status when absent", () => {
+  const evidence = formatWebsiteAuditEvidence({
+    companyName: "Example AS", websiteUrl: "https://example.no", checkedAt: "2026-10-09T10:00:00.000Z",
+    status: "FETCH_ERROR", flags: ["FETCH_ERROR"]
+  });
+  assert.ok(!evidence.some((item) => item.includes("final URL:")));
+  assert.ok(!evidence.some((item) => item.includes("HTTP status:")));
+  assert.ok(evidence.some((item) => item.includes("status: FETCH_ERROR")));
 });
