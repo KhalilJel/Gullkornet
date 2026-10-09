@@ -73,6 +73,13 @@ Result:
 
 The OpenOutSend bridge remains ingest-only. The pilot was deliberately sent through the separately guarded Resend production boundary rather than bypassing the ingest-only bridge.
 
+## Rate limit and kill-switch implementation
+
+- Added a shared Phase 11 policy with hard maximums of 3 per run, 3 per hour and 10 per 24 hours.
+- The single-recipient CLI now checks the live-send kill switch and queries Resend email history before a live send. If Resend is unavailable, history is malformed, the cursor is missing, or a complete 24-hour window cannot be established within the bounded page count, the CLI refuses the send.
+- Added regression tests for kill-switch behavior, hourly/daily caps, invalid timestamps and the single-recipient per-run configuration.
+- The legacy batch sender remains disabled; its accepted production batch cap is not opened by this change.
+
 ## Additional safety findings
 
 - The legacy `send:daily` command was found to allow batches up to 20 without the Phase 11 recipient review gate or durable hourly/daily rate-limit enforcement. Historical Resend records confirm prior batch activity, so this path must not be used.
