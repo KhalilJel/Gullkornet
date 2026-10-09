@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
 import { runSalesEngine } from "../integrations/sales-engine.js";
+import { persistSalesEngineArtifacts } from "../integrations/sales-engine-orchestration.js";
 import { createPhase9SalesEngineDependencies } from "../integrations/sales-engine-runtime.js";
 
 function boundedCount(value: string | undefined, fallback: number): number {
@@ -16,8 +16,31 @@ function syncReviewQueueToAirtable(inputPath: string): Promise<void> {
       "src/cli/sync-airtable-leads.ts",
       inputPath
     ], { stdio: "inherit" });
-    child.once("error", reject);
+
+    let settled = false;
+    let forceKill: NodeJS.Timeout | undefined;
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      forceKill = setTimeout(() => child.kill("SIGKILL"), 5_000);
+      forceKill.unref();
+      if (!settled) {
+        settled = true;
+        reject(new Error("AIRTABLE_REVIEW_QUEUE_SYNC_TIMEOUT"));
+      }
+    }, 120_000);
+
+    child.once("error", (error) => {
+      clearTimeout(timeout);
+      if (settled) return;
+      if (forceKill) clearTimeout(forceKill);
+      settled = true;
+      reject(error);
+    });
     child.once("exit", (code) => {
+      clearTimeout(timeout);
+      if (forceKill) clearTimeout(forceKill);
+      if (settled) return;
+      settled = true;
       if (code === 0) resolve();
       else reject(new Error("AIRTABLE_REVIEW_QUEUE_SYNC_FAILED"));
     });
@@ -63,25 +86,18 @@ async function main(): Promise<void> {
     researchedAt: new Date().toISOString()
   }));
 
-  await mkdir("data", { recursive: true });
-  await writeFile(
-    "data/sales-engine-review-queue.json",
-    JSON.stringify(result.reviewRequired, null, 2),
-    { encoding: "utf8", mode: 0o600 }
-  );
-  await writeFile(
-    "data/contact-research-drafts.json",
-    JSON.stringify(reviewRecords, null, 2),
-    { encoding: "utf8", mode: 0o600 }
-  );
-  await writeFile(
-    "data/sales-engine-rejected.json",
-    JSON.stringify(result.rejectedLeads, null, 2),
-    { encoding: "utf8", mode: 0o600 }
-  );
-
-  // Persist review-only records to Airtable. This path never sends email.
-  await syncReviewQueueToAirtable("data/contact-research-drafts.json");
+  // Artifacts are atomically replaced one by one. CRM sync starts only after
+  // all three files are safely persisted; sync itself is idempotent and bounded.
+  await persistSalesEngineArtifacts({
+    reviewQueuePath: "data/sales-engine-review-queue.json",
+    reviewQueue: result.reviewRequired,
+    draftsPath: "data/contact-research-drafts.json",
+    drafts: reviewRecords,
+    rejectedPath: "data/sales-engine-rejected.json",
+    rejected: result.rejectedLeads
+  }, {
+    syncReviewQueue: syncReviewQueueToAirtable
+  });
 
   // Do not print emails or full draft content into deployment logs.
   console.log(JSON.stringify({

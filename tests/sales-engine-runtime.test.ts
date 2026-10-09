@@ -42,7 +42,8 @@ test("Airtable suppression checker caches and honors Do Not Contact flags", asyn
         records: [
           { fields: { Email: "STOP@example.no", "Do Not Contact": true } },
           { fields: { Email: "ok@example.no", "Do Not Contact": false } },
-          { fields: { Email: "suppressed@example.no", "Do Not Contact": false, "Lead Status": "Suppressed" } }
+          { fields: { Email: "suppressed@example.no", "Do Not Contact": false, "Lead Status": "Suppressed" } },
+          { fields: { Email: "replied@example.no", "Do Not Contact": false, "Lead Status": "Replied" } }
         ]
       }), { status: 200, headers: { "content-type": "application/json" } });
     }
@@ -50,6 +51,7 @@ test("Airtable suppression checker caches and honors Do Not Contact flags", asyn
   assert.equal(await checker("stop@example.no"), true);
   assert.equal(await checker("ok@example.no"), false);
   assert.equal(await checker("suppressed@example.no"), true);
+  assert.equal(await checker("replied@example.no"), true);
   assert.equal(requests, 1);
 });
 

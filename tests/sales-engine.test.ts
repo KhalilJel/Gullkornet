@@ -189,3 +189,25 @@ test("retains rejected qualification decision and its explanation", async () => 
   assert.ok(result.rejectedLeads[0]?.reason.includes("No supported website/digital-presence opportunity"));
   assert.equal(result.queued, 0);
 });
+
+test("processes candidates sequentially to avoid duplicate parallel provider work", async () => {
+  let active = 0;
+  let maxActive = 0;
+  const result = await runSalesEngine(deps({
+    discover: async () => [
+      { company: "First AS", email: "first@example.no" },
+      { company: "Second AS", email: "second@example.no" }
+    ],
+    enrich: async (lead) => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await Promise.resolve();
+      active -= 1;
+      return { location: "Oslo", industry: "professional services", identityVerified: true, ...lead };
+    }
+  }));
+
+  assert.equal(result.discovered, 2);
+  assert.equal(maxActive, 1);
+});
+

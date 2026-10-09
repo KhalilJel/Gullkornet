@@ -50,3 +50,28 @@ test("KeeLead client surfaces provider HTTP errors", async () => {
     /KEELEAD_HTTP_502/
   );
 });
+
+test("KeeLead provider timeout is bounded and reported with a stable error", async () => {
+  const client = createKeeLeadClient({
+    baseUrl: "http://keelead.test",
+    timeoutMs: 5,
+    fetchImpl: async (_input, init) => await new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal;
+      if (!signal) {
+        reject(new Error("missing abort signal"));
+        return;
+      }
+      signal.addEventListener("abort", () => {
+        const error = new Error("aborted");
+        error.name = "AbortError";
+        reject(error);
+      }, { once: true });
+    })
+  });
+
+  await assert.rejects(
+    () => client.searchLeads({ query: "test" }),
+    /KEELEAD_TIMEOUT/
+  );
+});
+
