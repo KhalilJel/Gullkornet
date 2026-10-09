@@ -561,3 +561,30 @@ Phase 10 is COMPLETE.
 - No runtime credentials committed.
 
 Next locked phase: Phase 11 — Production.
+
+
+
+## Phase 11 — Production acceptance checkpoint (2026-10-09)
+
+Phase 11 remains IN PROGRESS.
+
+Completed and verified on branch `phase11/production`:
+- One explicitly approved production pilot email sent from the verified Cidea sender; Resend status verified as delivered.
+- Airtable record updated to Sent after the Resend result was verified.
+- Legacy `send:daily` CLI hard-disabled in source; regression test added.
+- Existing scheduled/batch GitHub Actions workflow remains hard-paused.
+- Single-recipient CLI now checks the kill switch, suppression file, and Resend's send history before sending.
+- Shared limits defined and enforced by the single-recipient CLI: maximum 3/run, 3/hour, 10/24 hours. Batch sending remains disabled.
+- Typecheck, full test suite, CI, Phase 11 readiness, Phase 10 E2E and KeeLead Live Acceptance passed on commit `27866e4568a9663846de4684027f49bd1a1b9f32`.
+- No additional prospect emails sent during this hardening work.
+- No DNS/MX changes. No secrets committed.
+
+Remaining blockers before Phase 11 signoff:
+- Active reply detection is not implemented in the deployed OpenOutreach service; the current service runs only the ingest-only API.
+- Mailbox access is currently unavailable through Mailopoly due to an inactive subscription. Actual delivery destination for replies to the Cidea sender must be confirmed before configuring a watcher.
+- Follow-up blocking after a detected reply must be implemented and tested end to end.
+- Suppression must be verified fail-closed across persistent CRM flags and mailbox/provider errors.
+- Rate-limit integration needs a controlled live-path acceptance with no email sent during the test. History query failures fail closed by implementation.
+- Production monitoring and final runtime acceptance remain outstanding.
+
+Do not merge Phase 11 or unlock Phase 12 before these remaining acceptance gates are complete.
