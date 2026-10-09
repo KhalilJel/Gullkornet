@@ -20,7 +20,7 @@ function deps(overrides: Partial<SalesEngineDependencies> = {}): SalesEngineDepe
   };
 }
 
-test("sales engine prepares a grounded queue in dry-run mode without ingesting", async () => {
+test("dry run prepares a grounded queue without ingesting", async () => {
   let ingested = false;
   const result = await runSalesEngine(deps({ ingest: async () => { ingested = true; } }));
   assert.equal(result.discovered, 1);
@@ -29,18 +29,64 @@ test("sales engine prepares a grounded queue in dry-run mode without ingesting",
   assert.equal(ingested, false);
 });
 
-test("sales engine deduplicates email addresses case-insensitively", async () => {
+test("deduplicates email addresses case-insensitively", async () => {
   const result = await runSalesEngine(deps({
     discover: async () => [
       { company: "Example AS", email: "hello@example.no" },
-      { company: "Example Duplicate", email: "HELLO@example.no" }
+      { company: "Other AS", email: "HELLO@example.no" }
     ]
   }));
   assert.equal(result.deduplicated, 1);
   assert.equal(result.skipped.duplicate, 1);
 });
 
-test("sales engine excludes suppressed contacts before research", async () => {
+test("deduplicates repeated companies even when email differs", async () => {
+  const result = await runSalesEngine(deps({
+    discover: async () => [
+      { company: "Example AS", email: "one@example.no" },
+      { company: "  EXAMPLE   AS ", email: "two@example.no" }
+    ]
+  }));
+  assert.equal(result.deduplicated, 1);
+  assert.equal(result.skipped.duplicate, 1);
+});
+
+test("skips leads without any identity", async () => {
+  const result = await runSalesEngine(deps({ discover: async () => [{ website: "https://example.no" }] }));
+  assert.equal(result.queued, 0);
+  assert.equal(result.skipped.missing_identity, 1);
+});
+
+test("skips a lead without email after enrichment", async () => {
+  const result = await runSalesEngine(deps({ enrich: async (lead) => ({ ...lead, email: "" }) }));
+  assert.equal(result.queued, 0);
+  assert.equal(result.skipped.missing_email, 1);
+});
+
+test("skips malformed email addresses before verification", async () => {
+  let verified = false;
+  const result = await runSalesEngine(deps({
+    discover: async () => [{ company: "Example AS", email: "not-an-email" }],
+    verifyContact: async () => { verified = true; return { valid: true }; }
+  }));
+  assert.equal(result.queued, 0);
+  assert.equal(result.skipped.invalid_email_format, 1);
+  assert.equal(verified, false);
+});
+
+test("skips contacts rejected by verification", async () => {
+  const result = await runSalesEngine(deps({ verifyContact: async () => ({ valid: false }) }));
+  assert.equal(result.queued, 0);
+  assert.equal(result.skipped.invalid_contact, 1);
+});
+
+test("fails closed when contact verification throws", async () => {
+  const result = await runSalesEngine(deps({ verifyContact: async () => { throw new Error("provider unavailable"); } }));
+  assert.equal(result.queued, 0);
+  assert.equal(result.skipped.verification_failed, 1);
+});
+
+test("checks suppression before research", async () => {
   let researched = false;
   const result = await runSalesEngine(deps({
     isSuppressed: async () => true,
@@ -51,25 +97,34 @@ test("sales engine excludes suppressed contacts before research", async () => {
   assert.equal(researched, false);
 });
 
-test("sales engine excludes invalid contacts", async () => {
-  const result = await runSalesEngine(deps({ verifyContact: async () => ({ valid: false }) }));
+test("fails closed when suppression lookup fails", async () => {
+  const result = await runSalesEngine(deps({ isSuppressed: async () => { throw new Error("lookup failed"); } }));
   assert.equal(result.queued, 0);
-  assert.equal(result.skipped.invalid_contact, 1);
+  assert.equal(result.skipped.suppression_check_failed, 1);
 });
 
-test("sales engine sends weak evidence to human review rather than queueing", async () => {
+test("routes weak evidence to human review", async () => {
+  const result = await runSalesEngine(deps({
+    research: async () => ({ evidence: [], score: 20, requiresHumanReview: true })
+  }));
+  assert.equal(result.queued, 0);
+  assert.equal(result.skipped.insufficient_evidence_or_draft, 1);
+});
+
+test("rejects invalid scores even when evidence and draft exist", async () => {
   const result = await runSalesEngine(deps({
     research: async () => ({
-      evidence: [],
-      score: 20,
-      requiresHumanReview: true
+      evidence: ["A sufficiently specific observed website signal."],
+      score: 120,
+      requiresHumanReview: false,
+      draft: { subject: "Subject", body: "Body" }
     })
   }));
   assert.equal(result.queued, 0);
   assert.equal(result.skipped.insufficient_evidence_or_draft, 1);
 });
 
-test("sales engine ingests only the prepared queue when explicitly not dry-run", async () => {
+test("ingests only the eligible queue when dry-run is explicitly disabled", async () => {
   let ingestedCount = 0;
   const result = await runSalesEngine(deps({
     discover: async () => [
@@ -83,6 +138,13 @@ test("sales engine ingests only the prepared queue when explicitly not dry-run",
   assert.equal(ingestedCount, 1);
 });
 
-test("sales engine bounds max leads", async () => {
+test("surfaces ingestion failure for retry/monitoring", async () => {
+  await assert.rejects(
+    () => runSalesEngine(deps({ ingest: async () => { throw new Error("OPENOUTREACH_DOWN"); } }), { dryRun: false }),
+    /OPENOUTREACH_DOWN/
+  );
+});
+
+test("bounds max leads", async () => {
   await assert.rejects(() => runSalesEngine(deps(), { maxLeads: 101 }), /SALES_ENGINE_INVALID_MAX_LEADS/);
 });
