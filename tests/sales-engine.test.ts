@@ -172,3 +172,20 @@ test("does not use malformed or non-HTTP website values as domain identity", asy
   assert.equal(result.deduplicated, 2);
   assert.equal(result.queued, 2);
 });
+
+test("retains rejected qualification decision and its explanation", async () => {
+  const result = await runSalesEngine(deps({
+    research: async () => ({
+      websiteUrl: "https://example.no",
+      evidence: ["The homepage clearly describes services and contact details."],
+      score: 70,
+      requiresHumanReview: false,
+      draft: { subject: "Subject", body: "Body" }
+    })
+  }));
+  assert.equal(result.rejected, 1);
+  assert.equal(result.rejectedLeads.length, 1);
+  assert.equal(result.rejectedLeads[0]?.research?.qualificationStatus, "rejected");
+  assert.ok(result.rejectedLeads[0]?.reason.includes("No supported website/digital-presence opportunity"));
+  assert.equal(result.queued, 0);
+});
