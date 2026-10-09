@@ -209,6 +209,8 @@ async function listAllRecords(options: AirtableReviewSyncOptions, tableName: str
     const url = new URL(API_ROOT + "/" + options.baseId + "/" + encodeURIComponent(tableName));
     url.searchParams.set("pageSize", "100");
     url.searchParams.append("fields[]", "Duplicate Key");
+    url.searchParams.append("fields[]", "Company");
+    url.searchParams.append("fields[]", "Website");
     url.searchParams.append("fields[]", "Lead Status");
     url.searchParams.append("fields[]", "Do Not Contact");
     url.searchParams.append("fields[]", "Email");
