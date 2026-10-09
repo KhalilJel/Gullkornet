@@ -146,6 +146,24 @@ def recipient_has_replied(sender_email: str, expected_address: str) -> bool:
         return search_folders_for_sender(client, sender_email.strip())
 
 
+def reply_monitor_healthy(state: dict[str, Any], now: datetime | None = None) -> bool:
+    """Require a recent successful monitor pass; stale health must never authorize sending."""
+    if state.get("status") != "running" or not state.get("last_success_at") or state.get("last_error_code"):
+        return False
+    try:
+        last_success = datetime.fromisoformat(str(state["last_success_at"]))
+        if last_success.tzinfo is None:
+            return False
+        interval = int(os.environ.get(REPLY_MONITOR_INTERVAL_ENV, str(DEFAULT_REPLY_MONITOR_INTERVAL)))
+        if interval < 60 or interval > 3600:
+            interval = DEFAULT_REPLY_MONITOR_INTERVAL
+    except (TypeError, ValueError, OverflowError):
+        return False
+    current = now or datetime.now(timezone.utc)
+    age_seconds = (current - last_success.astimezone(timezone.utc)).total_seconds()
+    return -30 <= age_seconds <= interval * 3
+
+
 def _handle_reply_status(handler: "IngestHandler", body: bytes) -> None:
     """Authenticated reply check. Any monitor/IMAP failure returns unavailable, never false."""
     try:
@@ -169,7 +187,7 @@ def _handle_reply_status(handler: "IngestHandler", body: bytes) -> None:
     if not configured or configured != actual or configured != "jelassi@cideamarketing.com":
         handler._respond(503, {"error": "REPLY_MONITOR_MAILBOX_MISMATCH"})
         return
-    if state.get("status") != "running" or not state.get("last_success_at") or state.get("last_error_code"):
+    if not reply_monitor_healthy(state):
         handler._respond(503, {"error": "REPLY_MONITOR_UNHEALTHY"})
         return
     try:
