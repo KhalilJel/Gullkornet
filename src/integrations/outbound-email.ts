@@ -146,9 +146,7 @@ export function assertLiveSendAllowed(
   env: NodeJS.ProcessEnv = process.env,
   suppressedEmails: Set<string> = new Set()
 ): void {
-  if (env.GULLKORNET_ENABLE_LIVE_SEND !== "true") {
-    throw new Error("Live sending is disabled. Set GULLKORNET_ENABLE_LIVE_SEND=true only for an approved one-off send.");
-  }
+  assertProductionKillSwitchEnabled(env);
   if (env.GULLKORNET_APPROVED_RECIPIENT?.trim().toLowerCase() !== email.to) {
     throw new Error("Recipient does not exactly match GULLKORNET_APPROVED_RECIPIENT.");
   }
