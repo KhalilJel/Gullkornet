@@ -103,8 +103,27 @@ def _update_reply_monitor_state(**values: Any) -> None:
 
 
 
+def search_folders_for_sender(client: Any, sender_email: str) -> bool:
+    """Search every selectable IMAP folder read-only; any search error fails closed."""
+    folders = client.list_folders()
+    for flags, _delimiter, name in folders:
+        flag_values = {
+            flag.decode("utf-8", errors="ignore").lower() if isinstance(flag, bytes)
+            else str(flag).lower()
+            for flag in (flags or [])
+        }
+        if "\\noselect" in flag_values:
+            continue
+        if not name:
+            continue
+        client.select_folder(name, readonly=True)
+        if client.search(["FROM", sender_email]):
+            return True
+    return False
+
+
 def recipient_has_replied(sender_email: str, expected_address: str) -> bool:
-    """Search the monitored INBOX for any message from a recipient, read-only."""
+    """Search all selectable folders for any message from a recipient, read-only."""
     if not EMAIL_PATTERN.fullmatch(sender_email.strip()):
         raise ValueError("VALID_EMAIL_REQUIRED")
     import django
@@ -118,8 +137,7 @@ def recipient_has_replied(sender_email: str, expected_address: str) -> bool:
     if mailbox is None:
         raise RuntimeError("REPLY_MONITOR_MAILBOX_NOT_CONFIGURED")
     with _connect(mailbox) as client:
-        client.select_folder("INBOX", readonly=True)
-        return bool(client.search(["FROM", sender_email.strip()]))
+        return search_folders_for_sender(client, sender_email.strip())
 
 
 def _handle_reply_status(handler: "IngestHandler", body: bytes) -> None:
