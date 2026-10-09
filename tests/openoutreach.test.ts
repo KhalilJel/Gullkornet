@@ -93,30 +93,14 @@ test("OpenOutreach surfaces command failures", async () => {
   );
 });
 
-test("OpenOutreach blocks sending unless explicitly enabled", async () => {
+test("OpenOutreach send remains hard-disabled during Phase 11 even when explicitly enabled", async () => {
   const client = createOpenOutreachClient({
     executor: mockExecutor({}),
-    allowSend: false
+    allowSend: true
   });
 
   await assert.rejects(
     () => client.send(1),
-    /OPENOUTREACH_SEND_DISABLED/
+    /OPENOUTREACH_SEND_DISABLED_PHASE11/
   );
-});
-
-test("OpenOutreach allows an explicitly bounded send", async () => {
-  let captured: string[] = [];
-
-  const client = createOpenOutreachClient({
-    allowSend: true,
-    executor: async (_command, args) => {
-      captured = args;
-      return { stdout: "", stderr: "", exitCode: 0 };
-    }
-  });
-
-  await client.send(3);
-
-  assert.deepEqual(captured, ["send", "3"]);
 });
