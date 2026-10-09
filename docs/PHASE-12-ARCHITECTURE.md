@@ -46,10 +46,11 @@ The existing Railway project is `powerful-patience`. The `cidea-website-intellig
 2. `createPhase9SalesEngineDependencies` currently marks every website research result `requiresHumanReview: true`. This is a deliberate safety gate: the runtime creates review records rather than qualifying records for downstream ingest.
 3. Qualification now produces a bounded, explainable score and explicit reasons from known website flags, configured pilot geography, identity confidence and industry. Automated flags are only signals for human review, never evidence of lost revenue, business harm, or likely conversion.
 4. Website signals and extracted email addresses are not independent verification. Publicly listed addresses still require manual confirmation and legal/contact-policy review.
-5. The CLI writes local JSON artifacts with restrictive file mode, including `data/sales-engine-rejected.json` for explainable rejection decisions, and syncs review records to Airtable with qualification score/status/reasons in research notes. It logs counts rather than draft bodies or email addresses.
-6. `src/integrations/openoutsend-ingest.ts` can only call `POST /v1/leads` with NDJSON. It asserts accepted count, `mode=ingest_only`, and `send_triggered=false`. Do not add a send method.
-7. The daily outreach workflow's send job has a hard false condition. Keep it that way throughout Phase 12.
-8. The existing Phase 9 acceptance workflow is scoped to the legacy `phase9/end-to-end-orchestration` branch. A dedicated Phase 12 dry-run acceptance workflow will be needed later; it must never send real email.
+5. Outreach drafts use the approved generic Norwegian interest-first template. Internal personalization evidence records observed page facts, source URL(s), and check time; website findings are not copied into customer-facing draft text unless a human has verified them. All current drafts require human review.
+6. The CLI writes local JSON artifacts with restrictive file mode, including `data/sales-engine-rejected.json` for explainable rejection decisions, and syncs review records to Airtable with qualification score/status/reasons in research notes. It logs counts rather than draft bodies or email addresses.
+7. `src/integrations/openoutsend-ingest.ts` can only call `POST /v1/leads` with NDJSON. It asserts accepted count, `mode=ingest_only`, and `send_triggered=false`. Do not add a send method.
+8. The daily outreach workflow's send job has a hard false condition. Keep it that way throughout Phase 12.
+9. The existing Phase 9 acceptance workflow is scoped to the legacy `phase9/end-to-end-orchestration` branch. A dedicated Phase 12 dry-run acceptance workflow will be needed later; it must never send real email.
 
 ## Target Phase 12 contracts
 
