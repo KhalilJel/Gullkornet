@@ -169,6 +169,7 @@ test("Phase 11 requires exactly one approved Airtable record and returns its exa
 
 test("Phase 11 blocks Airtable suppression, sent, and unreviewed records", () => {
   assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Do Not Contact":true}}], "pilot@example.no"), /Do Not Contact/);
+  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Do Not Contact":undefined}}], "pilot@example.no"), /cannot be verified false/);
   assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Lead Status":"Sent"}}], "pilot@example.no"), /Lead Status must be Approved/);
   assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Review Status":"Needs review"}}], "pilot@example.no"), /Review Status must be Ready for outreach/);
 });
@@ -197,13 +198,15 @@ test("Phase 11 Airtable approval lookup accepts exactly one reviewed record", as
     const url = new URL(String(input));
     assert.equal(url.hostname, "api.airtable.com");
     assert.match(url.searchParams.get("filterByFormula") ?? "", /pilot@example\.no/);
+    assert.match(url.searchParams.get("filterByFormula") ?? "", /Do Not Contact.*= 0/);
     return new Response(JSON.stringify({
       records: [{
         id: "rec123",
         fields: {
           Email: "pilot@example.no",
           "Lead Status": "Approved",
-          "Review Status": "Ready for outreach"
+          "Review Status": "Ready for outreach",
+          "Do Not Contact": false
         }
       }]
     }), { status: 200, headers: { "Content-Type": "application/json" } });
