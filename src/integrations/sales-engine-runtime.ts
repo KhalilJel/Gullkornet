@@ -132,7 +132,8 @@ export function createPhase9SalesEngineDependencies(options: Phase9RuntimeOption
   const fetchImpl = options.fetchImpl ?? fetch;
   const keeLead = options.keeLead ?? createKeeLeadClient({
     baseUrl: process.env.KEELEAD_API_URL ?? "https://keelead-production-9f05.up.railway.app",
-    fetchImpl\n  });
+    fetchImpl
+  });
   const isSuppressed = options.isSuppressed ?? createAirtableSuppressionChecker({ fetchImpl });
   const openOutSend = createOpenOutSendIngestClient({ fetchImpl });
 
