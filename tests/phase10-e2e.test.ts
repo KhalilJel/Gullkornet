@@ -6,11 +6,11 @@ import { createOpenOutSendIngestClient } from "../src/integrations/openoutsend-i
 function deps(overrides: Partial<SalesEngineDependencies> = {}): SalesEngineDependencies {
   return {
     discover: async () => [{ id: "lead-1", company: "Example AS", email: "hello@example.no" }],
-    enrich: async (lead) => lead,
+    enrich: async (lead) => ({ location: "Oslo", industry: "professional services", identityVerified: true, ...lead }),
     verifyContact: async () => ({ valid: true }),
     research: async () => ({
       websiteUrl: "https://example.no/",
-      evidence: ["Observed website signal with enough detail for a grounded draft."],
+      evidence: ["Automated website signal (requires human verification): MISSING_META_DESCRIPTION"],
       score: 82,
       requiresHumanReview: false,
       draft: { subject: "En mulighet for Example AS", body: "Jeg la merke til en konkret forbedringsmulighet." }
@@ -25,12 +25,12 @@ test("full orchestration completes in the required order", async () => {
   const events: string[] = [];
   const result = await runSalesEngine(deps({
     discover: async () => { events.push("discover"); return [{ company: "Example AS", email: "hello@example.no" }]; },
-    enrich: async (lead) => { events.push("enrich"); return lead; },
+    enrich: async (lead) => { events.push("enrich"); return { location: "Oslo", industry: "professional services", identityVerified: true, ...lead }; },
     verifyContact: async () => { events.push("verify"); return { valid: true }; },
     isSuppressed: async () => { events.push("suppress"); return false; },
     research: async () => { events.push("research"); return {
       websiteUrl: "https://example.no/",
-      evidence: ["Observed website signal with enough detail for a grounded draft."],
+      evidence: ["Automated website signal (requires human verification): MISSING_META_DESCRIPTION"],
       score: 82,
       requiresHumanReview: false,
       draft: { subject: "Subject", body: "Body" }
@@ -72,7 +72,7 @@ test("human review is a hard outbound gate", async () => {
   let ingested = false;
   const result = await runSalesEngine(deps({
     research: async () => ({
-      evidence: ["Observed website signal with enough detail for review."],
+      evidence: ["Automated website signal (requires human verification): MISSING_META_DESCRIPTION"],
       score: 91,
       requiresHumanReview: true,
       draft: { subject: "Subject", body: "Body" }

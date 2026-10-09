@@ -1,3 +1,5 @@
+import { evaluateLeadQualification, type QualificationStatus } from "./qualification.js";
+
 export type SalesLead = {
   id?: string;
   company?: string;
@@ -11,6 +13,9 @@ export type LeadResearch = {
   evidence: string[];
   score: number;
   requiresHumanReview: boolean;
+  scoreReasons?: string[];
+  qualificationStatus?: QualificationStatus;
+  qualificationReasons?: string[];
   draft?: { subject: string; body: string };
 };
 
@@ -33,6 +38,9 @@ export type SalesEngineResult = {
   discovered: number;
   deduplicated: number;
   researched: number;
+  qualified: number;
+  rejected: number;
+  rejectedLeads: SalesEngineReviewItem[];
   queued: number;
   reviewRequired: SalesEngineReviewItem[];
   skipped: Record<string, number>;
@@ -114,6 +122,8 @@ export async function runSalesEngine(
   const queue: Array<SalesLead & { research: LeadResearch }> = [];
   const reviewRequired: SalesEngineReviewItem[] = [];
   let researched = 0;
+  let rejected = 0;
+  const rejectedLeads: SalesEngineReviewItem[] = [];
 
   for (const candidate of unique.slice(0, maxLeads)) {
     let lead: SalesLead;
@@ -171,16 +181,53 @@ export async function runSalesEngine(
       research.evidence.some((item) => typeof item === "string" && item.trim().length >= 12);
     const hasDraft = Boolean(research.draft?.subject?.trim() && research.draft?.body?.trim());
     const validScore = Number.isFinite(research.score) && research.score >= 0 && research.score <= 100;
-    if (research.requiresHumanReview || !hasEvidence || !hasDraft || !validScore) {
-      const reason = research.requiresHumanReview
-        ? "human_review_required"
-        : "insufficient_evidence_or_draft";
+    if (!hasEvidence || !hasDraft || !validScore) {
+      const reason = research.requiresHumanReview ? "human_review_required" : "insufficient_evidence_or_draft";
       reviewRequired.push({ lead, reason, research });
       skip(reason);
       continue;
     }
 
-    queue.push({ ...lead, research });
+    const qualification = evaluateLeadQualification({
+      company: lead.company,
+      website: research.websiteUrl ?? lead.website,
+      location: typeof lead.location === "string" ? lead.location : undefined,
+      industry: typeof lead.industry === "string" ? lead.industry : undefined,
+      identityVerified: lead.identityVerified === true,
+      requiresHumanReview: research.requiresHumanReview,
+      evidence: research.evidence
+    });
+    const evaluatedResearch: LeadResearch = {
+      ...research,
+      score: qualification.score,
+      scoreReasons: qualification.reasons,
+      qualificationStatus: qualification.status,
+      qualificationReasons: [...qualification.reasons, ...qualification.reviewReasons],
+      requiresHumanReview: qualification.status === "review_required"
+    };
+
+    if (qualification.status === "suppressed") {
+      skip("suppressed");
+      continue;
+    }
+    if (qualification.status === "rejected") {
+      rejected += 1;
+      rejectedLeads.push({
+        lead,
+        reason: qualification.reasons[0] ?? "qualification_rejected",
+        research: evaluatedResearch
+      });
+      skip("qualification_rejected");
+      continue;
+    }
+    if (qualification.status === "review_required") {
+      const reason = qualification.reviewReasons[0] ?? "qualification_review_required";
+      reviewRequired.push({ lead, reason, research: evaluatedResearch });
+      skip("qualification_review_required");
+      continue;
+    }
+
+    queue.push({ ...lead, research: evaluatedResearch });
   }
 
   // This is a queue-ingestion boundary only. It does not authorize or perform email sends.
@@ -192,6 +239,9 @@ export async function runSalesEngine(
     discovered: found.length,
     deduplicated: unique.length,
     researched,
+    qualified: queue.length,
+    rejected,
+    rejectedLeads,
     queued: queue.length,
     reviewRequired,
     skipped,

@@ -5,11 +5,11 @@ import { runSalesEngine, type SalesEngineDependencies } from "../src/integration
 function deps(overrides: Partial<SalesEngineDependencies> = {}): SalesEngineDependencies {
   return {
     discover: async () => [{ company: "Example AS", email: "hello@example.no" }],
-    enrich: async (lead) => lead,
+    enrich: async (lead) => ({ location: "Oslo", industry: "professional services", identityVerified: true, ...lead }),
     verifyContact: async () => ({ valid: true }),
     research: async () => ({
       websiteUrl: "https://example.no",
-      evidence: ["The homepage has no visible service pricing section."],
+      evidence: ["Automated website signal (requires human verification): MISSING_META_DESCRIPTION"],
       score: 80,
       requiresHumanReview: false,
       draft: { subject: "En mulighet for Example AS", body: "Jeg la merke til at ..." }
@@ -171,4 +171,21 @@ test("does not use malformed or non-HTTP website values as domain identity", asy
   }));
   assert.equal(result.deduplicated, 2);
   assert.equal(result.queued, 2);
+});
+
+test("retains rejected qualification decision and its explanation", async () => {
+  const result = await runSalesEngine(deps({
+    research: async () => ({
+      websiteUrl: "https://example.no",
+      evidence: ["The homepage clearly describes services and contact details."],
+      score: 70,
+      requiresHumanReview: false,
+      draft: { subject: "Subject", body: "Body" }
+    })
+  }));
+  assert.equal(result.rejected, 1);
+  assert.equal(result.rejectedLeads.length, 1);
+  assert.equal(result.rejectedLeads[0]?.research?.qualificationStatus, "rejected");
+  assert.ok(result.rejectedLeads[0]?.reason.includes("No supported website/digital-presence opportunity"));
+  assert.equal(result.queued, 0);
 });

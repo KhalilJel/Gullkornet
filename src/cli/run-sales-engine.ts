@@ -49,8 +49,14 @@ async function main(): Promise<void> {
     personalizationEvidence: research?.evidence?.length
       ? "Automatisk hentet fra nettside/KeeLead, ikke uavhengig verifisert: " + research.evidence.join(" | ")
       : undefined,
+    qualificationStatus: research?.qualificationStatus ?? "review_required",
+    fitScore: typeof research?.score === "number" ? research.score : undefined,
+    qualificationReasons: research?.qualificationReasons ?? research?.scoreReasons ?? [],
     notes: [
       "MANUAL REVIEW: " + reason,
+      "Qualification status: " + (research?.qualificationStatus ?? "review_required"),
+      "Qualification score: " + (typeof research?.score === "number" ? String(research.score) : "not_scored"),
+      ...(research?.qualificationReasons?.length ? ["Qualification reasons: " + research.qualificationReasons.join("; ")] : []),
       "Kontroller at kontaktpersonen og e-postadressen tilhører virksomheten før eventuell kontakt.",
       "Automatiske nettsidesignaler må kontrolleres før de brukes i kundekommunikasjon."
     ],
@@ -68,6 +74,11 @@ async function main(): Promise<void> {
     JSON.stringify(reviewRecords, null, 2),
     { encoding: "utf8", mode: 0o600 }
   );
+  await writeFile(
+    "data/sales-engine-rejected.json",
+    JSON.stringify(result.rejectedLeads, null, 2),
+    { encoding: "utf8", mode: 0o600 }
+  );
 
   // Persist review-only records to Airtable. This path never sends email.
   await syncReviewQueueToAirtable("data/contact-research-drafts.json");
@@ -78,6 +89,9 @@ async function main(): Promise<void> {
     discovered: result.discovered,
     deduplicated: result.deduplicated,
     researched: result.researched,
+    qualified: result.qualified,
+    rejected: result.rejected,
+    rejectedArtifactPath: "data/sales-engine-rejected.json",
     eligibleForOpenOutSend: result.queued,
     reviewRequired: result.reviewRequired.length,
     airtableReviewRecords: reviewRecords.length,
