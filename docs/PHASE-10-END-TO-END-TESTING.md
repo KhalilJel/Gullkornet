@@ -1,6 +1,6 @@
 # Phase 10 — End-to-end testing
 
-Status: IN PROGRESS
+Status: COMPLETE
 Last updated: 2026-10-09
 
 ## Objective
@@ -70,12 +70,21 @@ Latest run:
 
 The first Phase 10 workflow exposed a test-harness assertion mismatch. The assertion was corrected from a nonexistent `dryRun` output field to the actual `mode: dry-run` field. Runtime behavior was correct.
 
-## Final gates
+## Final acceptance
 
-1. Corrected Phase 10 workflow passes.
-2. TypeScript CI passes on the final Phase 10 head.
-3. KeeLead Live Acceptance passes on the final Phase 10 head.
-4. Final documentation is committed and verified.
-5. Only then mark Phase 10 COMPLETE.
+Phase 10 acceptance completed on 2026-10-09.
 
-Phase 11 Production remains locked until this signoff.
+- Corrected Phase 10 workflow: PASS.
+- TypeScript CI: PASS.
+- KeeLead Live Acceptance: PASS on the Phase 10 head.
+- OpenOutSend Railway synthetic acceptance: PASS.
+- OpenOutSend acceptance flag reset to false and follow-up deployment: PASS.
+- Bounded live Gullkornet dry run: PASS.
+- emailSent: 0.
+- No real prospect email sent.
+- No DNS/MX changes.
+- No runtime credentials committed.
+
+Phase 10 is COMPLETE.
+
+Phase 11 Production remains locked until the next explicit phase start.
