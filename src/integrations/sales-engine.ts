@@ -32,12 +32,22 @@ export type SalesEngineResult = {
   dryRun: boolean;
 };
 
-function emailOf(lead: SalesLead): string {
+function normalizeEmail(lead: SalesLead): string {
   return typeof lead.email === "string" ? lead.email.trim().toLowerCase() : "";
 }
 
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
+}
+
+function normalizeCompany(lead: SalesLead): string {
+  return typeof lead.company === "string"
+    ? lead.company.normalize("NFKC").trim().toLocaleLowerCase("nb-NO").replace(/\s+/g, " ")
+    : "";
+}
+
 /**
- * Phase 9 orchestration boundary. This function prepares a qualified queue only.
+ * Phase 9 orchestration boundary. Prepares a qualified queue only.
  * It never sends email; sending remains a separately gated OpenOutSend operation.
  */
 export async function runSalesEngine(
@@ -54,15 +64,22 @@ export async function runSalesEngine(
   const skipped: Record<string, number> = {};
   const skip = (reason: string) => { skipped[reason] = (skipped[reason] ?? 0) + 1; };
   const unique: SalesLead[] = [];
-  const seen = new Set<string>();
+  const seenEmails = new Set<string>();
+  const seenCompanies = new Set<string>();
 
   for (const lead of found) {
-    const email = emailOf(lead);
-    const company = typeof lead.company === "string" ? lead.company.trim().toLowerCase() : "";
-    const key = email || (company ? "company:" + company : "");
-    if (!key) { skip("missing_identity"); continue; }
-    if (seen.has(key)) { skip("duplicate"); continue; }
-    seen.add(key);
+    const email = normalizeEmail(lead);
+    const company = normalizeCompany(lead);
+    if (!email && !company) {
+      skip("missing_identity");
+      continue;
+    }
+    if ((email && seenEmails.has(email)) || (company && seenCompanies.has(company))) {
+      skip("duplicate");
+      continue;
+    }
+    if (email) seenEmails.add(email);
+    if (company) seenCompanies.add(company);
     unique.push(lead);
   }
 
@@ -78,8 +95,15 @@ export async function runSalesEngine(
       continue;
     }
 
-    const email = emailOf(lead);
-    if (!email) { skip("missing_email"); continue; }
+    const email = normalizeEmail(lead);
+    if (!email) {
+      skip("missing_email");
+      continue;
+    }
+    if (!isValidEmail(email)) {
+      skip("invalid_email_format");
+      continue;
+    }
 
     let verification: { valid: boolean; reason?: string };
     try {
@@ -88,7 +112,10 @@ export async function runSalesEngine(
       skip("verification_failed");
       continue;
     }
-    if (!verification.valid) { skip("invalid_contact"); continue; }
+    if (!verification.valid) {
+      skip("invalid_contact");
+      continue;
+    }
 
     let suppressed: boolean;
     try {
@@ -97,7 +124,10 @@ export async function runSalesEngine(
       skip("suppression_check_failed");
       continue;
     }
-    if (suppressed) { skip("suppressed"); continue; }
+    if (suppressed) {
+      skip("suppressed");
+      continue;
+    }
 
     let research: LeadResearch;
     try {
@@ -108,7 +138,11 @@ export async function runSalesEngine(
       continue;
     }
 
-    if (research.requiresHumanReview || research.evidence.length === 0 || !research.draft?.subject?.trim() || !research.draft?.body?.trim()) {
+    const hasEvidence = Array.isArray(research.evidence) &&
+      research.evidence.some((item) => typeof item === "string" && item.trim().length >= 12);
+    const hasDraft = Boolean(research.draft?.subject?.trim() && research.draft?.body?.trim());
+    const validScore = Number.isFinite(research.score) && research.score >= 0 && research.score <= 100;
+    if (research.requiresHumanReview || !hasEvidence || !hasDraft || !validScore) {
       skip("insufficient_evidence_or_draft");
       continue;
     }
@@ -116,6 +150,7 @@ export async function runSalesEngine(
     queue.push({ ...lead, research });
   }
 
+  // This is a queue-ingestion boundary only. It does not authorize or perform email sends.
   if (!dryRun && queue.length > 0) {
     await dependencies.ingest(queue);
   }
