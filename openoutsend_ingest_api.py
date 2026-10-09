@@ -205,8 +205,6 @@ def main() -> None:
         finally:
             server.shutdown()
             thread.join(timeout=2)
-        server = ThreadingHTTPServer(("0.0.0.0", port), IngestHandler)
-
     server.serve_forever()
 
 
