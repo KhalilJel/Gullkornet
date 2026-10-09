@@ -566,25 +566,25 @@ Next locked phase: Phase 11 — Production.
 
 ## Phase 11 — Production acceptance checkpoint (2026-10-09)
 
-Phase 11 remains IN PROGRESS.
+Phase 11 remains IN PROGRESS; Phase 12 remains locked.
 
 Completed and verified on branch `phase11/production`:
-- One explicitly approved production pilot email sent from the verified Cidea sender; Resend status verified as delivered.
-- Airtable record updated to Sent after the Resend result was verified.
-- Legacy `send:daily` CLI hard-disabled in source; regression test added.
-- Existing scheduled/batch GitHub Actions workflow remains hard-paused.
-- Single-recipient CLI now checks the kill switch, suppression file, and Resend's send history before sending.
-- Shared limits defined and enforced by the single-recipient CLI: maximum 3/run, 3/hour, 10/24 hours. Batch sending remains disabled.
-- Typecheck, full test suite, CI, Phase 11 readiness, Phase 10 E2E and KeeLead Live Acceptance passed on commit `27866e4568a9663846de4684027f49bd1a1b9f32`.
-- No additional prospect emails sent during this hardening work.
-- No DNS/MX changes. No secrets committed.
+- One explicitly approved production pilot email was sent from `jelassi@cideamarketing.com`; Resend status verified as `delivered`; Airtable record updated to `Sent`.
+- Legacy `send:daily` CLI is hard-disabled in source and its scheduled GitHub Actions job remains paused.
+- Guarded one-recipient CLI requires exact recipient review, Airtable approval, local suppression clearance, an idempotency key, the master live-send switch, and Resend history-based rate limits.
+- Production caps: maximum 3 per run, 3 per hour, 10 per rolling 24 hours. Provider/CRM/history failures fail closed. No live sending is used for acceptance testing.
+- Read-only IMAP reply monitor is active in the existing Railway `openoutreach` service. Logs show recurring `reply-monitor status=running error=none`.
+- Authenticated `POST /v1/reply-status` was deployed and acceptance-tested using a synthetic address; response mode was `read_only_reply_check`, `send_triggered=false`.
+- The same runtime check queried the pilot recipient and logged `replied=false`. This says no inbound message from that sender was found in the selectable mailbox folders at check time; no message content was logged.
+- The startup acceptance flag and pilot-address override were reset to disabled/empty after the acceptance run.
+- Reply lookup rejects stale monitor health, mismatched mailbox configuration, IMAP/provider failure, malformed output and any positive reply; the guarded live-send CLI refuses to send on any unavailable/error response.
+- CI, typecheck, Phase 11 readiness, Phase 10 E2E, KeeLead Live Acceptance and reply-monitor acceptance passed at commit `ece14a8d17c5fd014c1a5c8ffdbf05e959128ac3`.
+- No additional prospect emails sent during testing. No DNS/MX changes. No secrets committed.
 
-Remaining blockers before Phase 11 signoff:
-- Active reply detection is not implemented in the deployed OpenOutreach service; the current service runs only the ingest-only API.
-- Mailbox access is currently unavailable through Mailopoly due to an inactive subscription. Actual delivery destination for replies to the Cidea sender must be confirmed before configuring a watcher.
-- Follow-up blocking after a detected reply must be implemented and tested end to end.
-- Suppression must be verified fail-closed across persistent CRM flags and mailbox/provider errors.
-- Rate-limit integration needs a controlled live-path acceptance with no email sent during the test. History query failures fail closed by implementation.
-- Production monitoring and final runtime acceptance remain outstanding.
+Remaining acceptance:
+- Re-run all CI on the newest code adding reply-monitor freshness checks.
+- Deploy that exact tested commit to the existing Railway service and rerun reply-status runtime acceptance.
+- Verify suppression/kill-switch/rate-limit tests remain green and daily batch path remains disabled.
+- Finish production monitoring/signoff documentation, run final acceptance on the newest SHA, then merge PR #70 only after all checks pass.
 
-Do not merge Phase 11 or unlock Phase 12 before these remaining acceptance gates are complete.
+Mailopoly remains inactive, but the read-only reply monitor now uses the OpenOutSend IMAP connection directly; no Mailopoly dependency is required for reply detection.
