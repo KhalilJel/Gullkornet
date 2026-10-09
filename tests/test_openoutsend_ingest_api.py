@@ -265,5 +265,6 @@ class ReplyStatusEndpointTests(unittest.TestCase):
         client = unittest.mock.Mock()
         client.list_folders.return_value = [([], b"/", b"INBOX"), ([], b"/", b"Junk")]
         client.select_folder.side_effect = [None, TimeoutError("private folder detail")]
+        client.search.return_value = []
         with self.assertRaises(TimeoutError):
             api.search_folders_for_sender(client, "michael@example.no")
