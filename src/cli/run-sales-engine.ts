@@ -31,8 +31,8 @@ function syncReviewQueueToAirtable(inputPath: string): Promise<void> {
 
     child.once("error", (error) => {
       clearTimeout(timeout);
-      if (forceKill) clearTimeout(forceKill);
       if (settled) return;
+      if (forceKill) clearTimeout(forceKill);
       settled = true;
       reject(error);
     });
