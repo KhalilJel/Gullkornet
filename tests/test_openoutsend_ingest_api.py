@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import os
 import threading
@@ -140,3 +142,13 @@ class ReplyMonitorTests(unittest.TestCase):
         self.assertEqual(state["status"], "disabled")
         probe.assert_not_called()
         runner.assert_not_called()
+
+
+    def test_monitor_startup_reports_safe_mismatch_status(self):
+        os.environ["OUTSEND_MAILBOX_ADDRESS"] = "jelassi@smartsvar.no"
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            api.start_reply_monitor()
+        self.assertIn("reply-monitor startup status=blocked_mailbox_mismatch", output.getvalue())
+        self.assertNotIn("smartsvar.no", output.getvalue())
+        self.assertNotIn("cideamarketing.com", output.getvalue())
