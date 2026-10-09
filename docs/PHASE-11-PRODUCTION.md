@@ -98,14 +98,14 @@ The OpenOutSend bridge remains ingest-only. The pilot was deliberately sent thro
 
 ## Remaining Phase 11 acceptance blockers
 
-1. Finish CI on the newest branch head after the duplicate-recipient, post-send Airtable persistence and strict-pagination additions.
-2. Deploy that exact tested SHA to the existing Railway `openoutreach` service, run the read-only monitor health check and the synthetic authenticated reply-status acceptance, then ensure acceptance mode is disabled and service health remains green.
-3. Preserve the confirmed no-send runtime result: synthetic reply lookup returned `send_triggered=false`; the pilot sender query returned `replied=false`. Verify the simulated positive-reply, provider-failure and stale-monitor unit cases still block the guarded CLI.
-4. Complete no-send validation of rate limits (3 per run, 3 per hour, 10 per rolling 24 hours), recipient duplication, suppression and master kill switch. The current live entry point is single-recipient only; batch sending remains disabled.
-5. Verify Airtable post-send persistence tests and the manual-reconciliation path on CRM update failure. Never retry a provider-accepted send without reconciling the Airtable state and provider email ID.
-6. Finalize monitoring documentation: Railway health and IMAP sync/classification counts, Resend send/delivery/bounce event history, Airtable `Sent`/`Replied`/`Suppressed` state, and sanitized blocked-send errors. No central alerting dashboard has been added.
-7. Run final acceptance on the latest SHA, capture green CI/runtime evidence, make the final GitHub commits, and merge PR #70 only after every acceptance gate passes.
+1. ✅ CI on current code: typecheck, full test suite, Phase 11 readiness, Phase 10 E2E and KeeLead Live Acceptance all pass at `b687c81d1f7d94f1dcd4abc6de20b89cc69d5a97`.
+2. ✅ The same tested branch head is pinned and deployed to the existing Railway `openoutreach` service; deployment `a3353fa7-bf4a-4af4-b5a5-dd98e0adf7d9` succeeded and `/health` returned 200.
+3. ✅ Read-only monitor remains healthy. Prior controlled runtime acceptance confirmed `mode=read_only_reply_check`, `send_triggered=false`; the pilot recipient lookup found no inbound message at that check time. Positive reply, provider failure and stale-monitor cases are covered by tests and block the guarded CLI.
+4. ✅ No-send acceptance tests cover caps (3 per run maximum configured; 3/hour; 10/24h), recent recipient duplicate blocking, suppression, missing/stale reply monitor and the master kill switch. Batch sender remains hard-disabled.
+5. ✅ Tests cover exact Airtable approved-record identity and setting that exact record to `Sent` after Resend accepts. CRM failure is handled as manual reconciliation, and its regression test passes.
+6. ✅ Monitoring documentation now accurately describes Railway health/IMAP scan logs, Resend event history and Airtable status fields. No central alerting dashboard has been added.
+7. Remaining: final documentation commit and final re-run of CI/runtime health on the doc-updated head. PR #70 must not merge until that final set passes.
 
 ## Phase 11 status
 
-**IN PROGRESS.** The one pilot email is delivered and Airtable is `Sent`. Railway's read-only IMAP monitor and authenticated `/v1/reply-status` endpoint passed runtime acceptance; synthetic lookup returned `send_triggered=false`, and the pilot recipient lookup returned `replied=false`. Startup acceptance flags were reset after each run. The newest source now adds stale-monitor rejection, duplicate-recipient blocking, strict Resend pagination, exact Airtable record binding and post-send `Sent` persistence; these newest changes are under CI and still require deployment/acceptance on the final SHA. Final no-send suppression/limit/kill-switch checks, monitoring documentation and final end-to-end signoff remain outstanding. Phase 12 stays locked.
+**IN PROGRESS.** One pilot email was delivered and its Airtable record is `Sent`. The read-only IMAP monitor and authenticated reply-status endpoint passed runtime acceptance. The latest source is deployed to Railway and the latest CI suite is green at `b687c81d1f7d94f1dcd4abc6de20b89cc69d5a97`. The kill switch, no-send default, suppression, rate limits, duplicate blocking, reply blocking and exact CRM post-send persistence have regression coverage. Final doc-head CI/runtime verification and PR #70 signoff remain. No extra prospect email was sent during testing, no DNS/MX change occurred, no secrets were committed. Phase 12 stays locked.
