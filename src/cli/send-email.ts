@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { fetchAirtableRecipientApproval } from "../integrations/airtable-send-approval.js";
+import { assertRecipientHasNotReplied } from "../integrations/reply-status.js";
 import { assertLiveSendAllowed, assertProductionKillSwitchEnabled, assertRateLimits, countRecentSends, fetchRecentSendLedger, parseSuppressionList, prepareEmail, sendOneEmail, type OutreachDraft } from "../integrations/outbound-email.js";
 
 const args = process.argv.slice(2);
@@ -34,6 +35,7 @@ try {
   }
   const suppressedEmails = parseSuppressionList(suppressionContents);
   await fetchAirtableRecipientApproval(email.to, process.env);
+  await assertRecipientHasNotReplied(email.to, process.env);
   assertProductionKillSwitchEnabled(process.env);
   assertLiveSendAllowed(email, process.env, suppressedEmails);
   const ledger = await fetchRecentSendLedger(process.env.RESEND_API_KEY!.trim());
