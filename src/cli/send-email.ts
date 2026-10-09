@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { assertLiveSendAllowed, parseSuppressionList, prepareEmail, sendOneEmail, type OutreachDraft } from "../integrations/outbound-email.js";
+import { assertLiveSendAllowed, assertProductionKillSwitchEnabled, assertRateLimits, countRecentSends, fetchRecentSendLedger, parseSuppressionList, prepareEmail, sendOneEmail, type OutreachDraft } from "../integrations/outbound-email.js";
 
 const args = process.argv.slice(2);
 const sendRequested = args.includes("--send");
@@ -32,7 +32,10 @@ try {
     throw new Error("Required data/suppressed-emails.txt is missing. Create it before any live send; one email per line, # for comments.");
   }
   const suppressedEmails = parseSuppressionList(suppressionContents);
+  assertProductionKillSwitchEnabled(process.env);
   assertLiveSendAllowed(email, process.env, suppressedEmails);
+  const ledger = await fetchRecentSendLedger(process.env.RESEND_API_KEY!.trim());
+  assertRateLimits(countRecentSends(ledger), process.env);
   const result = await sendOneEmail(
     email,
     process.env.RESEND_API_KEY!.trim(),
