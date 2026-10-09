@@ -24,7 +24,7 @@ Implement → test/verify → document → commit → verify → next phase.
 - [x] Phase 9 — End-to-end integration (COMPLETE)
 - [x] Phase 10 — End-to-end testing (COMPLETE)
 - [x] Phase 11 — Production (COMPLETE; runtime safety flags operator-verified false on 2026-10-09)
-- [ ] Phase 12 — Autonomous Cidea AI Sales Engine (IN PROGRESS; Steps 1–7 complete, Step 8 next)
+- [ ] Phase 12 — Autonomous Cidea AI Sales Engine (IN PROGRESS; Steps 1–9 implemented and merged, Step 10 next)
 
 ## Current phase
 
@@ -590,3 +590,16 @@ Steps 1–8 are complete and merged to `main` in `KhalilJel/Gullkornet`; step 9 
 - Final Step 8 PR-head checks: test/CI PASS, Phase 10 E2E PASS, Phase 11 readiness PASS, KeeLead Live Acceptance PASS.
 - No real prospect emails were sent. No DNS/MX or Railway configuration changes were made. OpenOutSend remains ingest-only and the scheduled send workflow remains hard-disabled.
 - Production sending is separately gated and is not implied by Phase 12 completion.
+
+## Phase 12 — Step 9 observability checkpoint (2026-10-09)
+
+Step 9 is complete and merged through PR #86 (`de8e5410038fe5b0866521dd9632dc38628441f7`). Final PR-head checks passed: CI/tests, Phase 10 E2E, Phase 11 readiness, and KeeLead Live Acceptance.
+
+- Structured run start/completion/failure events include correlation IDs, durations, safe counts, and stable failure categories.
+- Tests check that logs exclude prospect contact details, draft bodies, raw exception text, and secret-like values.
+- Phase 10 log assertions now tolerate JSON whitespace; KeeLead read-only acceptance calls retry once for transient failures.
+- No real prospect emails, DNS/MX changes, Railway configuration changes, or deployments were performed.
+- OpenOutSend remains ingest-only and the scheduled sending workflow remains hard-disabled.
+- Known limitation: centralized alerting, stale-monitor detection, and a new health endpoint remain out of scope.
+
+**Next:** Phase 12 Step 10, end-to-end dry-run acceptance. Step 11 production-readiness review and Step 12 closeout remain pending; Phase 12 is not complete.
