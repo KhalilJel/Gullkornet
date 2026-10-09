@@ -141,7 +141,7 @@ Do not skip or reorder steps. Each step must pass its own tests and be documente
 
 - Phase 12 has been explicitly authorized on 2026-10-09.
 - Step 1 baseline verification is complete.
-- Step 2 is next.
-- No Phase 12 code changes or deployments have been made yet.
+- Step 2 architecture and contract mapping is complete in `docs/PHASE-12-ARCHITECTURE.md`.
+- Step 3 is next. No Phase 12 runtime/code changes or deployments have been made yet.
 - No prospect emails were sent during baseline verification.
 - No DNS/MX or Railway configuration changes were made.
