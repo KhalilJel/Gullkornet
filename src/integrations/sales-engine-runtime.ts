@@ -216,6 +216,7 @@ export function createPhase9SalesEngineDependencies(options: Phase9RuntimeOption
       const contact = await researchContactAndDraft(candidate, audit);
       const evidence = [
         ...formatWebsiteAuditEvidence(audit),
+        contact.personalizationEvidence,
         contact.pageTitle ? "Contact research observed page title: " + contact.pageTitle : undefined,
         contact.headline ? "Contact research observed headline: " + contact.headline : undefined,
         contact.serviceEvidence ? "Contact research service signal: " + contact.serviceEvidence : undefined
