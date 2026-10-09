@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertBulkSendDisabledForPhase11, assertLiveSendAllowed, assertProductionKillSwitchEnabled, assertRateLimits, countRecentSends, fetchRecentSendLedger, PHASE11_RATE_LIMITS, prepareEmail, type OutreachDraft } from "../src/integrations/outbound-email.js";
-import { assertAirtableRecipientApproved, fetchAirtableRecipientApproval, type AirtableSendApproval } from "../src/integrations/airtable-send-approval.js";
+import { assertBulkSendDisabledForPhase11, assertLiveSendAllowed, assertProductionKillSwitchEnabled, assertRateLimits, assertRecipientNotAlreadySent, countRecentSends, fetchRecentSendLedger, PHASE11_RATE_LIMITS, prepareEmail, type OutreachDraft } from "../src/integrations/outbound-email.js";
+import { assertAirtableRecipientApproved, fetchAirtableRecipientApproval, markAirtableRecipientSent, type AirtableSendApproval } from "../src/integrations/airtable-send-approval.js";
 
 const draft: OutreachDraft[] = [{
   companyName: "Phase 11 Pilot AS",
@@ -123,6 +123,28 @@ test("Phase 11 Resend ledger pagination fails closed when history is incomplete"
 });
 
 
+test("Phase 11 blocks a recipient already present in the recent Resend send ledger", () => {
+  const now = Date.parse("2026-10-09T12:00:00Z");
+  const recent = [{
+    created_at: "2026-10-09T11:45:00Z",
+    to: ["Pilot@Example.no"]
+  }];
+  assert.throws(
+    () => assertRecipientNotAlreadySent(recent, "pilot@example.no", now),
+    /already appears in Resend send history/
+  );
+  assert.doesNotThrow(() => assertRecipientNotAlreadySent(recent, "other@example.no", now));
+  assert.doesNotThrow(() => assertRecipientNotAlreadySent([{
+    created_at: "2026-10-08T10:00:00Z",
+    to: ["pilot@example.no"]
+  }], "pilot@example.no", now));
+  assert.throws(
+    () => assertRecipientNotAlreadySent([{ created_at: "not-a-date", to: [] }], "pilot@example.no", now),
+    /invalid timestamp/
+  );
+});
+
+
 const approvedAirtableRecord: AirtableSendApproval = {
   id: "rec123",
   fields: {
@@ -181,11 +203,50 @@ test("Phase 11 Airtable approval lookup accepts exactly one reviewed record", as
     }), { status: 200, headers: { "Content-Type": "application/json" } });
   }) as typeof fetch;
   try {
-    await assert.doesNotReject(fetchAirtableRecipientApproval("pilot@example.no", {
+    assert.equal(await fetchAirtableRecipientApproval("pilot@example.no", {
+      AIRTABLE_API_TOKEN: "test",
+      GULLKORNET_AIRTABLE_BASE_ID: "appXe2XtbbhripqFq",
+      GULLKORNET_AIRTABLE_TABLE: "Leads"
+    }), "rec123");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+
+test("Phase 11 marks Airtable Sent only after the provider accepts a send", async () => {
+  const originalFetch = globalThis.fetch;
+  let request: Request | undefined;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    request = new Request(input, init);
+    return new Response(JSON.stringify({
+      id: "rec123",
+      fields: { "Lead Status": "Sent" }
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+  try {
+    await assert.doesNotReject(markAirtableRecipientSent("rec123", {
       AIRTABLE_API_TOKEN: "test",
       GULLKORNET_AIRTABLE_BASE_ID: "appXe2XtbbhripqFq",
       GULLKORNET_AIRTABLE_TABLE: "Leads"
     }));
+    assert.equal(request?.method, "PATCH");
+    assert.match(request?.url ?? "", /\/rec123$/);
+    assert.deepEqual(await request?.json(), { fields: { "Lead Status": "Sent" } });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Phase 11 stops on Airtable status persistence failure after provider acceptance", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response("unavailable", { status: 503 })) as typeof fetch;
+  try {
+    await assert.rejects(markAirtableRecipientSent("rec123", {
+      AIRTABLE_API_TOKEN: "test",
+      GULLKORNET_AIRTABLE_BASE_ID: "appXe2XtbbhripqFq",
+      GULLKORNET_AIRTABLE_TABLE: "Leads"
+    }), /Airtable could not be marked Sent/);
   } finally {
     globalThis.fetch = originalFetch;
   }
