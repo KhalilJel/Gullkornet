@@ -47,7 +47,7 @@ jobs:
       - name: Verify no production enablement is committed
         run: |
           set -euo pipefail
-          if grep -R --exclude-dir=.git --exclude='docs/PHASE-11-PRODUCTION.md' --exclude='tests/phase11-production.test.ts' -E 'RESEND_API_KEY=[^$}]|OPENOUTREACH_INGEST_TOKEN=[^$}]' .; then
+          if grep -R --exclude-dir=.git --exclude='docs/PHASE-11-PRODUCTION.md' --exclude='tests/phase11-production.test.ts' --exclude='.github/workflows/phase11-production.yml' -E 'RESEND_API_KEY=[^$}]|OPENOUTREACH_INGEST_TOKEN=[^$}]' .; then
             echo "Potential secret or live-send enablement found in repository"
             exit 1
           fi
