@@ -76,8 +76,10 @@ The OpenOutSend bridge remains ingest-only. The pilot was deliberately sent thro
 ## Rate limit and kill-switch implementation
 
 - Added a shared Phase 11 policy with hard maximums of 3 per run, 3 per hour and 10 per 24 hours.
-- The single-recipient CLI now checks the live-send kill switch and queries Resend email history before a live send. If Resend is unavailable, history is malformed, the cursor is missing, or a complete 24-hour window cannot be established within the bounded page count, the CLI refuses the send.
-- Added regression tests for kill-switch behavior, hourly/daily caps, invalid timestamps and the single-recipient per-run configuration.
+- The single-recipient CLI checks the shared kill switch and queries Resend email history before a live send. If Resend is unavailable, history is malformed, the cursor is missing, or a complete 24-hour window cannot be established within the bounded page count, the CLI refuses the send.
+- The live CLI now requires one exact Airtable record for the recipient with Lead Status = Approved, Review Status = Ready for outreach, and Do Not Contact not enabled. Missing credentials, an Airtable error, duplicate matches, or a status mismatch fail closed.
+- The older OpenOutreach client send method is hard-disabled during Phase 11 even if its legacy environment switch is set. Only the separately guarded one-recipient CLI path remains available.
+- Added regression tests for kill-switch behavior, hourly/daily caps, invalid timestamps, incomplete send history, provider failures, Airtable recipient approval, suppression, and the single-recipient per-run configuration.
 - The legacy batch sender remains disabled; its accepted production batch cap is not opened by this change.
 
 ## Additional safety findings
@@ -91,14 +93,14 @@ The OpenOutSend bridge remains ingest-only. The pilot was deliberately sent thro
 
 ## Remaining Phase 11 acceptance blockers
 
-1. Implement a real mailbox reply detector using an available, authenticated mailbox interface.
+1. Confirm the actual mailbox that receives replies to jelassi@cideamarketing.com and provide an authenticated mailbox interface; Mailopoly is currently unavailable and the deployed OpenOutreach service is ingest-only.
 2. Store and process reply events so a reply blocks all follow-ups, and test that behavior end to end.
-3. Implement a durable send ledger and enforce the agreed limits: maximum 3 per run, 3 per hour, 10 per day. Reconcile historical activity before calculating current limits.
-4. Verify suppression is fail-closed across persistent Do Not Contact flags and the suppression list, including provider or Airtable failures.
-5. Prove the kill switch blocks all send paths, not only the paused workflow.
+3. Complete runtime acceptance of the Resend-history-backed caps: maximum 3 per run, 3 per hour, 10 per day. The CLI fails closed when it cannot establish a full recent-history window. Reconcile historical send activity before relaxing the batch lock.
+4. Run final suppression acceptance across the local suppression list, Airtable Do Not Contact and approval state, including provider/CRM failures. Automated runtime gate now checks Airtable approval and local suppression; an end-to-end live-path acceptance remains outstanding.
+5. Finish kill-switch acceptance across every send path. The one-recipient CLI checks the master kill switch, and legacy daily/OpenOutreach send paths are hard-disabled in source.
 6. Add production monitoring for accepted, delivered, bounced, replied, suppressed, and blocked events.
 7. Run final end-to-end acceptance, record CI/runtime evidence, commit the signoff and only then merge this PR.
 
 ## Phase 11 status
 
-**IN PROGRESS.** The first controlled email is delivered and the legacy batch sender is now hard-disabled. Reply detection, durable global rate limits, complete suppression integration, kill-switch acceptance, and production monitoring are not yet proven. Phase 12 remains locked.
+**IN PROGRESS.** The first controlled email is delivered; legacy batch/OpenOutreach send paths are hard-disabled; the guarded CLI now requires Airtable approval and checks Resend-history rate limits and the kill switch. Reply detection, runtime reply-based follow-up blocking, complete suppression acceptance, monitoring, and final end-to-end acceptance are still outstanding. Phase 12 remains locked.
