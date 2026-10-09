@@ -22,7 +22,6 @@ export type QualificationDecision = {
 
 const DEFAULT_TARGET_GEOGRAPHIES = ["Oslo", "Akershus"];
 const COMPETITOR_INDUSTRY = /web\s?design|webutvikling|web development|digital marketing agency|markedsføringsbyrå|branding agency|merkevarebyrå|seo agency|seo-byrå/i;
-const OPPORTUNITY_SIGNAL = /(?:MISSING_TITLE|MISSING_META_DESCRIPTION|MISSING_VIEWPORT_META|NO_OBVIOUS_CONTACT_PATH|NO_WEBSITE)/;
 
 function normalize(value: string): string {
   return value.normalize("NFKC").trim().toLocaleLowerCase("nb-NO").replace(/\s+/g, " ");
@@ -94,6 +93,11 @@ export function evaluateLeadQualification(input: QualificationInput): Qualificat
     };
   } else {
     reasons.push("Industry is not identified as a direct competitor; service fit still needs human confirmation.");
+  }
+
+  if (evidence.length === 0) {
+    reviewReasons.push("Evidence is missing or too weak to support a qualification decision.");
+    return { status: "review_required", score: 0, reasons, reviewReasons, opportunitySignals };
   }
 
   if (opportunitySignals.length === 0) {
