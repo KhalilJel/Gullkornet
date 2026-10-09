@@ -1,6 +1,6 @@
 # Phase 11 — Production
 
-Status: IN PROGRESS
+Status: COMPLETE on main (post-merge documentation reconciliation pending)
 Started: 2026-10-09
 
 ## Objective
@@ -25,7 +25,7 @@ Verified from `main`:
 - Phase 10 completed and merged.
 - CI and KeeLead acceptance green on the Phase 10 merge.
 - OpenOutSend Railway runtime healthy.
-- `OPENOUTREACH_ALLOW_SEND=false` remains configured in the existing runtime.
+- The previous acceptance recorded `OPENOUTREACH_ALLOW_SEND=false`; the current Railway connector redacts variable values, so its present value must be verified directly in the Railway UI before any future live send.
 - OpenOutSend bridge is still ingest-only.
 - Resend reports `cideamarketing.com` as verified and sending-enabled.
 - No DNS/MX changes were made.
@@ -130,7 +130,7 @@ This note records the connector-based post-merge inspection performed after PR #
 - Railway project `powerful-patience`, production service `openoutreach` is configured from `KhalilJel/Gullkornet`, branch `phase11/production`, commit `30358eb488072a7893d385ac83cc78226486f768`. Deployment `71dad39b-f961-4e9f-9b3b-23d0a76b9d55` reports `SUCCESS`, the service is online with one running replica, and the configured healthcheck is `/health`.
 - Railway HTTP metrics for the three-hour inspection window showed 80 successful 2xx GET requests to `/health`, with zero 3xx, 4xx or 5xx responses.
 - Runtime logs repeatedly recorded `reply-monitor status=running error=none`. The metrics query recorded no `POST /v1/reply-status` requests during that window, so a fresh external endpoint acceptance was not observed in this follow-up.
-- The Railway connector withheld all environment variable values. Therefore this inspection could confirm that the acceptance/send flag names exist, but could not independently re-confirm their current Boolean values. Do not treat this limitation as proof of their values; verify in the Railway UI without exposing secret values before any future live send.
+- The Railway connector withheld all environment variable values. Therefore this inspection could confirm that the acceptance/send flag names exist, but could not independently re-confirm their current Boolean values, including `OPENOUTREACH_ALLOW_SEND` and `OPENOUTREACH_STARTUP_ACCEPTANCE_TEST`. Do not treat historical reset evidence as proof of their current values; verify both directly in the Railway UI without exposing secret values before any future live send.
 - The daily outreach workflow job is `skipped` on the inspected `main` commit; the workflow source retains a hard false condition on its sending job. The OpenOutSend bridge continues to expose no send endpoint by design.
 - No production send, DNS/MX change, Railway configuration change, or secret disclosure was performed during this inspection.
 
