@@ -106,6 +106,9 @@ def _update_reply_monitor_state(**values: Any) -> None:
 def search_folders_for_sender(client: Any, sender_email: str) -> bool:
     """Search every selectable IMAP folder read-only; any search error fails closed."""
     folders = client.list_folders()
+    if not folders:
+        raise RuntimeError("REPLY_MAILBOX_HAS_NO_FOLDERS")
+    checked = 0
     for flags, _delimiter, name in folders:
         flag_values = {
             flag.decode("utf-8", errors="ignore").lower() if isinstance(flag, bytes)
@@ -117,8 +120,11 @@ def search_folders_for_sender(client: Any, sender_email: str) -> bool:
         if not name:
             continue
         client.select_folder(name, readonly=True)
+        checked += 1
         if client.search(["FROM", sender_email]):
             return True
+    if checked == 0:
+        raise RuntimeError("REPLY_MAILBOX_HAS_NO_SELECTABLE_FOLDERS")
     return False
 
 
