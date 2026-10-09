@@ -163,7 +163,7 @@ def run_startup_acceptance_test(base_url: str, token: str) -> None:
 
     import urllib.request
 
-    payload = b'{"lead_id":"phase9-synthetic-acceptance","email":"acceptance@example.invalid","company":"Phase 9 Synthetic Acceptance"}\\n'
+    payload = b'{"lead_id":"phase9-synthetic-acceptance","email":"acceptance@example.invalid","company":"Phase 9 Synthetic Acceptance"}\n'
     request = urllib.request.Request(
         base_url + INGEST_PATH,
         data=payload,
