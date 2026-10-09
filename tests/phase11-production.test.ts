@@ -155,10 +155,16 @@ const approvedAirtableRecord: AirtableSendApproval = {
   }
 };
 
-test("Phase 11 requires exactly one approved Airtable record", () => {
-  assert.doesNotThrow(() => assertAirtableRecipientApproved([approvedAirtableRecord], "PILOT@example.no"));
+test("Phase 11 requires exactly one approved Airtable record and returns its exact ID", () => {
+  assert.equal(assertAirtableRecipientApproved([approvedAirtableRecord], "PILOT@example.no"), "rec123");
+  const unrelated: AirtableSendApproval = {
+    id: "recOther",
+    fields: { Email: "other@example.no", "Lead Status": "New", "Review Status": "Needs review" }
+  };
+  assert.equal(assertAirtableRecipientApproved([unrelated, approvedAirtableRecord], "pilot@example.no"), "rec123");
   assert.throws(() => assertAirtableRecipientApproved([], "pilot@example.no"), /exactly one record/);
   assert.throws(() => assertAirtableRecipientApproved([approvedAirtableRecord, approvedAirtableRecord], "pilot@example.no"), /exactly one record/);
+  assert.throws(() => assertAirtableRecipientApproved([{ ...approvedAirtableRecord, id: "bad" }], "pilot@example.no"), /valid record ID/);
 });
 
 test("Phase 11 blocks Airtable suppression, sent, and unreviewed records", () => {
