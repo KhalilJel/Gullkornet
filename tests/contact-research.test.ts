@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extractPublicEmails, createPersonalizedDraft, extractEvidence } from "../src/integrations/contact-research.js";
+import { extractPublicEmails, createPersonalizedDraft, extractEvidence, researchContactAndDraft } from "../src/integrations/contact-research.js";
 
 test("extractPublicEmails finds only publicly visible mailto and text addresses", () => {
   const html = `<html><body>
@@ -162,5 +162,13 @@ test("does not invent a named contact, role, specific problem, or expected busin
   assert.ok(!result.draftBody!.includes("Khalil"));
   assert.ok(result.personalizationEvidence?.includes("No specific page observation extracted"));
   assert.ok(result.notes.some((note) => note.includes("requires human review")));
+});
+
+test("no website routes research to manual review without inventing a draft", async () => {
+  const result = await researchContactAndDraft({ companyName: "Eksempel AS" });
+  assert.equal(result.researchStatus, "NO_WEBSITE");
+  assert.equal(result.requiresHumanReview, true);
+  assert.equal(result.draftBody, undefined);
+  assert.ok(result.notes.some((note) => note.includes("No website URL")));
 });
 
