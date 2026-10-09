@@ -11,6 +11,8 @@ on:
       - "package.json"
       - "tsconfig.json"
       - ".github/workflows/phase10-end-to-end-testing.yml"
+      - "docs/PHASE-10-END-TO-END-TESTING.md"
+      - "docs/AI-IMPLEMENTATION-STATUS.md"
   workflow_dispatch:
     inputs:
       max_leads:
