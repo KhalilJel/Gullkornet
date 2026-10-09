@@ -48,7 +48,12 @@ try {
     process.env.RESEND_API_KEY!.trim(),
     process.env.GULLKORNET_SEND_IDEMPOTENCY_KEY!.trim()
   );
-  await markAirtableRecipientSent(airtableRecordId, process.env);
+  try {
+    await markAirtableRecipientSent(airtableRecordId, process.env);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown Airtable update error";
+    throw new Error(`Resend accepted email ID ${result.id}, but Airtable state could not be confirmed. Do not retry until reconciled. Detail: ${reason}`);
+  }
   console.log(`Resend accepted one email and Airtable is marked Sent. Email ID: ${result.id}`);
 } catch (error) {
   console.error(error instanceof Error ? error.message : "Outbound email failed.");
