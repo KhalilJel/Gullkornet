@@ -22,8 +22,8 @@ export function assertAirtableRecipientApproved(
     throw new Error(`Airtable must contain exactly one record for the recipient; found ${matches.length}. Refusing to send.`);
   }
   const fields = matches[0].fields;
-  if (fields["Do Not Contact"] === true) {
-    throw new Error("Airtable Do Not Contact is enabled. Refusing to send.");
+  if (fields["Do Not Contact"] !== false) {
+    throw new Error("Airtable Do Not Contact is enabled or cannot be verified false. Refusing to send.");
   }
   if (fields["Lead Status"] !== "Approved") {
     throw new Error("Airtable Lead Status must be Approved before sending.");
@@ -54,7 +54,7 @@ export async function fetchAirtableRecipientApproval(
   }
 
   const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`);
-  url.searchParams.set("filterByFormula", `{Email} = "${escapeFormulaString(recipient.trim().toLowerCase())}"`);
+  url.searchParams.set("filterByFormula", `AND({Email} = "${escapeFormulaString(recipient.trim().toLowerCase())}", {Do Not Contact} = 0)`);
   url.searchParams.set("pageSize", "100");
   for (const field of ["Email", "Lead Status", "Review Status", "Do Not Contact"]) {
     url.searchParams.append("fields[]", field);
