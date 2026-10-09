@@ -180,7 +180,7 @@ export async function runSalesEngine(
     const hasDraft = Boolean(research.draft?.subject?.trim() && research.draft?.body?.trim());
     const validScore = Number.isFinite(research.score) && research.score >= 0 && research.score <= 100;
     if (!hasEvidence || !hasDraft || !validScore) {
-      const reason = "insufficient_evidence_or_draft";
+      const reason = research.requiresHumanReview ? "human_review_required" : "insufficient_evidence_or_draft";
       reviewRequired.push({ lead, reason, research });
       skip(reason);
       continue;
