@@ -85,3 +85,16 @@ export async function sendOneEmail(email: PreparedEmail, apiKey: string, idempot
   }
   return { id: (body as { id: string }).id };
 }
+
+
+/**
+ * Phase 11 fails closed for the legacy batch sender. Its historical implementation
+ * does not provide a durable global rate ledger, reply-aware suppression, or a
+ * per-recipient approval flow. Keep batch sending disabled until those controls
+ * are implemented and accepted end to end.
+ */
+export function assertBulkSendDisabledForPhase11(): never {
+  throw new Error(
+    "Bulk outreach is disabled during Phase 11. Use only the guarded single-recipient path after explicit approval."
+  );
+}
