@@ -88,20 +88,22 @@ The OpenOutSend bridge remains ingest-only. The pilot was deliberately sent thro
 - The legacy batch CLI is now hard-disabled in source during Phase 11, and a regression test asserts the lock. The GitHub Actions batch workflow remains disabled with `if: ${{ false }}`.
 - Airtable's existing `Sent` statuses are not a reliable timestamp ledger: many records have no send timestamp and some notes still describe drafts as unsent. Resend is the better historical source, and any future limits must use a durable, reconciled send ledger rather than trusting the Airtable status alone.
 - Railway `openoutreach` runs the read-only IMAP monitor with `OPENOUTREACH_REPLY_MONITOR_ENABLED=true`, a 300-second interval, and the Cidea mailbox identity configured. Runtime logs show startup `status=starting` followed by repeated `status=running error=none`; the monitor executes IMAP sync/classify/project only and never invokes `outsend send`.
-- The deployed service still needs the latest branch build before the new authenticated `/v1/reply-status` endpoint is live. The branch endpoint searches the monitored INBOX read-only for mail from a recipient and fails closed if the monitor or IMAP lookup is unhealthy.
-- Mailopoly is not used for the reply monitor; its inactive subscription no longer blocks the direct OpenOutSend IMAP monitor. The separate live reply-status check still needs deployed-runtime acceptance.
+- The authenticated `/v1/reply-status` endpoint is deployed on the existing Railway service. Synthetic runtime acceptance returned HTTP 200 with `mode=read_only_reply_check` and `send_triggered=false`.
+- The same controlled runtime check queried the pilot recipient and logged `replied=false` without exposing the address or message contents. This means no inbound message from that sender was found in any selectable folder at the time of the check; it does not prove the absence of all future replies.
+- Startup acceptance created a synthetic `example.invalid` lead in the OpenOutSend ingest store only. It did not trigger sending. `OPENOUTREACH_STARTUP_ACCEPTANCE_TEST` was then reset to `false` and the pilot-address override reset to empty, followed by a successful restart.
+- Mailopoly is not used for the reply monitor; its inactive subscription does not block the direct OpenOutSend IMAP monitor. The deployed reply-status endpoint fails closed if monitor health is stale, the mailbox is mismatched, the IMAP query fails, or the response is malformed.
 - No additional prospect emails were sent while carrying out this audit and hardening.
 
 ## Remaining Phase 11 acceptance blockers
 
-1. Deploy the latest Phase 11 branch to the existing Railway `openoutreach` service so the authenticated `/v1/reply-status` endpoint is actually live; confirm health status and IMAP lookup success after rollout.
-2. Verify the reply-status endpoint against a controlled synthetic lookup and the pilot recipient without sending mail. Confirm `replied=true` blocks the guarded CLI, `replied=false` proceeds only to the remaining gates, and timeout/provider/monitor failures all block sending.
-3. Complete runtime acceptance of Resend-history-backed caps: maximum 3 per run, 3 per hour, and 10 per rolling 24 hours. No send is needed to test the boundaries; reconcile historical send activity before relaxing the batch lock.
-4. Run end-to-end suppression acceptance across the local suppression list, Airtable Do Not Contact and approval state, including provider/CRM failures.
-5. Verify the master kill switch and confirm scheduled/batch and OpenOutSend send paths remain disabled.
-6. Confirm production monitoring exposes accepted, delivered, replied, suppressed, and blocked health signals without logging secrets or message content.
-7. Run final end-to-end acceptance, record CI/runtime evidence, commit the signoff, and merge this PR only after all gates pass.
+1. Re-run all CI, typecheck, suppression, reply-status and rate-limit tests on the newest source including stale-monitor detection.
+2. Deploy that exact tested branch head to the existing Railway service and rerun the same health plus synthetic reply-status acceptance on that build.
+3. Confirm the negative cases: a simulated `replied=true` blocks the CLI, `replied=false` only lets the workflow continue to remaining gates, and timeout/provider/stale-monitor errors all block sending. These are unit-tested now; runtime checks remain no-send only.
+4. Complete a no-send runtime audit of the Resend-history caps: maximum 3 per run, 3 per hour, and 10 per rolling 24 hours. Reconcile historical send activity before considering any batch ramp.
+5. Verify suppression fail-closed behavior across the local suppression list, Airtable Do Not Contact/approval, and provider/CRM failures; verify master kill switch and keep the scheduled/batch sender disabled.
+6. Finalize monitoring coverage and document the existing signals (health endpoint, IMAP sync/classification counts, Resend event status, and explicit blocked-send errors). Do not claim a central alerting dashboard exists unless actually implemented.
+7. Run final end-to-end acceptance on the final SHA, record evidence, commit the signoff, and merge PR #70 only after every acceptance gate passes.
 
 ## Phase 11 status
 
-**IN PROGRESS.** The first controlled email is delivered; legacy batch/OpenOutreach send paths are hard-disabled; the guarded CLI requires Airtable approval, suppression, Resend-history rate limits, and the kill switch. The read-only IMAP monitor is active in Railway and runtime logs show successful sync/classify/project cycles. The branch now includes an authenticated read-only reply-status endpoint and a fail-closed pre-send gate, but that updated endpoint has not yet been deployed and accepted in production. Complete suppression and monitoring acceptance plus final end-to-end acceptance remain outstanding. Phase 12 remains locked.
+**IN PROGRESS.** The pilot email is delivered. Legacy batch/OpenOutreach send paths remain locked. Railway's read-only IMAP monitor is active, and the authenticated `/v1/reply-status` endpoint passed synthetic runtime acceptance plus a no-send lookup of the pilot recipient (`replied=false`). Startup acceptance flags were reset after testing. The newest branch commit adds stale-monitor rejection and a regression test; those checks must pass, then that exact SHA must be deployed and retested. Final suppression, limit/kill-switch acceptance, documented monitoring and final end-to-end signoff remain outstanding. Phase 12 stays locked.
