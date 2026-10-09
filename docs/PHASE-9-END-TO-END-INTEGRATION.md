@@ -69,3 +69,22 @@ Do not claim end-to-end integration or runtime acceptance until a supported, aut
 - Suppression lookup failures fail closed.
 - Weak/empty evidence, incomplete drafts, human-review-required results, and invalid scores are excluded from the queue.
 - The orchestration default remains dry-run; its ingest callback is a queue boundary only and never sends email.
+
+
+### Step 2 progress — queue handoff implementation
+
+- Hardened `src/integrations/sales-engine.ts`: normalized email/company deduplication, email syntax checks, fail-closed verification and suppression errors, score/evidence/draft validation, and explicit `reviewRequired` results.
+- Added `src/integrations/openoutsend-ingest.ts`, an HTTP client that can only submit bounded NDJSON to the ingest endpoint. It has no send method and verifies the remote acknowledgement says `send_triggered: false`.
+- Added tests for authorization headers, NDJSON format, missing runtime configuration, invalid batches, HTTP errors and unexpected acknowledgements.
+- Added the separate draft PR #68, `feat: Phase 9 authenticated OpenOutSend ingest bridge`, based on the Phase 8 runtime branch. It adds a bearer-authenticated, ingest-only HTTP bridge to the existing OpenOutSend container and tests the handler inside the Docker build. It has not been deployed.
+- CI on the latest Phase 9 orchestration commit passed TypeScript typecheck and unit tests; the current commit's complete workflow status must be confirmed after all checks finish.
+- The bridge's Python CI run is pending at the time of this update. Do not treat it as passed until its workflow reports success.
+
+### Remaining before runtime acceptance
+
+1. Verify PR #68 Python tests and image build.
+2. Review the KeeLead response parsing and compose the actual runtime dependencies.
+3. Add an Airtable-backed suppression lookup that fails closed.
+4. Connect eligible lead records to the new ingest-only client using stable `lead_id` values.
+5. Configure the existing OpenOutSend service for the authenticated endpoint and a private Railway address only after tests pass. Keep sending disabled.
+6. Run a no-send runtime acceptance test and record deployment/commit evidence.
