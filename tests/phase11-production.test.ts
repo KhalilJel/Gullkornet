@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertBulkSendDisabledForPhase11, assertLiveSendAllowed, assertProductionKillSwitchEnabled, assertRateLimits, countRecentSends, PHASE11_RATE_LIMITS, prepareEmail, type OutreachDraft } from "../src/integrations/outbound-email.js";
+import { assertBulkSendDisabledForPhase11, assertLiveSendAllowed, assertProductionKillSwitchEnabled, assertRateLimits, countRecentSends, fetchRecentSendLedger, PHASE11_RATE_LIMITS, prepareEmail, type OutreachDraft } from "../src/integrations/outbound-email.js";
 
 const draft: OutreachDraft[] = [{
   companyName: "Phase 11 Pilot AS",
@@ -74,4 +74,49 @@ test("Phase 11 counts send history based on created_at and fails closed on corru
   ], now);
   assert.deepEqual(counts, { lastHour: 2, lastDay: 3 });
   assert.throws(() => countRecentSends([{ created_at: "not-a-date" }], now), /invalid timestamp/);
+});
+
+
+test("Phase 11 Resend ledger fetch fails closed on a provider error", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response("unavailable", { status: 503 })) as typeof fetch;
+  try {
+    await assert.rejects(
+      fetchRecentSendLedger("test-api-key"),
+      /Could not verify Resend send history/
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Phase 11 Resend ledger rejects malformed history", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({ data: "not-an-array", has_more: false }), { status: 200 })) as typeof fetch;
+  try {
+    await assert.rejects(fetchRecentSendLedger("test-api-key"), /invalid send ledger/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Phase 11 Resend ledger pagination fails closed when history is incomplete", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls++;
+    return new Response(JSON.stringify({
+      data: [{ id: `email-${calls}`, created_at: "2026-10-09T11:59:00Z" }],
+      has_more: true
+    }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    await assert.rejects(
+      fetchRecentSendLedger("test-api-key", Date.parse("2026-10-09T12:00:00Z")),
+      /complete 24-hour send history/
+    );
+    assert.equal(calls, 20);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
