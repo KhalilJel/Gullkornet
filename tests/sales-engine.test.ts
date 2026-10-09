@@ -5,11 +5,11 @@ import { runSalesEngine, type SalesEngineDependencies } from "../src/integration
 function deps(overrides: Partial<SalesEngineDependencies> = {}): SalesEngineDependencies {
   return {
     discover: async () => [{ company: "Example AS", email: "hello@example.no" }],
-    enrich: async (lead) => lead,
+    enrich: async (lead) => ({ location: "Oslo", industry: "professional services", identityVerified: true, ...lead }),
     verifyContact: async () => ({ valid: true }),
     research: async () => ({
       websiteUrl: "https://example.no",
-      evidence: ["The homepage has no visible service pricing section."],
+      evidence: ["Automated website signal (requires human verification): MISSING_META_DESCRIPTION"],
       score: 80,
       requiresHumanReview: false,
       draft: { subject: "En mulighet for Example AS", body: "Jeg la merke til at ..." }
