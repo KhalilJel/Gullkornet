@@ -131,7 +131,8 @@ test("preserves sent, replied, suppressed, and do-not-contact states and outreac
   });
 
   assert.equal(result.updated, 4);
-  const byId = new Map(patchBody?.records.map((record) => [record.id, record.fields]));
+  if (!patchBody) throw new Error("Expected a PATCH payload for protected CRM records");
+  const byId = new Map(patchBody.records.map((record) => [record.id, record.fields]));
   for (const [id, status] of [["sent", "Sent"], ["replied", "Replied"], ["suppressed", "Suppressed"], ["dnc", "Do Not Contact"]]) {
     const fields = byId.get(id);
     assert.equal(fields?.["Lead Status"], status);
