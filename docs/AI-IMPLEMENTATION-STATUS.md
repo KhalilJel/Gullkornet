@@ -20,15 +20,15 @@ Implement → test/verify → document → commit → verify → next phase.
 - [x] Phase 5 — TypeSafe + JEV autonomous decision layer
 - [x] Phase 6 — Browser Use
 - [x] Phase 7 — KeeLead
-- [ ] Phase 8 — OpenOutreach
-- [ ] Phase 9 — End-to-end integration
+- [x] Phase 8 — OpenOutreach
+- [ ] Phase 9 — End-to-end integration (IN PROGRESS)
 - [ ] Phase 10 — End-to-end testing
 - [ ] Phase 11 — Production
 - [ ] Phase 12 — Autonomous Cidea AI Sales Engine
 
 ## Current phase
 
-Phase 8 — OpenOutreach is the active phase.
+Phase 9 — End-to-end integration is the active phase.
 
 ## Current architecture boundary
 
@@ -489,3 +489,27 @@ No real-prospect email was sent. No secrets were committed. No DNS/MX changes we
 - OpenOutSend ingest bridge Python tests and Docker build passed on commit `048a6c955af11066a9438d039c08127fada95e6e`.
 - The bridge is not deployed; the current Railway service still starts `outsend check` with restart policy `NEVER` and has no service domain. Phase 9 remains IN PROGRESS until private runtime acceptance passes.
 - The research adapter requires human review by design. Do not bypass that gate to make the queue appear active.
+
+
+### Phase 9 deployment checkpoint — OpenOutSend ingest bridge (2026-10-09)
+
+**Deployment: SUCCESS. End-to-end acceptance: INCOMPLETE.**
+
+- Deployed the existing Railway `openoutreach` service in project `powerful-patience`; no new Railway service was created.
+- Source is pinned to `KhalilJel/Gullkornet` commit `048a6c955af11066a9438d039c08127fada95e6e` on branch `phase9/openoutsend-ingest-api`.
+- Railway deployment `3a8e90f7-2a42-4236-a59e-9be77eefe24c`: SUCCESS.
+- Generated Railway HTTPS domain: `https://openoutreach-production-ab8b.up.railway.app`, routed to container port 8080. No custom domain and no DNS/MX changes.
+- Runtime health check: `GET /health` returned HTTP 200; runtime logs confirm the service started and no send endpoint is exposed.
+- Authentication check: unauthenticated `POST /v1/leads` returned HTTP 401.
+- `OPENOUTREACH_ALLOW_SEND=false` is configured. A fresh high-entropy `OPENOUTREACH_INGEST_TOKEN` is stored only as a Railway runtime variable; its value is not documented or logged.
+- The Docker build includes and passed the bridge's Python unit tests. CI/Docker build evidence: https://github.com/KhalilJel/Gullkornet/actions/runs/37888603594
+- No real prospect was sent an email.
+
+Remaining acceptance:
+1. Send one authorized synthetic `example.invalid` lead through `POST /v1/leads` and verify the response has `mode=ingest_only`, `accepted=1`, and `send_triggered=false`.
+2. Verify the synthetic item is stored and no email is generated.
+3. Configure `OPENOUTREACH_INGEST_URL` and the same runtime token only in the actual Gullkornet execution environment. No deployed orchestration service currently exists, so do not claim the end-to-end runtime is complete.
+4. Run the bounded Gullkornet dry-run and confirm Airtable review sync, suppression fail-closed behavior, and no sends.
+5. Document the results and rerun CI before closing Phase 9.
+
+The bridge deployment is complete, but Phase 9 is not complete until the authorized synthetic ingest and orchestrator dry-run are verified.
