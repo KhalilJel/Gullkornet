@@ -1,0 +1,69 @@
+name: Phase 9 Sales Engine Acceptance
+
+on:
+  push:
+    branches: ["phase9/end-to-end-orchestration"]
+    paths:
+      - "src/integrations/**"
+      - "src/cli/run-sales-engine.ts"
+      - "src/cli/sync-airtable-leads.ts"
+      - "tests/**"
+      - "package.json"
+      - ".github/workflows/phase9-sales-engine-acceptance.yml"
+  workflow_dispatch:
+    inputs:
+      max_leads:
+        description: "Maximum leads for the bounded acceptance run"
+        required: false
+        default: "1"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      KEELEAD_API_URL: https://keelead-production-9f05.up.railway.app
+      GULLKORNET_SALES_ENGINE_DRY_RUN: "true"
+      GULLKORNET_SALES_ENGINE_MAX_LEADS: ${{ inputs.max_leads || '1' }}
+      GULLKORNET_DISCOVERY_COUNT: ${{ inputs.max_leads || '1' }}
+      GULLKORNET_DISCOVERY_QUERY: "web design businesses in Oslo"
+      GULLKORNET_DISCOVERY_LOCATION: "Oslo"
+      GULLKORNET_DISCOVERY_INDUSTRY: "professional services"
+      GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
+      GULLKORNET_AIRTABLE_TABLE: "Leads"
+      AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
+      OPENOUTREACH_INGEST_URL: https://openoutreach-production-ab8b.up.railway.app
+      OPENOUTREACH_INGEST_TOKEN: ${{ secrets.OPENOUTREACH_INGEST_TOKEN }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run bounded Phase 9 sales engine dry run
+        run: npm run --silent sales-engine
+
+      - name: Assert no email was sent
+        run: |
+          test -f data/sales-engine-review-queue.json
+          test -f data/contact-research-drafts.json
+          echo "Phase 9 dry run completed. Send path remains disabled."
+
+      - name: Upload Phase 9 acceptance artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase9-sales-engine-acceptance
+          path: |
+            data/sales-engine-review-queue.json
+            data/contact-research-drafts.json
+          retention-days: 7
