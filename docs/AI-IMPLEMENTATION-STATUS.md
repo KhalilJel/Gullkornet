@@ -578,4 +578,15 @@ Next locked phase: Phase 12 — Autonomous Cidea AI Sales Engine (not started; e
 - No additional prospect emails were sent during testing; no DNS/MX changes and no secrets committed.
 - Monitoring is through Railway health/logs, Resend status/history and Airtable fields. No central alerting dashboard was added.
 
-Phase 12 was not started as part of Phase 11. Any future implementation must be planned separately; live sending stays disabled by default.
+Phase 12 was explicitly authorized separately on 2026-10-09 and is in progress on `main`. Live sending remains disabled by default.
+
+
+## Phase 12 — Autonomous Cidea AI Sales Engine (2026-10-09)
+
+Steps 1–8 are complete and merged to `main` in `KhalilJel/Gullkornet`; step 9 (observability and operational recovery) is next.
+
+- Step 7 PR #81 merged as `50103283a3256a6b7301febd0739a43995c8e86f`.
+- Step 8 PR #84 merged as `d4dba075cdbe6f807411c791ba71f68bad5a746b`. Bounded provider retry policy is one retry maximum for explicit transient timeout/network/408/425/429/5xx errors. Permanent errors are not retried; ingest and persistence writes are not automatically retried.
+- Final Step 8 PR-head checks: test/CI PASS, Phase 10 E2E PASS, Phase 11 readiness PASS, KeeLead Live Acceptance PASS.
+- No real prospect emails were sent. No DNS/MX or Railway configuration changes were made. OpenOutSend remains ingest-only and the scheduled send workflow remains hard-disabled.
+- Production sending is separately gated and is not implied by Phase 12 completion.
