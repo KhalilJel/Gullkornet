@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertLiveSendAllowed, prepareEmail, type OutreachDraft } from "../src/integrations/outbound-email.js";
+import { assertBulkSendDisabledForPhase11, assertLiveSendAllowed, prepareEmail, type OutreachDraft } from "../src/integrations/outbound-email.js";
 
 const draft: OutreachDraft[] = [{
   companyName: "Phase 11 Pilot AS",
@@ -39,4 +39,12 @@ test("Phase 11 pilot cannot send a suppressed recipient", () => {
 test("Phase 11 pilot cannot change sender", () => {
   const email = prepareEmail(draft, "pilot@example.no", "attacker@example.no");
   assert.throws(() => assertLiveSendAllowed(email, baseEnv), /Sender must remain/);
+});
+
+
+test("Phase 11 keeps legacy batch outreach disabled even when live-send env is enabled", () => {
+  assert.throws(
+    () => assertBulkSendDisabledForPhase11(),
+    /Bulk outreach is disabled during Phase 11/
+  );
 });
