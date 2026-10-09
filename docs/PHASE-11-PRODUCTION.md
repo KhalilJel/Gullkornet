@@ -76,10 +76,12 @@ The OpenOutSend bridge remains ingest-only. The pilot was deliberately sent thro
 ## Rate limit and kill-switch implementation
 
 - Added a shared Phase 11 policy with hard maximums of 3 per run, 3 per hour and 10 per 24 hours.
-- The single-recipient CLI checks the shared kill switch and queries Resend email history before a live send. If Resend is unavailable, history is malformed, the cursor is missing, or a complete 24-hour window cannot be established within the bounded page count, the CLI refuses the send.
-- The live CLI now requires one exact Airtable record for the recipient with Lead Status = Approved, Review Status = Ready for outreach, and Do Not Contact not enabled. Missing credentials, an Airtable error, duplicate matches, or a status mismatch fail closed.
-- The older OpenOutreach client send method is hard-disabled during Phase 11 even if its legacy environment switch is set. Only the separately guarded one-recipient CLI path remains available.
-- Added regression tests for kill-switch behavior, hourly/daily caps, invalid timestamps, incomplete send history, provider failures, Airtable recipient approval, suppression, and the single-recipient per-run configuration.
+- The single-recipient CLI checks the kill switch before any provider or CRM calls and queries Resend email history before a live send. Missing/malformed pagination state, empty pages with more history, provider errors, invalid timestamps or incomplete history fail closed.
+- The live CLI requires exactly one matching Airtable record with Lead Status = Approved, Review Status = Ready for outreach and Do Not Contact not enabled; the exact approved record ID is returned, validated and used for post-send persistence. Missing credentials, CRM errors, duplicate matches, invalid IDs or status mismatch fail closed.
+- Before send, the CLI checks local suppression, authenticated reply status, recent Resend history for duplicate recipient sends, and the shared per-hour/per-day limits. A reply, an unavailable/stale monitor, a malformed reply response, or an already-sent recipient blocks the send.
+- After Resend accepts an email, the CLI updates that exact Airtable record to Lead Status = Sent and verifies the returned status. If persistence fails after Resend accepted, it logs the Resend email ID and demands manual reconciliation before retry.
+- The older OpenOutreach client send method is hard-disabled during Phase 11 even if its legacy environment switch is set. Only the separately guarded one-recipient CLI path remains available; the HTTP bridge still has no sending endpoint.
+- Regression tests cover kill-switch behavior, hourly/daily caps, invalid/incomplete Resend history and pagination, recent duplicate recipients, Airtable approval/record identity/mark-Sent persistence, local and CRM suppression, reply true/false/provider errors, stale monitor health, and the disabled batch path.
 - The legacy batch sender remains disabled; its accepted production batch cap is not opened by this change.
 
 ## Additional safety findings
@@ -96,14 +98,14 @@ The OpenOutSend bridge remains ingest-only. The pilot was deliberately sent thro
 
 ## Remaining Phase 11 acceptance blockers
 
-1. Re-run all CI, typecheck, suppression, reply-status and rate-limit tests on the newest source including stale-monitor detection.
-2. Deploy that exact tested branch head to the existing Railway service and rerun the same health plus synthetic reply-status acceptance on that build.
-3. Confirm the negative cases: a simulated `replied=true` blocks the CLI, `replied=false` only lets the workflow continue to remaining gates, and timeout/provider/stale-monitor errors all block sending. These are unit-tested now; runtime checks remain no-send only.
-4. Complete a no-send runtime audit of the Resend-history caps: maximum 3 per run, 3 per hour, and 10 per rolling 24 hours. Reconcile historical send activity before considering any batch ramp.
-5. Verify suppression fail-closed behavior across the local suppression list, Airtable Do Not Contact/approval, and provider/CRM failures; verify master kill switch and keep the scheduled/batch sender disabled.
-6. Finalize monitoring coverage and document the existing signals (health endpoint, IMAP sync/classification counts, Resend event status, and explicit blocked-send errors). Do not claim a central alerting dashboard exists unless actually implemented.
-7. Run final end-to-end acceptance on the final SHA, record evidence, commit the signoff, and merge PR #70 only after every acceptance gate passes.
+1. Finish CI on the newest branch head after the duplicate-recipient, post-send Airtable persistence and strict-pagination additions.
+2. Deploy that exact tested SHA to the existing Railway `openoutreach` service, run the read-only monitor health check and the synthetic authenticated reply-status acceptance, then ensure acceptance mode is disabled and service health remains green.
+3. Preserve the confirmed no-send runtime result: synthetic reply lookup returned `send_triggered=false`; the pilot sender query returned `replied=false`. Verify the simulated positive-reply, provider-failure and stale-monitor unit cases still block the guarded CLI.
+4. Complete no-send validation of rate limits (3 per run, 3 per hour, 10 per rolling 24 hours), recipient duplication, suppression and master kill switch. The current live entry point is single-recipient only; batch sending remains disabled.
+5. Verify Airtable post-send persistence tests and the manual-reconciliation path on CRM update failure. Never retry a provider-accepted send without reconciling the Airtable state and provider email ID.
+6. Finalize monitoring documentation: Railway health and IMAP sync/classification counts, Resend send/delivery/bounce event history, Airtable `Sent`/`Replied`/`Suppressed` state, and sanitized blocked-send errors. No central alerting dashboard has been added.
+7. Run final acceptance on the latest SHA, capture green CI/runtime evidence, make the final GitHub commits, and merge PR #70 only after every acceptance gate passes.
 
 ## Phase 11 status
 
-**IN PROGRESS.** The pilot email is delivered. Legacy batch/OpenOutreach send paths remain locked. Railway's read-only IMAP monitor is active, and the authenticated `/v1/reply-status` endpoint passed synthetic runtime acceptance plus a no-send lookup of the pilot recipient (`replied=false`). Startup acceptance flags were reset after testing. The newest branch commit adds stale-monitor rejection and a regression test; those checks must pass, then that exact SHA must be deployed and retested. Final suppression, limit/kill-switch acceptance, documented monitoring and final end-to-end signoff remain outstanding. Phase 12 stays locked.
+**IN PROGRESS.** The one pilot email is delivered and Airtable is `Sent`. Railway's read-only IMAP monitor and authenticated `/v1/reply-status` endpoint passed runtime acceptance; synthetic lookup returned `send_triggered=false`, and the pilot recipient lookup returned `replied=false`. Startup acceptance flags were reset after each run. The newest source now adds stale-monitor rejection, duplicate-recipient blocking, strict Resend pagination, exact Airtable record binding and post-send `Sent` persistence; these newest changes are under CI and still require deployment/acceptance on the final SHA. Final no-send suppression/limit/kill-switch checks, monitoring documentation and final end-to-end signoff remain outstanding. Phase 12 stays locked.
