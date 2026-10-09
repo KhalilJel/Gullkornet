@@ -20,7 +20,7 @@ export type QualificationDecision = {
   opportunitySignals: string[];
 };
 
-const DEFAULT_TARGET_GEOGRAPHIES = ["Oslo", "Akershus"];
+const DEFAULT_TARGET_GEOGRAPHIES = ["Oslo", "Akershus", "Bærum", "Asker", "Lillestrøm", "Lørenskog", "Nordre Follo", "Nesodden", "Ullensaker", "Rælingen", "Eidsvoll", "Nannestad", "Vestby", "Frogn", "Enebakk", "Åsgårdstrand"];
 const COMPETITOR_INDUSTRY = /web\s?design|webutvikling|web development|digital marketing agency|markedsføringsbyrå|branding agency|merkevarebyrå|seo agency|seo-byrå/i;
 
 function normalize(value: string): string {
