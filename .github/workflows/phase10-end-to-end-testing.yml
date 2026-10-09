@@ -84,7 +84,7 @@ jobs:
           test -f data/sales-engine-review-queue.json
           test -f data/contact-research-drafts.json
           grep -Eq '"emailSent": 0' phase10-sales-engine.log
-          grep -Eq '"dryRun": true' phase10-sales-engine.log
+          grep -Eq '"mode": "dry-run"' phase10-sales-engine.log
           echo "bounded live dry run: PASS; emailSent=0"
 
       - name: Upload Phase 10 evidence
