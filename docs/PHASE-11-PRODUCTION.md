@@ -56,11 +56,22 @@ The existing live-send guard requires:
 
 Phase 11 tests add regression coverage for every gate.
 
-## Current blocker before the first real prospect send
+## First controlled production send
 
-A real recipient has not yet been explicitly selected and approved for the first controlled production send. The system must not invent or silently select one for a live send.
+Pilot recipient: M-K Renhold AS
 
-The OpenOutSend bridge also remains ingest-only. This is intentional and must not be bypassed without implementing and testing a production send boundary.
+The record was explicitly approved in Airtable before sending. The single pilot was sent from the verified Cidea sender using Resend with an idempotency key.
+
+Result:
+
+- Resend accepted the message.
+- Resend status verified as delivered.
+- Airtable lead state changed to Sent.
+- No follow-up was authorized automatically.
+- No second recipient was contacted.
+- No DNS/MX changes.
+
+The OpenOutSend bridge remains ingest-only. The pilot was deliberately sent through the separately guarded Resend production boundary rather than bypassing the ingest-only bridge.
 
 ## Next locked steps
 
