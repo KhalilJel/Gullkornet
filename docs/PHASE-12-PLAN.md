@@ -142,6 +142,9 @@ Do not skip or reorder steps. Each step must pass its own tests and be documente
 - Phase 12 has been explicitly authorized on 2026-10-09.
 - Step 1 baseline verification is complete.
 - Step 2 architecture and contract mapping is complete in `docs/PHASE-12-ARCHITECTURE.md`.
-- Step 3 is next. No Phase 12 runtime/code changes or deployments have been made yet.
-- No prospect emails were sent during baseline verification.
+- Step 3 implementation is complete: candidates are deduplicated by normalized website domain as well as company/email identity, and explicit non-HTTP schemes or credential-bearing website URLs are rejected.
+- Step 3 tests were added for domain normalization/deduplication and unsafe URL normalization.
+- Validation on code commit `a1953539bdc614ade7ab9f6da48cc3ac6e997360`: CI typecheck and test suite PASS; Phase 10 E2E PASS; Phase 11 Production Readiness PASS; KeeLead Live Acceptance PASS.
+- Step 4 is next. No Railway runtime/code changes or deployments have been made.
+- No prospect emails were sent during Phase 12 execution.
 - No DNS/MX or Railway configuration changes were made.
