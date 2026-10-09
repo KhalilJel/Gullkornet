@@ -1,6 +1,6 @@
 # Phase 9 — End-to-end integration
 
-Status: IN PROGRESS
+Status: IN PROGRESS — bounded runtime acceptance passed; final signoff pending
 Last updated: 2026-10-09
 
 ## Objective
@@ -122,3 +122,13 @@ Do not claim end-to-end integration or runtime acceptance until a supported, aut
 
 
 - Follow-up after the documentation commit: TypeScript CI passed again on `db6352222c055e1bc25139c9559ab47099f90fc0`. KeeLead Live Acceptance for that exact SHA is still running at the latest check and must be confirmed before treating the whole checkpoint as green.
+
+
+## Verified runtime acceptance checkpoint — 2026-10-09
+
+- OpenOutSend authenticated synthetic ingest: PASS with ingest-only acknowledgement and send disabled.
+- Gullkornet Phase 9 bounded dry-run: PASS on `ea35aafa1f5f98d196b11ed070d949b3cc177970`.
+- First dry-run exposed a KeeLead client timeout mismatch; corrected from 15s to 45s and re-ran successfully.
+- GitHub Actions acceptance run #2 completed successfully and produced the Phase 9 acceptance artifact.
+- The orchestration remains dry-run-by-default and the research layer retains its human-review gate.
+- Phase 9 is not signed off yet; artifact/Airtable persistence verification and final documentation/CI remain.
