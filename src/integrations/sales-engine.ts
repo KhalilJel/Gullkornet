@@ -55,6 +55,22 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
 }
 
+function isTransientProviderError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /(?:_TIMEOUT\b|_HTTP_(?:408|425|429|5\d\d)\b|\b(?:ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN)\b|fetch failed)/i.test(message);
+}
+
+/** Retry only provider reads/research once for explicitly transient failures. Never wrap persistence/ingest writes. */
+async function withBoundedProviderRetry<T>(operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (attempt >= 1 || !isTransientProviderError(error)) throw error;
+    }
+  }
+}
+
 function normalizeCompany(lead: SalesLead): string {
   return typeof lead.company === "string"
     ? lead.company.normalize("NFKC").trim().toLocaleLowerCase("nb-NO").replace(/\s+/g, " ")
@@ -89,7 +105,7 @@ export async function runSalesEngine(
     throw new Error("SALES_ENGINE_INVALID_MAX_LEADS");
   }
 
-  const found = await dependencies.discover();
+  const found = await withBoundedProviderRetry(() => dependencies.discover());
   const skipped: Record<string, number> = {};
   const skip = (reason: string) => { skipped[reason] = (skipped[reason] ?? 0) + 1; };
   const unique: SalesLead[] = [];
@@ -128,7 +144,7 @@ export async function runSalesEngine(
   for (const candidate of unique.slice(0, maxLeads)) {
     let lead: SalesLead;
     try {
-      lead = await dependencies.enrich(candidate);
+      lead = await withBoundedProviderRetry(() => dependencies.enrich(candidate));
     } catch {
       skip("enrichment_failed");
       continue;
@@ -146,7 +162,7 @@ export async function runSalesEngine(
 
     let verification: { valid: boolean; reason?: string };
     try {
-      verification = await dependencies.verifyContact(lead);
+      verification = await withBoundedProviderRetry(() => dependencies.verifyContact(lead));
     } catch {
       skip("verification_failed");
       continue;
@@ -158,7 +174,7 @@ export async function runSalesEngine(
 
     let suppressed: boolean;
     try {
-      suppressed = await dependencies.isSuppressed(email);
+      suppressed = await withBoundedProviderRetry(() => dependencies.isSuppressed(email));
     } catch {
       skip("suppression_check_failed");
       continue;
@@ -170,7 +186,7 @@ export async function runSalesEngine(
 
     let research: LeadResearch;
     try {
-      research = await dependencies.research(lead);
+      research = await withBoundedProviderRetry(() => dependencies.research(lead));
       researched += 1;
     } catch {
       skip("research_failed");
