@@ -96,16 +96,26 @@ The OpenOutSend bridge remains ingest-only. The pilot was deliberately sent thro
 - Mailopoly is not used for the reply monitor; its inactive subscription does not block the direct OpenOutSend IMAP monitor. The deployed reply-status endpoint fails closed if monitor health is stale, the mailbox is mismatched, the IMAP query fails, or the response is malformed.
 - No additional prospect emails were sent while carrying out this audit and hardening.
 
-## Remaining Phase 11 acceptance blockers
+## Final Phase 11 acceptance — 2026-10-09
 
-1. ✅ CI on current code: typecheck, full test suite, Phase 11 readiness, Phase 10 E2E and KeeLead Live Acceptance all pass at `b687c81d1f7d94f1dcd4abc6de20b89cc69d5a97`.
-2. ✅ The same tested branch head is pinned and deployed to the existing Railway `openoutreach` service; deployment `a3353fa7-bf4a-4af4-b5a5-dd98e0adf7d9` succeeded and `/health` returned 200.
-3. ✅ Read-only monitor remains healthy. Prior controlled runtime acceptance confirmed `mode=read_only_reply_check`, `send_triggered=false`; the pilot recipient lookup found no inbound message at that check time. Positive reply, provider failure and stale-monitor cases are covered by tests and block the guarded CLI.
-4. ✅ No-send acceptance tests cover caps (3 per run maximum configured; 3/hour; 10/24h), recent recipient duplicate blocking, suppression, missing/stale reply monitor and the master kill switch. Batch sender remains hard-disabled.
-5. ✅ Tests cover exact Airtable approved-record identity and setting that exact record to `Sent` after Resend accepts. CRM failure is handled as manual reconciliation, and its regression test passes.
-6. ✅ Monitoring documentation now accurately describes Railway health/IMAP scan logs, Resend event history and Airtable status fields. No central alerting dashboard has been added.
-7. Remaining: final documentation commit and final re-run of CI/runtime health on the doc-updated head. PR #70 must not merge until that final set passes.
+**Phase 11: COMPLETE on `main`.**
 
-## Phase 11 status
+### Verified outcome
+- Exactly one approved production pilot email was sent from `jelassi@cideamarketing.com` to M-K Renhold AS. Resend status was verified as `delivered`, and the corresponding Airtable record is `Sent`.
+- No additional prospect emails were sent during Phase 11 hardening and acceptance.
+- Railway `openoutreach` is deployed from the Phase 11 branch commit `30358eb488072a7893d385ac83cc78226486f768`; deployment `71dad39b-f961-4e9f-9b3b-23d0a76b9d55` completed successfully, the service is live, and the `/health` healthcheck passed.
+- The read-only IMAP reply monitor reports `status=running error=none` every five minutes.
+- The authenticated `POST /v1/reply-status` runtime acceptance returned HTTP 200 with `mode=read_only_reply_check` and `send_triggered=false`. The pilot address lookup returned `replied=false` at that time; this is not a guarantee about future mail.
+- Synthetic acceptance was limited to an `example.invalid` lead in the ingest store. `OPENOUTREACH_STARTUP_ACCEPTANCE_TEST` was reset to `false` and the pilot-address override was cleared, followed by successful deployment/health verification.
+- The HTTP bridge exposes no send endpoint and `OPENOUTREACH_ALLOW_SEND=false` remains the production configuration. The legacy batch sender and scheduled batch workflow remain disabled.
+- The guarded single-recipient CLI fails closed unless kill switch, exact Airtable approval, explicit unsuppressed state, reply-status health, duplicate-send prevention, Resend send-history completeness, idempotency and rate limits pass. Default mode is dry-run; bulk mode is hard-disabled.
+- Production limits are fixed at maximum 3/hour and 10 per rolling 24 hours. The CLI currently limits a run to one recipient; no bulk ramp is enabled.
+- Regression coverage includes kill switch, dry-run behavior, suppression, positive/negative/unavailable/stale reply checks, provider failure, recent duplicate recipients, strict pagination, 3/hour and 10/24-hour caps, Airtable record identity, and post-send `Sent` persistence/manual reconciliation.
+- The full test suite, typecheck, Phase 11 readiness, Phase 10 E2E, KeeLead Live Acceptance and OpenOutSend reply-monitor workflow passed on the final acceptance branch before merge. CI and KeeLead Live Acceptance also passed on the merge commit `5efcb4a0c5ecde7e5815eddaec68a398c2de0976`.
+- No DNS/MX changes were made and no secrets were committed.
 
-**IN PROGRESS.** One pilot email was delivered and its Airtable record is `Sent`. The read-only IMAP monitor and authenticated reply-status endpoint passed runtime acceptance. The latest source is deployed to Railway and the latest CI suite is green at `b687c81d1f7d94f1dcd4abc6de20b89cc69d5a97`. The kill switch, no-send default, suppression, rate limits, duplicate blocking, reply blocking and exact CRM post-send persistence have regression coverage. Final doc-head CI/runtime verification and PR #70 signoff remain. No extra prospect email was sent during testing, no DNS/MX change occurred, no secrets were committed. Phase 12 stays locked.
+### Operating boundary
+Phase 11 completion means the controlled one-recipient production pilot and safety acceptance have passed. It does **not** authorize bulk production sending. `GULLKORNET_ENABLE_LIVE_SEND` remains false by default, and any future real send still requires the explicit guarded single-recipient path. No central alerting dashboard was built; observability is via service health/logs, Resend status/history and Airtable status.
+
+PR #70 was squash-merged to `main`: `https://github.com/KhalilJel/Gullkornet/pull/70`.
+Phase 12 may now be considered separately, but no Phase 12 implementation is included in this PR.
