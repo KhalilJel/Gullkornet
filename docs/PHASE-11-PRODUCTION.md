@@ -135,3 +135,16 @@ This note records the connector-based post-merge inspection performed after PR #
 - No production send, DNS/MX change, Railway configuration change, or secret disclosure was performed during this inspection.
 
 This follow-up note is evidence about the checks above only; it does not authorize bulk sends or weaken any Phase 11 gate.
+
+## Final runtime safety-flag confirmation — 2026-10-09
+
+The operator confirmed directly in the Railway production UI that both of the following current values are `false`:
+
+- `OPENOUTREACH_ALLOW_SEND=false`
+- `OPENOUTREACH_STARTUP_ACCEPTANCE_TEST=false`
+
+This confirmation closes the previously outstanding manual flag-verification item for the Phase 11 follow-up. The connected Railway integration still redacts variable values, so the Boolean values are recorded as operator-verified rather than independently read by the connector.
+
+The runtime review immediately before this confirmation showed service `openoutreach` online with one running replica, current deployment `71dad39b-f961-4e9f-9b3b-23d0a76b9d55` in `SUCCESS`, no pending Railway changes, and repeated `reply-monitor status=running error=none` logs. Three earlier failed deployment attempts were historical; the current deployment remains healthy.
+
+No environment variables were changed, no deployment was triggered, no prospect email was sent, no DNS/MX changes were made, and no secrets were disclosed during this final verification. Phase 12 remains not started and locked until it is explicitly authorized.
