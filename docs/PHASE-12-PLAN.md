@@ -82,10 +82,11 @@ Do not skip or reorder steps. Each step must pass its own tests and be documente
 - Acceptance: deterministic unit tests for malformed records, missing identity, duplicates, and configured limits.
 
 ### Step 4 — Evidence-backed Website Intelligence integration
-- Define the minimal integration contract for the existing Website Intelligence Engine, after verifying its documented API contract from accessible project documentation.
-- Keep website intelligence separate from lead discovery.
-- Record source URL, observation, checked time, final URL, and confidence/verification status for each finding.
-- Preserve the existing safe-public-URL controls and bounded requests.
+- **Current blocker found during execution:** Railway shows `cidea-website-intelligence` runs as a one-shot CLI (`npm run audit:website:intelligence -- https://cidealeads.com CideaLead`), with restart policy `NEVER` and no service domain. It is not a callable HTTP API.
+- Keep website intelligence separate from lead discovery; do not invent an HTTP endpoint or silently duplicate the dedicated engine.
+- Under the current repository-only rule, do not edit the separate WIE repository or alter Railway service configuration/source branch.
+- To proceed, either an approved callable WIE contract must be made available within the allowed boundary, or the owner must explicitly approve using Gullkornet's existing `website-audit.ts` as the Phase 12 provider. Until that choice is resolved, do not advance to Step 5.
+- Once resolved, record source URL, observation, checked time, final URL, and confidence/verification status for each finding; preserve public-URL safety controls and bounded requests.
 - Acceptance: mock-based tests for valid evidence, no website, blocked URL, timeout, malformed provider response, and upstream failure; no unsupported claims promoted to facts.
 
 ### Step 5 — Qualification and prioritization
