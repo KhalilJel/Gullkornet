@@ -18,4 +18,9 @@ RUN python -c "from pathlib import Path; p=Path('/usr/local/lib/python3.13/site-
  && OUTSEND_MAIL_TRANSPORT=smtp python -c "from cold_outreach.emails.smtp import verify_auth; print('SMTP_PATH=ok')" \
  && python -c "from cold_outreach.emails.sender import send_email; print('SENDER_PATCH=ok')"
 
-CMD ["outsend", "check"]
+COPY openoutsend_ingest_api.py /app/openoutsend_ingest_api.py
+COPY tests/test_openoutsend_ingest_api.py /app/tests/test_openoutsend_ingest_api.py
+
+RUN python -m unittest discover -s /app/tests -p 'test_openoutsend_ingest_api.py' -v
+
+CMD ["python", "/app/openoutsend_ingest_api.py"]
