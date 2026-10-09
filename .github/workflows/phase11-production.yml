@@ -1,0 +1,55 @@
+name: Phase 11 Production Readiness
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["phase11/production"]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - ".github/workflows/daily-outreach.yml"
+      - "package.json"
+      - "tsconfig.json"
+      - "docs/PHASE-11-PRODUCTION.md"
+      - ".github/workflows/phase11-production.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  phase11-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run full test suite
+        run: npm test
+
+      - name: Verify production sender is Cidea
+        run: |
+          set -euo pipefail
+          grep -q 'jelassi@cideamarketing.com' src/integrations/outbound-email.ts
+          echo "Cidea production sender: PASS"
+
+      - name: Verify no production enablement is committed
+        run: |
+          set -euo pipefail
+          if git grep -nE 'RESEND_API_KEY=[A-Za-z0-9]|OPENOUTREACH_INGEST_TOKEN=[A-Za-z0-9]' -- ':!tests' ':!docs' ':!.github/workflows/phase11-production.yml'; then
+            echo "Potential secret or live-send enablement found in repository"
+            exit 1
+          fi
+          echo "Repository safety scan: PASS"

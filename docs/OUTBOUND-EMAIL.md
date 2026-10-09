@@ -1,6 +1,6 @@
 # Gullkornet outbound email
 
-The only configured sender for the pilot is `jelassi@smartsvar.no`. This feature sends one recipient per invocation and does not run automatically.
+The Phase 11 production sender is `jelassi@cideamarketing.com`. The default mode is dry-run. The only live-send CLI path is one recipient per invocation, and every live attempt fails closed unless all gates pass.
 
 ## Dry-run (default)
 
@@ -12,35 +12,32 @@ This prints the selected draft and sends nothing. The recipient must match exact
 
 ## Before any live send
 
-Create `data/suppressed-emails.txt` locally. Put opted-out or otherwise suppressed email addresses one per line; blank lines and lines starting with `#` are ignored. The file is gitignored with the rest of `data/`. Live send fails closed if this file is missing.
+Create `data/suppressed-emails.txt` locally. Put opted-out or otherwise suppressed addresses one per line; blank lines and lines starting with `#` are ignored. Live send fails closed if this file is missing.
 
 Live sending requires all of the following:
 
-- `--send` command-line flag
-- `GULLKORNET_ENABLE_LIVE_SEND=true`
-- `GULLKORNET_APPROVED_RECIPIENT` set to the exact single recipient
-- `GULLKORNET_RECIPIENT_REVIEWED=true`, only after a human checks recipient suitability and applicable marketing/privacy requirements
-- `GULLKORNET_SEND_IDEMPOTENCY_KEY` set to a stable unique key for this one logical send; reuse the same key only when retrying that same send
-- `RESEND_API_KEY` for the intended Resend account
-- `OUTREACH_FROM_EMAIL` unset or equal to `jelassi@smartsvar.no`
+- `--send` command-line flag.
+- `GULLKORNET_ENABLE_LIVE_SEND=true`, the master kill switch.
+- `GULLKORNET_APPROVED_RECIPIENT` set to the exact recipient.
+- `GULLKORNET_RECIPIENT_REVIEWED=true` after human review of recipient relevance and applicable marketing/privacy requirements.
+- An exact Airtable match where Lead Status is `Approved`, Review Status is `Ready for outreach`, and Do Not Contact is not enabled. Missing Airtable credentials, provider errors, duplicates, or a non-approved record block the send.
+- A present suppression file and no matching suppression entry.
+- `GULLKORNET_SEND_IDEMPOTENCY_KEY` set to a stable unique key for this one logical send.
+- `RESEND_API_KEY` for the intended Resend account.
+- The verified Cidea sender `jelassi@cideamarketing.com`.
+- A complete Resend send-history query before sending. Any API error, malformed history, invalid timestamp, or incomplete 24-hour history blocks the send.
 
-Example PowerShell session for a specifically reviewed recipient:
+## Phase 11 limits
 
-```powershell
-$env:GULLKORNET_ENABLE_LIVE_SEND = "true"
-$env:GULLKORNET_APPROVED_RECIPIENT = "recipient@example.no"
-$env:GULLKORNET_RECIPIENT_REVIEWED = "true"
-$env:GULLKORNET_SEND_IDEMPOTENCY_KEY = "cidea-outreach-unique-001"
-$env:RESEND_API_KEY = "YOUR_RESEND_API_KEY"
-npm run --silent send:email -- data/contact-research-drafts.json recipient@example.no --send
-```
+The shared policy is maximum 3 per run, 3 per hour, and 10 per rolling 24 hours. The live CLI sends a single recipient per run, so that path is inherently one per invocation. It queries Resend history to enforce cross-invocation hourly and daily caps. It does not use Airtable status fields as a send ledger.
 
-Do not commit secrets or the suppression list. This sends at most one email per invocation. There is no bulk-send loop, scheduler, or automatic retry. The idempotency key is passed to Resend to protect retries of the same logical send.
+The legacy batch sender is hard-disabled in source. The scheduled GitHub Actions send job is also paused. Do not reactivate batch sending until reply detection, follow-up blocking, complete suppression integration, monitoring, and final acceptance have passed.
 
-## Boundaries
+## Safety boundaries
 
 - Dry-run is the default.
-- No DNS or MX changes are made by this code.
-- No SmartSvar production data or credentials are used.
-- Sender/domain verification in the provider account must be checked before live send.
-- Only contact appropriate business recipients and follow applicable Norwegian marketing/privacy rules, opt-out requests, and provider terms.
+- No secrets, API keys, or local suppression files belong in Git.
+- No DNS/MX changes are made by this code.
+- No automatic follow-ups are allowed until reply detection is working and proven.
+- The OpenOutSend Railway HTTP bridge remains ingest-only; it has no sending endpoint.
+- Phase 11 stays IN PROGRESS until reply detection, suppression, rate limits, kill switch, monitoring and final end-to-end acceptance are all proven.

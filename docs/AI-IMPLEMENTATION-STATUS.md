@@ -561,3 +561,26 @@ Phase 10 is COMPLETE.
 - No runtime credentials committed.
 
 Next locked phase: Phase 11 — Production.
+
+
+
+## Phase 11 — Production acceptance checkpoint (2026-10-09)
+
+Phase 11 remains IN PROGRESS; Phase 12 remains locked until final documentation-head CI and runtime verification finish.
+
+Completed and verified:
+- Exactly one explicitly approved production pilot email was sent from the verified Cidea sender; Resend status verified `delivered`; the exact approved Airtable record was updated to `Sent`.
+- Legacy `send:daily` and scheduled batch-send workflow remain disabled. OpenOutSend HTTP bridge remains ingest-only and does not expose a send endpoint.
+- The guarded single-recipient CLI has fail-closed checks for kill switch, local suppression, exact Airtable approval/DNC false, read-only reply status, recent-recipient duplicate prevention, Resend send-history pagination, idempotency and 3/hour, 10/rolling-24-hour caps. Batch mode remains hard-disabled; current CLI is one email/run.
+- The OpenOutSend IMAP reply monitor is active on the existing Railway service and reports `status=running error=none`. Authenticated read-only `POST /v1/reply-status` was accepted in runtime verification; response included `mode=read_only_reply_check`, `send_triggered=false`. The pilot mailbox lookup returned `replied=false`, meaning no inbound mail from that sender was found in selectable folders at that check time.
+- Acceptance-only environment flags were reset to `OPENOUTREACH_STARTUP_ACCEPTANCE_TEST=false` and empty pilot-address override. Successful restart and healthy status confirmed. OpenOutreach live sending remains disabled.
+- Test coverage includes no-send CLI dry-run and kill switch, sender and suppression guards, reply true/false/unavailable/stale monitor, rate-limit behavior, duplicate-recipient detection, Airtable approval/record identity and post-send `Sent` state, incomplete provider history, and hard-disabled batch path.
+- CI, Phase 11 readiness, Phase 10 E2E and KeeLead Live Acceptance passed at commit `b687c81d1f7d94f1dcd4abc6de20b89cc69d5a97`. The OpenOutSend reply-monitor build/tests and health workflow also passed.
+- No additional prospect emails were sent during testing. No DNS/MX changes. No secrets committed.
+
+Remaining acceptance:
+- Verify the documentation-updated branch head through fresh CI and final Railway health check.
+- Merge PR #70 only after those final checks pass, then verify merged `main` status before Phase 11 signoff.
+- Phase 12 stays locked until the final signoff is completed.
+
+Mailopoly is inactive, but the direct OpenOutSend IMAP reply monitor does not depend on Mailopoly.

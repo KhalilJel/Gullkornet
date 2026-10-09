@@ -1,0 +1,48 @@
+name: Phase 11 OpenOutSend Read-Only Reply Monitor
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "openoutsend_ingest_api.py"
+      - "openoutsend_resend.py"
+      - "Dockerfile"
+      - "tests/test_openoutsend_ingest_api.py"
+      - ".github/workflows/phase11-reply-monitor.yml"
+  push:
+    branches: ["phase11/production"]
+    paths:
+      - "openoutsend_ingest_api.py"
+      - "openoutsend_resend.py"
+      - "Dockerfile"
+      - "tests/test_openoutsend_ingest_api.py"
+      - ".github/workflows/phase11-reply-monitor.yml"
+
+jobs:
+  test-reply-monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Run bridge and reply monitor unit tests
+        run: python -m unittest discover -s tests -p 'test_openoutsend_ingest_api.py' -v
+      - name: Build Docker image with pinned OpenOutSend and runtime tests
+        run: docker build --tag gullkornet-phase11-reply-monitor .
+
+      - name: Verify deployed read-only reply monitor is healthy
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused \
+            https://openoutreach-production-ab8b.up.railway.app/health \
+            -o /tmp/openoutreach-health.json
+          jq -e '
+            .ok == true and
+            .reply_monitor.status == "running" and
+            (.reply_monitor.last_success_at | type == "string") and
+            (.reply_monitor.last_counts | type == "object") and
+            (.reply_monitor.last_error_code == null)
+          ' /tmp/openoutreach-health.json
+          echo "Deployed read-only reply monitor acceptance: PASS"

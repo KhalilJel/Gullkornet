@@ -16,8 +16,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # PAUSED: outbound email sending is intentionally disabled for now.
-  # Re-enable this condition when live outreach should resume.
+  # HARD PAUSED for Phase 11: the legacy batch CLI is also hard-disabled in source.
+  # Do not change this condition until global rate limits, reply suppression, and human approval pass acceptance.
   send:
     if: ${{ false }}
     runs-on: ubuntu-latest
@@ -43,13 +43,13 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Send up to 20 eligible emails
+      - name: Legacy batch sender (hard-disabled during Phase 11)
         env:
           GULLKORNET_ENABLE_LIVE_SEND: ${{ secrets.GULLKORNET_ENABLE_LIVE_SEND }}
-          GULLKORNET_DAILY_SEND_LIMIT: "20"
+          GULLKORNET_DAILY_SEND_LIMIT: "1"
           AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
           GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
           GULLKORNET_AIRTABLE_TABLE: ${{ vars.GULLKORNET_AIRTABLE_TABLE || 'Leads' }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          OUTREACH_FROM_EMAIL: "jelassi@smartsvar.no"
+          OUTREACH_FROM_EMAIL: "jelassi@cideamarketing.com"
         run: npm run --silent send:daily -- data/contact-research-drafts.json
