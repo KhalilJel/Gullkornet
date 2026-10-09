@@ -8,6 +8,7 @@ on:
     paths:
       - "src/**"
       - "tests/**"
+      - ".github/workflows/daily-outreach.yml"
       - "package.json"
       - "tsconfig.json"
       - "docs/PHASE-11-PRODUCTION.md"
