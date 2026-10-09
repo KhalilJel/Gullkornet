@@ -111,7 +111,7 @@ Do not claim end-to-end integration or runtime acceptance until a supported, aut
 - No live prospect outreach has been run through the new pipeline. Phase 9 remains IN PROGRESS until the authenticated bridge is configured in the existing Railway service and a no-send runtime acceptance passes.
 
 
-### Verified CI checkpoint — 2026-10-09 09:xx Europe/Oslo
+### Verified CI checkpoint — 2026-10-09 (morning, Europe/Oslo)
 
 - TypeScript CI and KeeLead Live Acceptance passed for Phase 9 orchestration commit `66da0cba614a0222a77bfc9c1ae46c0083cbf717`.
 - OpenOutSend ingest API workflow passed Python unit tests and Docker build for bridge commit `048a6c955af11066a9438d039c08127fada95e6e`.
@@ -119,3 +119,6 @@ Do not claim end-to-end integration or runtime acceptance until a supported, aut
 - The ingest bridge remains a draft PR and is not deployed. The existing Railway `openoutreach` service is still configured with start command `outsend check`, restart policy `NEVER`, and no service domain. No runtime endpoint is reachable yet.
 - Runtime composition deliberately marks research results for human review, so it will not send these records to the ingest queue automatically. This gate must remain until an explicit review/approval flow is tested.
 - Next: prepare the existing service's private-only ingest runtime and a shared bearer token, then deploy only after explicit confirmation. Configure Gullkornet to use the private Railway address. Verify `/health`, authenticated ingest with a synthetic test record, Airtable review persistence, and that no email was sent. No public domain, DNS/MX changes, or real-prospect sends.
+
+
+- Follow-up after the documentation commit: TypeScript CI passed again on `db6352222c055e1bc25139c9559ab47099f90fc0`. KeeLead Live Acceptance for that exact SHA is still running at the latest check and must be confirmed before treating the whole checkpoint as green.
