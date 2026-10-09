@@ -52,6 +52,7 @@ The existing Railway project is `powerful-patience`. The `cidea-website-intellig
 8. The daily outreach workflow's send job has a hard false condition. Keep it that way throughout Phase 12.
 9. The existing Phase 9 acceptance workflow is scoped to the legacy `phase9/end-to-end-orchestration` branch. A dedicated Phase 12 dry-run acceptance workflow will be needed later; it must never send real email.
 10. Airtable suppression reads fail closed for the current attempt. A failed cached read is cleared so a later attempt can retry. CRM sync retries transient GET failures only; create/update writes are not automatically retried.
+11. The sales-engine candidate loop is sequential; the Airtable sync child process is bounded to 120 seconds and is terminated if it exceeds that limit. The daily sender workflow remains hard-disabled. This cycle does not evaluate follow-ups or send email; reply/suppression state is checked before research/qualification.
 
 ## Target Phase 12 contracts
 
@@ -60,6 +61,7 @@ The existing Railway project is `powerful-patience`. The `cidea-website-intellig
 - **Qualification decision:** `evaluateLeadQualification` returns explicit score/reasons plus a state of qualified, review-required, rejected, or suppressed. Missing/uncertain evidence must not become a qualified lead. The runtime continues to require human review for its current research outputs.
 - **Draft:** approved template, source-linked internal rationale, draft text, review state, and no implicit send authorization.
 - **CRM operation:** idempotent upsert by duplicate key/domain/name, including legacy rows without a stored key; preserve terminal/suppression states and outreach history; fail closed when suppression or persistence cannot be checked. GET reads may retry transient failures. Writes are not blindly retried because an ambiguous create response could produce duplicates.
+- **Persistence boundary:** review queue, draft, and rejected-decision artifacts are atomically replaced with private permissions. CRM sync is not started unless all three artifacts are successfully persisted; a failed partial run can safely regenerate them on the next attempt.
 - **Outreach boundary:** ingest-only, authenticated, bounded, and incapable of sending from the Gullkornet adapter.
 - **Observability:** outcome counts and safe correlation IDs; no secrets, mailbox contents, full email addresses, or full draft bodies in routine logs.
 
