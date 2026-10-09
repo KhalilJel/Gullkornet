@@ -92,3 +92,24 @@ test("website audit evidence does not invent a final URL or HTTP status when abs
   assert.ok(!evidence.some((item) => item.includes("HTTP status:")));
   assert.ok(evidence.some((item) => item.includes("status: FETCH_ERROR")));
 });
+
+test("suppression lookup fails closed and can retry after a transient persistence error", async () => {
+  let requests = 0;
+  const checker = createAirtableSuppressionChecker({
+    apiToken: "test-token",
+    baseId: "app-test",
+    tableName: "Leads",
+    fetchImpl: async () => {
+      requests += 1;
+      if (requests === 1) return new Response(JSON.stringify({ error: "temporary" }), { status: 503 });
+      return new Response(JSON.stringify({
+        records: [{ fields: { Email: "stop@example.no", "Do Not Contact": true } }]
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+  });
+
+  await assert.rejects(() => checker("stop@example.no"), /AIRTABLE_SUPPRESSION_HTTP_503/);
+  assert.equal(await checker("stop@example.no"), true);
+  assert.equal(requests, 2);
+});
+
