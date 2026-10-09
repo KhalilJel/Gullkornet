@@ -150,3 +150,25 @@ test("surfaces ingestion failure for retry/monitoring", async () => {
 test("bounds max leads", async () => {
   await assert.rejects(() => runSalesEngine(deps(), { maxLeads: 101 }), /SALES_ENGINE_INVALID_MAX_LEADS/);
 });
+
+test("deduplicates website domains after normalizing www, case, and URL paths", async () => {
+  const result = await runSalesEngine(deps({
+    discover: async () => [
+      { company: "Example AS", email: "one@example.no", website: "https://www.Example.no/" },
+      { company: "Example Services AS", email: "two@example.no", website: "http://example.no/about-us" }
+    ]
+  }));
+  assert.equal(result.deduplicated, 1);
+  assert.equal(result.skipped.duplicate, 1);
+});
+
+test("does not use malformed or non-HTTP website values as domain identity", async () => {
+  const result = await runSalesEngine(deps({
+    discover: async () => [
+      { company: "First AS", email: "one@first.no", website: "mailto:hello@first.no" },
+      { company: "Second AS", email: "two@second.no", website: "not a valid url ://" }
+    ]
+  }));
+  assert.equal(result.deduplicated, 2);
+  assert.equal(result.queued, 2);
+});
