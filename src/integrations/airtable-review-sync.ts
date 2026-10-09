@@ -79,6 +79,15 @@ function isProtectedRecord(existing?: AirtableRecord): boolean {
     || PRESERVED_STATUSES.has(existingStatus(existing));
 }
 
+function keyForExisting(record: AirtableRecord): string {
+  const explicitKey = record.fields["Duplicate Key"];
+  if (typeof explicitKey === "string" && explicitKey.trim()) return explicitKey.trim();
+  return duplicateKey({
+    companyName: typeof record.fields.Company === "string" ? record.fields.Company : "",
+    websiteUrl: typeof record.fields.Website === "string" ? record.fields.Website : undefined
+  });
+}
+
 export function getStatus(item: ResearchRecord, existing?: AirtableRecord): string {
   const status = existingStatus(existing);
   const doNotContact = existing?.fields["Do Not Contact"] === true;
@@ -261,8 +270,14 @@ export async function syncAirtableReviewRecords(
   const existingRecords = await listAllRecords(normalizedOptions, tableName);
   const existingByKey = new Map<string, AirtableRecord>();
   for (const record of existingRecords) {
-    const key = record.fields["Duplicate Key"];
-    if (typeof key === "string" && key) existingByKey.set(key, record);
+    const key = keyForExisting(record);
+    if (!key || key === "name:") continue;
+    const prior = existingByKey.get(key);
+    // If historical duplicates exist, prefer the record with protected status so
+    // a sync cannot accidentally overwrite a sent/replied/suppressed history.
+    if (!prior || (isProtectedRecord(record) && !isProtectedRecord(prior))) {
+      existingByKey.set(key, record);
+    }
   }
 
   const unique = new Map<string, ResearchRecord>();
