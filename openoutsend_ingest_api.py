@@ -188,6 +188,7 @@ def start_reply_monitor() -> None:
         _update_reply_monitor_state(
             status="disabled", last_error_code=None
         )
+        print("reply-monitor startup status=disabled")
         return
     expected = os.environ.get(REPLY_MONITOR_MAILBOX_ENV, "").strip().lower()
     actual = os.environ.get("OUTSEND_MAILBOX_ADDRESS", "").strip().lower()
@@ -196,14 +197,17 @@ def start_reply_monitor() -> None:
             status="blocked_configuration",
             last_error_code="REPLY_MONITOR_MAILBOX_CONFIG_REQUIRED"
         )
+        print("reply-monitor startup status=blocked_configuration")
         return
     if expected != actual:
         _update_reply_monitor_state(
             status="blocked_mailbox_mismatch",
             last_error_code="REPLY_MONITOR_MAILBOX_MISMATCH"
         )
+        print("reply-monitor startup status=blocked_mailbox_mismatch")
         return
     _update_reply_monitor_state(status="starting", last_error_code=None)
+    print("reply-monitor startup status=starting")
     threading.Thread(target=_reply_monitor_loop, name="reply-monitor", daemon=True).start()
 
 
