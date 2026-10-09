@@ -73,7 +73,11 @@ export async function fetchAirtableRecipientApproval(
     throw new Error("Airtable approval lookup was paginated. Refusing to send until duplicates are reconciled.");
   }
   assertAirtableRecipientApproved(records, recipient);
-  return records[0].id;
+  const recordId = records[0]?.id;
+  if (typeof recordId !== "string" || !/^rec[A-Za-z0-9]+$/.test(recordId)) {
+    throw new Error("Airtable approval response has no valid record ID. Refusing to send.");
+  }
+  return recordId;
 }
 
 export async function markAirtableRecipientSent(
@@ -106,15 +110,13 @@ export async function markAirtableRecipientSent(
     throw new Error(`Resend accepted the email, but Airtable could not be marked Sent (HTTP ${response.status}). Reconcile the record before retrying.`);
   }
   const payload: unknown = await response.json().catch(() => null);
-  if (
-    typeof payload !== "object" ||
-    payload === null ||
-    !("id" in payload) ||
-    (payload as { id: unknown }).id !== recordId ||
-    !("fields" in payload) ||
-    typeof (payload as { fields: unknown }).fields !== "object" ||
-    (payload as { fields: { "Lead Status"?: unknown } }).fields["Lead Status"] !== "Sent"
-  ) {
+  if (typeof payload !== "object" || payload === null || !("id" in payload) ||
+      (payload as { id: unknown }).id !== recordId || !("fields" in payload)) {
+    throw new Error("Resend accepted the email, but Airtable's Sent state could not be verified. Reconcile before retrying.");
+  }
+  const fields = (payload as { fields: unknown }).fields;
+  if (typeof fields !== "object" || fields === null ||
+      (fields as Record<string, unknown>)["Lead Status"] !== "Sent") {
     throw new Error("Resend accepted the email, but Airtable's Sent state could not be verified. Reconcile before retrying.");
   }
 }
