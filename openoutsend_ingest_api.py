@@ -18,6 +18,7 @@ from typing import Any
 MAX_BODY_BYTES = 2_000_000
 MAX_RECORDS = 100
 INGEST_PATH = "/v1/leads"
+REPLY_STATUS_PATH = "/v1/reply-status"
 TOKEN_ENV = "OPENOUTREACH_INGEST_TOKEN"
 REPLY_MONITOR_ENABLED_ENV = "OPENOUTREACH_REPLY_MONITOR_ENABLED"
 REPLY_MONITOR_MAILBOX_ENV = "GULLKORNET_REPLY_MONITOR_MAILBOX"
@@ -98,6 +99,60 @@ def reply_monitor_state() -> dict[str, Any]:
 def _update_reply_monitor_state(**values: Any) -> None:
     with _REPLY_MONITOR_LOCK:
         _REPLY_MONITOR_STATE.update(values)
+
+
+
+def recipient_has_replied(sender_email: str, expected_address: str) -> bool:
+    """Search the monitored INBOX for any message from a recipient, read-only."""
+    if not EMAIL_PATTERN.fullmatch(sender_email.strip()):
+        raise ValueError("VALID_EMAIL_REQUIRED")
+    import django
+
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "cold_outreach.settings")
+    django.setup()
+    from cold_outreach.emails.models import Mailbox
+    from cold_outreach.emails.sync import _connect
+
+    mailbox = Mailbox.objects.filter(from_address__iexact=expected_address).first()
+    if mailbox is None:
+        raise RuntimeError("REPLY_MONITOR_MAILBOX_NOT_CONFIGURED")
+    with _connect(mailbox) as client:
+        client.select_folder("INBOX", readonly=True)
+        return bool(client.search(["FROM", sender_email.strip()]))
+
+
+def _handle_reply_status(handler: "IngestHandler", body: bytes) -> None:
+    """Authenticated reply check. Any monitor/IMAP failure returns unavailable, never false."""
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        handler._respond(400, {"error": "INVALID_JSON"})
+        return
+    if not isinstance(payload, dict) or not isinstance(payload.get("email"), str):
+        handler._respond(400, {"error": "VALID_EMAIL_REQUIRED"})
+        return
+    email = payload["email"].strip()
+    if not EMAIL_PATTERN.fullmatch(email):
+        handler._respond(400, {"error": "VALID_EMAIL_REQUIRED"})
+        return
+    if os.environ.get(REPLY_MONITOR_ENABLED_ENV, "").strip().lower() != "true":
+        handler._respond(503, {"error": "REPLY_MONITOR_DISABLED"})
+        return
+    configured = os.environ.get(REPLY_MONITOR_MAILBOX_ENV, "").strip().lower()
+    actual = os.environ.get("OUTSEND_MAILBOX_ADDRESS", "").strip().lower()
+    state = reply_monitor_state()
+    if not configured or configured != actual or configured != "jelassi@cideamarketing.com":
+        handler._respond(503, {"error": "REPLY_MONITOR_MAILBOX_MISMATCH"})
+        return
+    if state.get("status") != "running" or not state.get("last_success_at") or state.get("last_error_code"):
+        handler._respond(503, {"error": "REPLY_MONITOR_UNHEALTHY"})
+        return
+    try:
+        replied = recipient_has_replied(email, configured)
+    except Exception as exc:
+        handler._respond(503, {"error": "REPLY_LOOKUP_FAILED", "failure_type": type(exc).__name__})
+        return
+    handler._respond(200, {"replied": replied, "mode": "read_only_reply_check", "send_triggered": False})
 
 
 def _probe_reply_mailbox(expected_address: str) -> None:
@@ -234,7 +289,7 @@ class IngestHandler(BaseHTTPRequestHandler):
         self._respond(404, {"error": "NOT_FOUND"})
 
     def do_POST(self) -> None:
-        if self.path != INGEST_PATH:
+        if self.path not in {INGEST_PATH, REPLY_STATUS_PATH}:
             self._respond(404, {"error": "NOT_FOUND"})
             return
 
@@ -247,7 +302,11 @@ class IngestHandler(BaseHTTPRequestHandler):
             return
 
         content_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
-        if content_type not in {"application/x-ndjson", "application/ndjson"}:
+        if self.path == REPLY_STATUS_PATH:
+            if content_type != "application/json":
+                self._respond(415, {"error": "JSON_REQUIRED"})
+                return
+        elif content_type not in {"application/x-ndjson", "application/ndjson"}:
             self._respond(415, {"error": "NDJSON_REQUIRED"})
             return
 
@@ -261,6 +320,10 @@ class IngestHandler(BaseHTTPRequestHandler):
             return
 
         body = self.rfile.read(content_length)
+        if self.path == REPLY_STATUS_PATH:
+            _handle_reply_status(self, body)
+            return
+
         try:
             records, canonical = parse_jsonl(body)
         except ValueError as exc:
