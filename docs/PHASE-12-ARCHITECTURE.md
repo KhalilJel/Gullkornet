@@ -37,7 +37,7 @@ The workflow is run by `src/cli/run-sales-engine.ts`, with orchestration in `src
 | OpenOutSend | Store accepted leads and maintain mailbox/outreach state | Authenticated ingest-only API; this client exposes no send method |
 | Hermes / Railway | Existing runtime/orchestration infrastructure | Do not change runtime config or deploy as part of documentation/contract work |
 
-The existing Railway project is `powerful-patience`. The existing `cidea-website-intelligence` service is online, but its API contract has not been verified from the Gullkornet repository during this step. Do not invent an endpoint, payload, or authentication scheme; verify the published contract before implementing the adapter.
+The existing Railway project is `powerful-patience`. The `cidea-website-intelligence` service is online, but Railway configuration shows it is a one-shot CLI task (`npm run audit:website:intelligence -- https://cidealeads.com CideaLead`), has restart policy `NEVER`, and has no service domain. It is not currently a callable HTTP API. The service is sourced from a separate repository, outside the permitted `KhalilJel/Gullkornet` code-change boundary. Do not guess an endpoint or change that service's source/configuration. Step 4 cannot claim live WIE integration until an approved callable contract is available or the owner explicitly chooses an in-repository fallback.
 
 ## Important current behavior and limitations
 
@@ -74,5 +74,5 @@ The existing Railway project is `powerful-patience`. The existing `cidea-website
 - [x] Existing adapters and entry points identified from the repository.
 - [x] Data flow and component ownership documented.
 - [x] Existing review gate and ingest-only boundary recorded.
-- [x] Unknown Website Intelligence API contract explicitly identified rather than guessed.
+- [x] Railway service inspected: WIE is a one-shot CLI, not a callable API; no endpoint was guessed.
 - [x] Gaps for Phase 12 qualification, evidence and acceptance are documented.
