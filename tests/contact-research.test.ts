@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extractPublicEmails, createPersonalizedDraft, extractEvidence } from "../src/integrations/contact-research.js";
+import { extractPublicEmails, createPersonalizedDraft, extractEvidence, researchContactAndDraft } from "../src/integrations/contact-research.js";
 
 test("extractPublicEmails finds only publicly visible mailto and text addresses", () => {
   const html = `<html><body>
@@ -117,3 +117,58 @@ test("filters obvious placeholder inboxes while retaining real public addresses"
     "post@bekkestuatannlegesenter.no"
   ]);
 });
+
+test("attaches source-linked internal observations without exposing them in the draft", () => {
+  const checkedAt = "2026-10-09T18:00:00.000Z";
+  const result = createPersonalizedDraft(
+    { companyName: "Eksempel AS", websiteUrl: "https://example.no" },
+    "Eksempel AS",
+    "Vi hjelper bedrifter med regnskap",
+    "Vi tilbyr regnskap og lønn for små bedrifter.",
+    undefined,
+    "https://example.no/",
+    checkedAt,
+    ["https://example.no/kontakt"]
+  );
+
+  assert.ok(result.personalizationEvidence?.includes("Source URL: https://example.no/"));
+  assert.ok(result.personalizationEvidence?.includes("checked at " + checkedAt));
+  assert.ok(result.personalizationEvidence?.includes("Additional source URLs: https://example.no/kontakt"));
+  assert.ok(result.personalizationEvidence?.includes("Observed headline: Vi hjelper bedrifter med regnskap"));
+  assert.ok(result.personalizationEvidence?.includes("Observed service text: Vi tilbyr regnskap og lønn for små bedrifter."));
+  assert.ok(!result.draftBody?.includes("metabeskrivelse"));
+  assert.ok(!result.draftBody?.includes("Vi tilbyr regnskap og lønn"));
+});
+
+test("does not invent a named contact, role, specific problem, or expected business outcome", () => {
+  const result = createPersonalizedDraft(
+    { companyName: "Eksempel AS", websiteUrl: "https://example.no" },
+    undefined,
+    undefined,
+    undefined,
+    {
+      companyName: "Eksempel AS",
+      websiteUrl: "https://example.no",
+      checkedAt: "2026-10-09T18:00:00.000Z",
+      status: "AUDITED",
+      flags: ["MISSING_META_DESCRIPTION"]
+    }
+  );
+
+  assert.ok(result.draftBody);
+  assert.ok(!result.draftBody!.includes("metabeskrivelse"));
+  assert.ok(!result.draftBody!.includes("øke inntektene"));
+  assert.ok(!result.draftBody!.includes("daglig leder"));
+  assert.ok(!result.draftBody!.includes("Khalil"));
+  assert.ok(result.personalizationEvidence?.includes("No specific page observation extracted"));
+  assert.ok(result.notes.some((note) => note.includes("requires human review")));
+});
+
+test("no website routes research to manual review without inventing a draft", async () => {
+  const result = await researchContactAndDraft({ companyName: "Eksempel AS" });
+  assert.equal(result.researchStatus, "NO_WEBSITE");
+  assert.equal(result.requiresHumanReview, true);
+  assert.equal(result.draftBody, undefined);
+  assert.ok(result.notes.some((note) => note.includes("No website URL")));
+});
+

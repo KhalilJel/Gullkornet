@@ -235,14 +235,21 @@ function isUsefulServiceEvidence(value?: string): value is string {
   return navigationTerms.length === 0 && phoneNumbers.length === 0 && !decodedEntityNoise && !markupResidue && !spacedLetterNoise && !/\b(?:followers|likes)\b/i.test(value);
 }
 
-export function createPersonalizedDraft(candidate: GoogleCandidate, title?: string, headline?: string, serviceEvidence?: string, audit?: WebsiteAudit): {
+export function createPersonalizedDraft(
+  candidate: GoogleCandidate,
+  title?: string,
+  headline?: string,
+  serviceEvidence?: string,
+  audit?: WebsiteAudit,
+  sourceUrl?: string,
+  sourceCheckedAt?: string,
+  additionalSourceUrls: string[] = []
+): {
   subject?: string; draftBody?: string; personalizationEvidence?: string; notes: string[];
 } {
-  const company = candidate.companyName.trim();
   const notes: string[] = [];
 
-  // Only use a narrow, pre-defined service vocabulary that is directly supported
-  // by extracted public-page text. Never turn audit flags into customer-facing claims.
+  // Website audit flags are internal research context, never customer-facing claims.
   if (audit?.status === "AUDITED" && audit.flags.length > 0) {
     notes.push("Website signals are internal research context only; they are not presented as a specific customer-facing finding.");
   }
@@ -269,13 +276,29 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
     .filter((label, index, all) => all.indexOf(label) === index)
     .slice(0, 2);
 
-  if (!title && !headline && !serviceEvidence) {
+  const observedFacts = [
+    title ? "Observed page title: " + title.trim().slice(0, 220) : undefined,
+    headline ? "Observed headline: " + headline.trim().slice(0, 220) : undefined,
+    serviceEvidence ? "Observed service text: " + serviceEvidence.trim().slice(0, 220) : undefined,
+    observedServices.length ? "Extracted service cues (internal only): " + observedServices.join(", ") : undefined
+  ].filter((item): item is string => Boolean(item));
+
+  if (observedFacts.length === 0) {
     notes.push("No meaningful page content was extracted. Draft is a general conversation opener and requires human review.");
   }
 
+  const resolvedSourceUrl = sourceUrl ?? audit?.finalUrl ?? candidate.websiteUrl;
+  const checkedAt = sourceCheckedAt ?? audit?.checkedAt;
+  const sourceDetails = [
+    resolvedSourceUrl ? "Source URL: " + resolvedSourceUrl : "Source URL unavailable",
+    checkedAt ? "checked at " + checkedAt : undefined,
+    additionalSourceUrls.length ? "Additional source URLs: " + [...new Set(additionalSourceUrls)].join(", ") : undefined,
+    observedFacts.length ? "Observations (internal only): " + observedFacts.join(" | ") : "No specific page observation extracted; generic template only"
+  ].filter((item): item is string => Boolean(item));
+
   const subject = "Dette la vi merke til hos dere";
-  // Keep the approved Cidea outreach template consistent. Website-derived
-  // service cues remain internal evidence and are not inserted into the email.
+  // Keep the approved interest-first template consistent. Website-derived observations
+  // are recorded for the reviewer and are not inserted into the email body.
   const draftBody = [
     "Hei!",
     "",
@@ -291,7 +314,7 @@ export function createPersonalizedDraft(candidate: GoogleCandidate, title?: stri
   return {
     subject,
     draftBody,
-    personalizationEvidence: "Uses the approved general Cidea outreach template; website observations remain internal and are not asserted in the email.",
+    personalizationEvidence: "Uses the approved general Cidea outreach template; website observations remain internal and are not asserted in the email. " + sourceDetails.join("; "),
     notes
   };
 }
@@ -360,7 +383,16 @@ export async function researchContactAndDraft(candidate: GoogleCandidate, audit?
         return true;
       }
     });
-    const draft = createPersonalizedDraft(candidate, title, evidence.headline, evidence.serviceEvidence, audit);
+    const draft = createPersonalizedDraft(
+      candidate,
+      title,
+      evidence.headline,
+      evidence.serviceEvidence,
+      audit,
+      homepage.finalUrl,
+      researchedAt,
+      contactPageUrl ? [contactPageUrl] : []
+    );
     const notes = [...draft.notes];
     if (uniqueEmails.length === 0) notes.push("No public email address found on the checked pages. Do not guess an address.");
     else notes.push("Email addresses were extracted from publicly accessible pages; mailbox deliverability and recipient role are not verified.");
