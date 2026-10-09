@@ -251,3 +251,28 @@ test("Phase 11 stops on Airtable status persistence failure after provider accep
     globalThis.fetch = originalFetch;
   }
 });
+
+
+test("Phase 11 Resend ledger rejects missing or inconsistent pagination state", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = (async () => new Response(JSON.stringify({
+      data: [{ id: "email-1", created_at: "2026-10-09T11:59:00Z" }]
+    }), { status: 200 })) as typeof fetch;
+    await assert.rejects(
+      fetchRecentSendLedger("test-api-key", Date.parse("2026-10-09T12:00:00Z")),
+      /omitted pagination state/
+    );
+
+    globalThis.fetch = (async () => new Response(JSON.stringify({
+      data: [],
+      has_more: true
+    }), { status: 200 })) as typeof fetch;
+    await assert.rejects(
+      fetchRecentSendLedger("test-api-key", Date.parse("2026-10-09T12:00:00Z")),
+      /empty page with more history available/
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
