@@ -444,3 +444,16 @@ Phase 6 is now **NOT STARTED**. No Browser Use provider, API key, DNS/MX record,
 ### KeeLead implementation boundary
 
 The deployed KeeLead service points to `KhalilJel/keelead`, but the connected GitHub integration cannot read or modify that repository (404/403). The upstream KeeLead repository documents 35 free sources and explicitly notes that some data sources are placeholder implementations. The current deployed `/api/leads` path was inspected from the upstream source and uses the legacy lead engine rather than the newer SourceManager. Therefore the next required implementation is to switch the deployed API route to the SourceManager based pipeline before production use. No new Railway service should be created just to work around repository access.
+
+
+## Phase 9 — runtime boundary audit (2026-10-09)
+
+Phase 9 is **IN PROGRESS**. The orchestration unit boundary and tests have been hardened on `phase9/end-to-end-orchestration`, but this is not yet end-to-end integration.
+
+Verified architecture finding:
+- The deployed KeeLead service is reachable at `https://keelead-production-9f05.up.railway.app`; its source repository remains inaccessible to the connected GitHub integration, and documented placeholder sources are not production evidence.
+- The current OpenOutreach TypeScript adapter invokes a local CLI. The deployed Railway `openoutreach` service has no domain and starts `outsend check` with restart policy `NEVER`; it does not currently expose a remote queue-ingestion endpoint.
+- PR #66 remains an open draft. Its runtime changes are deployed from the phase-8 branch but are not merged into `main`.
+- Therefore, the current code must not be described as a live integrated sales engine. A secure queue handoff and real runtime acceptance remain required.
+
+No real-prospect email was sent. No secrets were committed. No DNS/MX changes were made.
