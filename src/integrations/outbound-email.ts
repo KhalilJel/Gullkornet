@@ -114,9 +114,15 @@ export async function fetchRecentSendLedger(apiKey: string, nowMs = Date.now()):
       throw new Error("Resend returned an invalid send ledger. Refusing to send.");
     }
     const data = (payload as { data: SendLedgerEntry[] }).data;
+    if (!("has_more" in payload) || typeof (payload as { has_more: unknown }).has_more !== "boolean") {
+      throw new Error("Resend send ledger omitted pagination state. Refusing to send.");
+    }
+    const hasMore = (payload as { has_more: boolean }).has_more;
     entries.push(...data);
-    const hasMore = "has_more" in payload ? (payload as { has_more?: unknown }).has_more === true : false;
-    if (data.length === 0) return entries;
+    if (data.length === 0) {
+      if (hasMore) throw new Error("Resend returned an empty page with more history available. Refusing to send.");
+      return entries;
+    }
     const oldest = Math.min(...data.map(item => Date.parse(item.created_at)).filter(Number.isFinite));
     if (Number.isFinite(oldest) && nowMs - oldest >= 24 * 60 * 60 * 1000) return entries;
     if (!hasMore) return entries;
