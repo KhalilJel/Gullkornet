@@ -18,7 +18,7 @@ const approvedEnv = {
 
 test("prepares one draft using the selected sender", () => {
   const email = prepareEmail(drafts, "POST@example.no");
-  assert.equal(email.from, "jelassi@smartsvar.no");
+  assert.equal(email.from, "jelassi@cideamarketing.com");
   assert.equal(email.to, "post@example.no");
   assert.equal(email.subject, "Et lite spørsmål til Example AS");
 });
