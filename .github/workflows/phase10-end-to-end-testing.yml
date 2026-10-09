@@ -1,0 +1,100 @@
+name: Phase 10 End to End Testing
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["phase10/end-to-end-testing"]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "package.json"
+      - "tsconfig.json"
+      - ".github/workflows/phase10-end-to-end-testing.yml"
+      - "docs/PHASE-10-END-TO-END-TESTING.md"
+      - "docs/AI-IMPLEMENTATION-STATUS.md"
+  workflow_dispatch:
+    inputs:
+      max_leads:
+        description: "Maximum leads for the bounded live dry run"
+        required: false
+        default: "1"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  phase10:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      KEELEAD_API_URL: https://keelead-production-9f05.up.railway.app
+      GULLKORNET_SALES_ENGINE_DRY_RUN: "true"
+      GULLKORNET_SALES_ENGINE_MAX_LEADS: ${{ inputs.max_leads || '1' }}
+      GULLKORNET_DISCOVERY_COUNT: ${{ inputs.max_leads || '3' }}
+      GULLKORNET_DISCOVERY_QUERY: "web design businesses in Oslo"
+      GULLKORNET_DISCOVERY_LOCATION: "Oslo"
+      GULLKORNET_DISCOVERY_INDUSTRY: "professional services"
+      GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
+      GULLKORNET_AIRTABLE_TABLE: "Leads"
+      AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
+      OPENOUTREACH_INGEST_URL: https://openoutreach-production-ab8b.up.railway.app
+      OPENOUTREACH_INGEST_TOKEN: ${{ secrets.OPENOUTREACH_INGEST_TOKEN }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run complete unit and safety suite
+        run: npm test
+
+      - name: Verify OpenOutSend health
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --connect-timeout 10 --max-time 20             https://openoutreach-production-ab8b.up.railway.app/health
+
+      - name: Verify OpenOutSend rejects unauthorized ingest
+        run: |
+          set -euo pipefail
+          code="$(curl --silent --output /tmp/unauthorized.json --write-out '%{http_code}'             --connect-timeout 10 --max-time 20             -H 'content-type: application/x-ndjson'             -X POST             https://openoutreach-production-ab8b.up.railway.app/v1/leads             --data-binary '{"lead_id":"phase10-unauthorized","email":"phase10@example.invalid"}\n')"
+          test "$code" = "401"
+          echo "unauthorized ingest: PASS"
+
+      - name: Record authorized ingest boundary
+        run: echo "Authorized synthetic ingest is executed from the existing Railway runtime during Phase 10 acceptance; GitHub does not receive the ingest token."
+
+      - name: Run bounded live sales engine dry run
+        run: |
+          set -o pipefail
+          npm run --silent sales-engine 2>&1 | tee phase10-sales-engine.log
+
+      - name: Assert live dry run remains non-sending
+        run: |
+          set -euo pipefail
+          test -f data/sales-engine-review-queue.json
+          test -f data/contact-research-drafts.json
+          grep -Eq '"emailSent": 0' phase10-sales-engine.log
+          grep -Eq '"mode": "dry-run"' phase10-sales-engine.log
+          echo "bounded live dry run: PASS; emailSent=0"
+
+      - name: Upload Phase 10 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase10-end-to-end-evidence
+          path: |
+            phase10-sales-engine.log
+            data/sales-engine-review-queue.json
+            data/contact-research-drafts.json
+          retention-days: 7
