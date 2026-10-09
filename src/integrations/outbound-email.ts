@@ -9,6 +9,108 @@ export type PreparedEmail = { from: string; to: string; subject: string; text: s
 
 export const DEFAULT_SENDER = "jelassi@cideamarketing.com";
 
+// Phase 11 shared policy for all future live-send entry points.
+export const PHASE11_RATE_LIMITS = Object.freeze({
+  maxPerRun: 3,
+  maxPerHour: 3,
+  maxPerDay: 10
+});
+
+export type SendLedgerEntry = {
+  created_at: string;
+  to?: string[];
+  from?: string;
+  subject?: string;
+  last_event?: string;
+};
+
+export type SendLedger = {
+  data: SendLedgerEntry[];
+  has_more: boolean;
+};
+
+export function assertProductionKillSwitchEnabled(env: NodeJS.ProcessEnv = process.env): void {
+  if (env.GULLKORNET_ENABLE_LIVE_SEND !== "true") {
+    throw new Error("Production kill switch is active: live sending is disabled.");
+  }
+}
+
+export function countRecentSends(
+  entries: SendLedgerEntry[],
+  nowMs = Date.now()
+): { lastHour: number; lastDay: number } {
+  let lastHour = 0;
+  let lastDay = 0;
+  for (const entry of entries) {
+    const timestamp = Date.parse(entry.created_at);
+    if (!Number.isFinite(timestamp)) {
+      throw new Error("Send ledger contains an invalid timestamp. Refusing to send.");
+    }
+    const age = nowMs - timestamp;
+    if (age < 0) continue;
+    if (age < 60 * 60 * 1000) lastHour++;
+    if (age < 24 * 60 * 60 * 1000) lastDay++;
+  }
+  return { lastHour, lastDay };
+}
+
+export function assertRateLimits(
+  recent: { lastHour: number; lastDay: number },
+  env: NodeJS.ProcessEnv = process.env
+): void {
+  const maxRun = PHASE11_RATE_LIMITS.maxPerRun;
+  const maxHour = PHASE11_RATE_LIMITS.maxPerHour;
+  const maxDay = PHASE11_RATE_LIMITS.maxPerDay;
+  if (recent.lastHour >= maxHour) {
+    throw new Error(`Hourly production rate limit reached (${maxHour}/hour).`);
+  }
+  if (recent.lastDay >= maxDay) {
+    throw new Error(`Daily production rate limit reached (${maxDay}/day).`);
+  }
+  // Validate configuration eagerly. A single-recipient entry point is 1/run;
+  // bulk sender remains hard-disabled until a separate accepted batch runner exists.
+  const configuredRun = Number(env.MAX_EMAILS_PER_RUN ?? "1");
+  if (!Number.isInteger(configuredRun) || configuredRun < 1 || configuredRun > maxRun) {
+    throw new Error(`MAX_EMAILS_PER_RUN must be between 1 and ${maxRun} during Phase 11.`);
+  }
+}
+
+export async function fetchRecentSendLedger(apiKey: string, nowMs = Date.now()): Promise<SendLedgerEntry[]> {
+  if (!apiKey.trim()) throw new Error("RESEND_API_KEY is required to verify the production send ledger.");
+  const entries: SendLedgerEntry[] = [];
+  let after: string | undefined;
+  // Bound the number of pages. If recent history cannot be reached safely, fail closed.
+  for (let page = 0; page < 20; page++) {
+    const url = new URL("https://api.resend.com/emails");
+    url.searchParams.set("limit", "100");
+    if (after) url.searchParams.set("after", after);
+    const response = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!response.ok) throw new Error(`Could not verify Resend send history (HTTP ${response.status}). Refusing to send.`);
+    const payload: unknown = await response.json().catch(() => null);
+    if (typeof payload !== "object" || payload === null || !("data" in payload) || !Array.isArray((payload as { data: unknown }).data)) {
+      throw new Error("Resend returned an invalid send ledger. Refusing to send.");
+    }
+    const data = (payload as { data: SendLedgerEntry[] }).data;
+    entries.push(...data);
+    const hasMore = "has_more" in payload ? (payload as { has_more?: unknown }).has_more === true : false;
+    if (data.length === 0) return entries;
+    const oldest = Math.min(...data.map(item => Date.parse(item.created_at)).filter(Number.isFinite));
+    if (Number.isFinite(oldest) && nowMs - oldest >= 24 * 60 * 60 * 1000) return entries;
+    if (!hasMore) return entries;
+    const last = data[data.length - 1];
+    const cursor = (last as { id?: unknown }).id;
+    if (typeof cursor !== "string" || !cursor) {
+      throw new Error("Resend history page has no pagination cursor. Refusing to send.");
+    }
+    after = cursor;
+  }
+  throw new Error("Could not establish a complete 24-hour send history within the page limit. Refusing to send.");
+}
+
+
 export function prepareEmail(
   records: OutreachDraft[],
   recipient: string,
