@@ -74,6 +74,11 @@ async function main(): Promise<void> {
     JSON.stringify(reviewRecords, null, 2),
     { encoding: "utf8", mode: 0o600 }
   );
+  await writeFile(
+    "data/sales-engine-rejected.json",
+    JSON.stringify(result.rejectedLeads, null, 2),
+    { encoding: "utf8", mode: 0o600 }
+  );
 
   // Persist review-only records to Airtable. This path never sends email.
   await syncReviewQueueToAirtable("data/contact-research-drafts.json");
@@ -86,6 +91,7 @@ async function main(): Promise<void> {
     researched: result.researched,
     qualified: result.qualified,
     rejected: result.rejected,
+    rejectedArtifactPath: "data/sales-engine-rejected.json",
     eligibleForOpenOutSend: result.queued,
     reviewRequired: result.reviewRequired.length,
     airtableReviewRecords: reviewRecords.length,
