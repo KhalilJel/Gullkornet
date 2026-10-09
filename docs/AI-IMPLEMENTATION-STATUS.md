@@ -566,25 +566,21 @@ Next locked phase: Phase 11 — Production.
 
 ## Phase 11 — Production acceptance checkpoint (2026-10-09)
 
-Phase 11 remains IN PROGRESS; Phase 12 remains locked.
+Phase 11 remains IN PROGRESS; Phase 12 remains locked until final documentation-head CI and runtime verification finish.
 
-Completed and verified on branch `phase11/production`:
-- One explicitly approved production pilot email was sent from `jelassi@cideamarketing.com`; Resend status verified as `delivered`; Airtable record updated to `Sent`.
-- Legacy `send:daily` CLI is hard-disabled in source and its scheduled GitHub Actions job remains paused.
-- Guarded one-recipient CLI requires exact recipient review, Airtable approval, local suppression clearance, an idempotency key, the master live-send switch, and Resend history-based rate limits.
-- Production caps: maximum 3 per run, 3 per hour, 10 per rolling 24 hours. Provider/CRM/history failures fail closed. No live sending is used for acceptance testing.
-- Read-only IMAP reply monitor is active in the existing Railway `openoutreach` service. Logs show recurring `reply-monitor status=running error=none`.
-- Authenticated `POST /v1/reply-status` was deployed and acceptance-tested using a synthetic address; response mode was `read_only_reply_check`, `send_triggered=false`.
-- The same runtime check queried the pilot recipient and logged `replied=false`. This says no inbound message from that sender was found in the selectable mailbox folders at check time; no message content was logged.
-- The startup acceptance flag and pilot-address override were reset to disabled/empty after the acceptance run.
-- Reply lookup rejects stale monitor health, mismatched mailbox configuration, IMAP/provider failure, malformed output and any positive reply; the guarded live-send CLI refuses to send on any unavailable/error response.
-- CI, typecheck, Phase 11 readiness, Phase 10 E2E, KeeLead Live Acceptance and reply-monitor acceptance passed at commit `ece14a8d17c5fd014c1a5c8ffdbf05e959128ac3`.
-- No additional prospect emails sent during testing. No DNS/MX changes. No secrets committed.
+Completed and verified:
+- Exactly one explicitly approved production pilot email was sent from the verified Cidea sender; Resend status verified `delivered`; the exact approved Airtable record was updated to `Sent`.
+- Legacy `send:daily` and scheduled batch-send workflow remain disabled. OpenOutSend HTTP bridge remains ingest-only and does not expose a send endpoint.
+- The guarded single-recipient CLI has fail-closed checks for kill switch, local suppression, exact Airtable approval/DNC false, read-only reply status, recent-recipient duplicate prevention, Resend send-history pagination, idempotency and 3/hour, 10/rolling-24-hour caps. Batch mode remains hard-disabled; current CLI is one email/run.
+- The OpenOutSend IMAP reply monitor is active on the existing Railway service and reports `status=running error=none`. Authenticated read-only `POST /v1/reply-status` was accepted in runtime verification; response included `mode=read_only_reply_check`, `send_triggered=false`. The pilot mailbox lookup returned `replied=false`, meaning no inbound mail from that sender was found in selectable folders at that check time.
+- Acceptance-only environment flags were reset to `OPENOUTREACH_STARTUP_ACCEPTANCE_TEST=false` and empty pilot-address override. Successful restart and healthy status confirmed. OpenOutreach live sending remains disabled.
+- Test coverage includes no-send CLI dry-run and kill switch, sender and suppression guards, reply true/false/unavailable/stale monitor, rate-limit behavior, duplicate-recipient detection, Airtable approval/record identity and post-send `Sent` state, incomplete provider history, and hard-disabled batch path.
+- CI, Phase 11 readiness, Phase 10 E2E and KeeLead Live Acceptance passed at commit `b687c81d1f7d94f1dcd4abc6de20b89cc69d5a97`. The OpenOutSend reply-monitor build/tests and health workflow also passed.
+- No additional prospect emails were sent during testing. No DNS/MX changes. No secrets committed.
 
 Remaining acceptance:
-- Re-run all CI on the newest code adding reply-monitor freshness checks.
-- Deploy that exact tested commit to the existing Railway service and rerun reply-status runtime acceptance.
-- Verify suppression/kill-switch/rate-limit tests remain green and daily batch path remains disabled.
-- Finish production monitoring/signoff documentation, run final acceptance on the newest SHA, then merge PR #70 only after all checks pass.
+- Verify the documentation-updated branch head through fresh CI and final Railway health check.
+- Merge PR #70 only after those final checks pass, then verify merged `main` status before Phase 11 signoff.
+- Phase 12 stays locked until the final signoff is completed.
 
-Mailopoly remains inactive, but the read-only reply monitor now uses the OpenOutSend IMAP connection directly; no Mailopoly dependency is required for reply detection.
+Mailopoly is inactive, but the direct OpenOutSend IMAP reply monitor does not depend on Mailopoly.
