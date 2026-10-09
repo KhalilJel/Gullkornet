@@ -145,6 +145,7 @@ Do not skip or reorder steps. Each step must pass its own tests and be documente
 - Step 3 implementation is complete: candidates are deduplicated by normalized website domain as well as company/email identity, and explicit non-HTTP schemes or credential-bearing website URLs are rejected.
 - Step 3 tests were added for domain normalization/deduplication and unsafe URL normalization.
 - Validation on code commit `a1953539bdc614ade7ab9f6da48cc3ac6e997360`: CI typecheck and test suite PASS; Phase 10 E2E PASS; Phase 11 Production Readiness PASS; KeeLead Live Acceptance PASS.
-- Step 4 implementation is complete on the Phase 12 branch: existing in-repository website audit is the approved provider, with provenance-rich evidence formatting and regression tests. No Railway runtime/code changes or deployments have been made.
+- Step 4 is implemented and merged via PR #76 (merge commit `4c4d4e0f3a04cada848cea8936c3f60d548d8965`). CI, Phase 10 E2E, Phase 11 readiness, and KeeLead acceptance passed on the PR head; the transient KeeLead timeout passed on retry. No Railway runtime/configuration changes or deployments were made.
+- Step 5 implementation is in PR #77: deterministic scoring with explicit reasons, target-area/industry checks, opportunity-signal checks, and separate qualified/rejected/review-required outcomes. CI typecheck and unit suite passed on commit `bb910e3698d058c0a89212c1917be542af9734c0`; Phase 11 readiness and KeeLead acceptance passed. Phase 10 live dry-run acceptance is still running. Do not merge Step 5 until that check completes and passes.
 - No prospect emails were sent during Phase 12 execution.
 - No DNS/MX or Railway configuration changes were made.
