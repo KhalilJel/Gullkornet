@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { fetchAirtableRecipientApproval } from "../integrations/airtable-send-approval.js";
 import { assertLiveSendAllowed, assertProductionKillSwitchEnabled, assertRateLimits, countRecentSends, fetchRecentSendLedger, parseSuppressionList, prepareEmail, sendOneEmail, type OutreachDraft } from "../integrations/outbound-email.js";
 
 const args = process.argv.slice(2);
@@ -32,6 +33,7 @@ try {
     throw new Error("Required data/suppressed-emails.txt is missing. Create it before any live send; one email per line, # for comments.");
   }
   const suppressedEmails = parseSuppressionList(suppressionContents);
+  await fetchAirtableRecipientApproval(email.to, process.env);
   assertProductionKillSwitchEnabled(process.env);
   assertLiveSendAllowed(email, process.env, suppressedEmails);
   const ledger = await fetchRecentSendLedger(process.env.RESEND_API_KEY!.trim());
