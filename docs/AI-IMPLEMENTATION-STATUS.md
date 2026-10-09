@@ -24,11 +24,11 @@ Implement → test/verify → document → commit → verify → next phase.
 - [x] Phase 9 — End-to-end integration (COMPLETE)
 - [x] Phase 10 — End-to-end testing (COMPLETE)
 - [x] Phase 11 — Production (COMPLETE; runtime safety flags operator-verified false on 2026-10-09)
-- [ ] Phase 12 — Autonomous Cidea AI Sales Engine (IN PROGRESS; Steps 1–3 complete, Step 4 blocked)
+- [ ] Phase 12 — Autonomous Cidea AI Sales Engine (IN PROGRESS; Steps 1–4 complete, Step 5 implemented and under acceptance verification)
 
 ## Current phase
 
-Phase 11 — Production is COMPLETE on main. The operator confirmed `OPENOUTREACH_ALLOW_SEND=false` and `OPENOUTREACH_STARTUP_ACCEPTANCE_TEST=false` in the Railway UI on 2026-10-09; the connector redacts values, so this is operator-verified. Phase 12 was explicitly authorized on 2026-10-09 and is IN PROGRESS on branch `phase12/step4-inrepo-website-intelligence`. Steps 1–3 are complete; Step 3 passed CI, Phase 10 E2E, Phase 11 readiness, and KeeLead acceptance. The owner approved using the existing `src/integrations/website-audit.ts` as the Step 4 provider because the separate Railway WIE service is a one-shot CLI, not an HTTP API. Step 4 now formats source/time/status/observations into provenance-rich evidence and labels automated flags as requiring human verification. Regression tests are added; validation is pending. No external repository or Railway configuration was changed.
+Phase 11 — Production is COMPLETE on main. The operator confirmed `OPENOUTREACH_ALLOW_SEND=false` and `OPENOUTREACH_STARTUP_ACCEPTANCE_TEST=false` in the Railway UI on 2026-10-09; the connector redacts values, so this is operator-verified. Phase 12 was explicitly authorized on 2026-10-09 and is IN PROGRESS on `main` after Step 4 merge, with Step 5 open in PR #77. Steps 1–4 are complete. Step 4 uses the owner-approved in-repository `src/integrations/website-audit.ts` provider and adds provenance-rich evidence; CI, Phase 10 E2E, Phase 11 readiness, and KeeLead acceptance passed on the PR head. Step 5 adds deterministic explainable qualification, score reasons, and distinct qualified/rejected/review-required outcomes. CI typecheck/unit suite and Phase 11 readiness/KeeLead acceptance passed on commit `bb910e3698d058c0a89212c1917be542af9734c0`; Phase 10 live dry-run acceptance is still running. The runtime still requires human review for current research results. No prospect emails, DNS/MX changes, Railway config changes, or deployments were made.
 
 ## Current architecture boundary
 
