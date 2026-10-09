@@ -108,7 +108,9 @@ test("routes weak evidence to human review", async () => {
     research: async () => ({ evidence: [], score: 20, requiresHumanReview: true })
   }));
   assert.equal(result.queued, 0);
-  assert.equal(result.skipped.insufficient_evidence_or_draft, 1);
+  assert.equal(result.reviewRequired.length, 1);
+  assert.equal(result.reviewRequired[0]?.reason, "human_review_required");
+  assert.equal(result.skipped.human_review_required, 1);
 });
 
 test("rejects invalid scores even when evidence and draft exist", async () => {
