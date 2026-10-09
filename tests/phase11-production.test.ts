@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assertBulkSendDisabledForPhase11, assertLiveSendAllowed, assertProductionKillSwitchEnabled, assertRateLimits, countRecentSends, fetchRecentSendLedger, PHASE11_RATE_LIMITS, prepareEmail, type OutreachDraft } from "../src/integrations/outbound-email.js";
+import { assertAirtableRecipientApproved, fetchAirtableRecipientApproval, type AirtableSendApproval } from "../src/integrations/airtable-send-approval.js";
 
 const draft: OutreachDraft[] = [{
   companyName: "Phase 11 Pilot AS",
@@ -116,6 +117,46 @@ test("Phase 11 Resend ledger pagination fails closed when history is incomplete"
       /complete 24-hour send history/
     );
     assert.equal(calls, 20);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+
+const approvedAirtableRecord: AirtableSendApproval = {
+  id: "rec123",
+  fields: {
+    Email: "pilot@example.no",
+    "Lead Status": "Approved",
+    "Review Status": "Ready for outreach",
+    "Do Not Contact": false
+  }
+};
+
+test("Phase 11 requires exactly one approved Airtable record", () => {
+  assert.doesNotThrow(() => assertAirtableRecipientApproved([approvedAirtableRecord], "PILOT@example.no"));
+  assert.throws(() => assertAirtableRecipientApproved([], "pilot@example.no"), /exactly one record/);
+  assert.throws(() => assertAirtableRecipientApproved([approvedAirtableRecord, approvedAirtableRecord], "pilot@example.no"), /exactly one record/);
+});
+
+test("Phase 11 blocks Airtable suppression, sent, and unreviewed records", () => {
+  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Do Not Contact":true}}], "pilot@example.no"), /Do Not Contact/);
+  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Lead Status":"Sent"}}], "pilot@example.no"), /Lead Status must be Approved/);
+  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Review Status":"Needs review"}}], "pilot@example.no"), /Review Status must be Ready for outreach/);
+});
+
+test("Phase 11 Airtable approval check fails closed on provider failure", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response("unavailable", { status: 503 })) as typeof fetch;
+  try {
+    await assert.rejects(
+      fetchAirtableRecipientApproval("pilot@example.no", {
+        AIRTABLE_API_TOKEN: "test",
+        GULLKORNET_AIRTABLE_BASE_ID: "appXe2XtbbhripqFq",
+        GULLKORNET_AIRTABLE_TABLE: "Leads"
+      }),
+      /Airtable approval check failed/
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }
