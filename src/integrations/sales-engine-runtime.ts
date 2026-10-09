@@ -135,8 +135,20 @@ export function createAirtableSuppressionChecker(options: AirtableSuppressionOpt
   }
 
   return async (email: string) => {
-    suppressedCache ??= loadSuppressed();
-    return (await suppressedCache).has(email.trim().toLowerCase());
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!suppressedCache) {
+      const pending = loadSuppressed();
+      suppressedCache = pending;
+      try {
+        return (await pending).has(normalizedEmail);
+      } catch (error) {
+        // A transient failure must fail closed for this attempt but remain retryable
+        // on a later run rather than caching a permanently rejected promise.
+        if (suppressedCache === pending) suppressedCache = undefined;
+        throw error;
+      }
+    }
+    return (await suppressedCache).has(normalizedEmail);
   };
 }
 
