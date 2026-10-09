@@ -63,6 +63,14 @@ The existing Railway project is `powerful-patience`. The `cidea-website-intellig
 - **Outreach boundary:** ingest-only, authenticated, bounded, and incapable of sending from the Gullkornet adapter.
 - **Observability:** outcome counts and safe correlation IDs; no secrets, mailbox contents, full email addresses, or full draft bodies in routine logs.
 
+## Orchestration retry and restart-safety contract (Phase 12 Step 8)
+
+- Lead processing remains sequential and bounded by the configured `maxLeads` limit; no parallel duplicate processing was introduced.
+- Discovery, enrichment, contact verification, suppression reads, and research receive at most one retry, and only when the error clearly indicates a timeout/network failure or HTTP 408/425/429/5xx. Permanent errors fail without retry.
+- OpenOutSend ingest and Airtable writes are not wrapped in automatic retry logic because a timeout can leave the write outcome ambiguous. The Airtable adapter's idempotent upsert and protected-record matching allow a later run to resume safely without blindly repeating an uncertain write.
+- Suppression remains fail-closed: if the bounded attempt(s) fail, that lead is skipped. Reply-monitor ordering remains owned by the existing reply/follow-up runtime; this step does not add a sender or change Railway configuration.
+- Deterministic tests cover transient retry, permanent failure without retry, ingest-write no-retry, suppression blocking/failure, and idempotent CRM resynchronization. All four Phase 12 PR checks passed on `5e26e72ab38aa2f47b91a926feeefd29f229fd53`.
+
 ## Failure behavior
 
 - Discovery/enrichment/research timeout or invalid provider response: skip or route to review with a stable error category.
