@@ -18,7 +18,7 @@ on:
       max_leads:
         description: "Maximum leads for the bounded live dry run"
         required: false
-        default: "3"
+        default: "1"
         type: string
 
 permissions:
@@ -31,7 +31,7 @@ jobs:
     env:
       KEELEAD_API_URL: https://keelead-production-9f05.up.railway.app
       GULLKORNET_SALES_ENGINE_DRY_RUN: "true"
-      GULLKORNET_SALES_ENGINE_MAX_LEADS: ${{ inputs.max_leads || '3' }}
+      GULLKORNET_SALES_ENGINE_MAX_LEADS: ${{ inputs.max_leads || '1' }}
       GULLKORNET_DISCOVERY_COUNT: ${{ inputs.max_leads || '3' }}
       GULLKORNET_DISCOVERY_QUERY: "web design businesses in Oslo"
       GULLKORNET_DISCOVERY_LOCATION: "Oslo"
