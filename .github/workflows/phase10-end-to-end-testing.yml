@@ -1,6 +1,8 @@
 name: Phase 10 End to End Testing
 
 on:
+  pull_request:
+    branches: ["main"]
   push:
     branches: ["phase10/end-to-end-testing"]
     paths:
