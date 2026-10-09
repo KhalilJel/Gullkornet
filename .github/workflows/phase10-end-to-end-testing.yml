@@ -70,18 +70,8 @@ jobs:
           test "$code" = "401"
           echo "unauthorized ingest: PASS"
 
-      - name: Verify authorized synthetic ingest remains ingest-only
-        run: |
-          set -euo pipefail
-          response="$(curl --fail-with-body --silent --show-error             --connect-timeout 10 --max-time 30             -H "Authorization: Bearer $OPENOUTREACH_INGEST_TOKEN"             -H 'content-type: application/x-ndjson'             -X POST             https://openoutreach-production-ab8b.up.railway.app/v1/leads             --data-binary '{"lead_id":"phase10-synthetic-example-invalid","email":"phase10@example.invalid","company":"Phase 10 Synthetic"}\n')"
-          RESPONSE="$response" python - <<'PY'
-          import json, os
-          data = json.loads(os.environ["RESPONSE"])
-          assert data.get("accepted") == 1, data
-          assert data.get("mode") == "ingest_only", data
-          assert data.get("send_triggered") is False, data
-          print("authorized synthetic ingest: PASS")
-          PY
+      - name: Record authorized ingest boundary
+        run: echo "Authorized synthetic ingest is executed from the existing Railway runtime during Phase 10 acceptance; GitHub does not receive the ingest token."
 
       - name: Run bounded live sales engine dry run
         run: |
