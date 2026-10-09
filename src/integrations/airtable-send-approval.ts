@@ -40,7 +40,7 @@ function escapeFormulaString(value: string): string {
 export async function fetchAirtableRecipientApproval(
   recipient: string,
   env: NodeJS.ProcessEnv = process.env
-): Promise<void> {
+): Promise<string> {
   const apiToken = env.AIRTABLE_API_TOKEN?.trim();
   const baseId = env.GULLKORNET_AIRTABLE_BASE_ID?.trim();
   const tableName = env.GULLKORNET_AIRTABLE_TABLE?.trim() || "Leads";
@@ -73,4 +73,48 @@ export async function fetchAirtableRecipientApproval(
     throw new Error("Airtable approval lookup was paginated. Refusing to send until duplicates are reconciled.");
   }
   assertAirtableRecipientApproved(records, recipient);
+  return records[0].id;
+}
+
+export async function markAirtableRecipientSent(
+  recordId: string,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<void> {
+  const apiToken = env.AIRTABLE_API_TOKEN?.trim();
+  const baseId = env.GULLKORNET_AIRTABLE_BASE_ID?.trim();
+  const tableName = env.GULLKORNET_AIRTABLE_TABLE?.trim() || "Leads";
+  if (!apiToken || !baseId || !/^app[A-Za-z0-9]{14}$/.test(baseId)) {
+    throw new Error("Airtable credentials are required to record the accepted send. Manual reconciliation is required.");
+  }
+  if (!/^rec[A-Za-z0-9]+$/.test(recordId)) {
+    throw new Error("Airtable record ID is invalid. Manual reconciliation is required.");
+  }
+
+  const response = await fetch(
+    `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}/${recordId}`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ fields: { "Lead Status": "Sent" } }),
+      signal: AbortSignal.timeout(15000)
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Resend accepted the email, but Airtable could not be marked Sent (HTTP ${response.status}). Reconcile the record before retrying.`);
+  }
+  const payload: unknown = await response.json().catch(() => null);
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    !("id" in payload) ||
+    (payload as { id: unknown }).id !== recordId ||
+    !("fields" in payload) ||
+    typeof (payload as { fields: unknown }).fields !== "object" ||
+    (payload as { fields: { "Lead Status"?: unknown } }).fields["Lead Status"] !== "Sent"
+  ) {
+    throw new Error("Resend accepted the email, but Airtable's Sent state could not be verified. Reconcile before retrying.");
+  }
 }
