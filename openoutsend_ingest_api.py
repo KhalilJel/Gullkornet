@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 import threading
+import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -384,6 +385,51 @@ def run_startup_acceptance_test(base_url: str, token: str) -> None:
         raise SystemExit("Synthetic acceptance test returned an unexpected response")
     print("Synthetic acceptance test passed: accepted=1; mode=ingest_only; send_triggered=false")
 
+    # Wait for the read-only IMAP monitor to complete one successful pass. If it
+    # is unavailable, the acceptance fails closed; no reply result is guessed.
+    deadline = time.monotonic() + 45
+    health_payload: dict[str, Any] | None = None
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(base_url + "/health", timeout=5) as response:
+                candidate = json.loads(response.read().decode("utf-8"))
+            state = candidate.get("reply_monitor", {}) if isinstance(candidate, dict) else {}
+            if (
+                state.get("status") == "running"
+                and state.get("last_success_at")
+                and state.get("last_error_code") is None
+            ):
+                health_payload = candidate
+                break
+        except Exception:
+            pass
+        time.sleep(1)
+    if health_payload is None:
+        raise SystemExit("Reply monitor did not become healthy during synthetic acceptance")
+
+    reply_request = urllib.request.Request(
+        base_url + REPLY_STATUS_PATH,
+        data=json.dumps({"email": "phase11-acceptance@example.invalid"}).encode("utf-8"),
+        headers={
+            "Authorization": "Bearer " + token,
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(reply_request, timeout=10) as response:
+            reply_result = json.loads(response.read().decode("utf-8"))
+    except Exception as exc:
+        raise SystemExit("Synthetic reply-status acceptance failed") from exc
+    if (
+        not isinstance(reply_result, dict)
+        or not isinstance(reply_result.get("replied"), bool)
+        or reply_result.get("mode") != "read_only_reply_check"
+        or reply_result.get("send_triggered") is not False
+    ):
+        raise SystemExit("Synthetic reply-status acceptance returned an unexpected response")
+    print("Synthetic reply-status acceptance passed; mode=read_only_reply_check; send_triggered=false")
+
 
 def main() -> None:
     if not os.environ.get(TOKEN_ENV, "").strip():
@@ -397,6 +443,7 @@ def main() -> None:
     server = ThreadingHTTPServer(("0.0.0.0", port), IngestHandler)
     print(f"OpenOutSend ingest API listening on port {port}; send endpoint is not exposed")
 
+    start_reply_monitor()
     if os.environ.get("OPENOUTREACH_STARTUP_ACCEPTANCE_TEST", "").strip().lower() == "true":
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
@@ -405,7 +452,6 @@ def main() -> None:
         finally:
             server.shutdown()
             thread.join(timeout=2)
-    start_reply_monitor()
     server.serve_forever()
 
 
