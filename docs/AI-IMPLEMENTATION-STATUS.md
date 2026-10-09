@@ -457,3 +457,11 @@ Verified architecture finding:
 - Therefore, the current code must not be described as a live integrated sales engine. A secure queue handoff and real runtime acceptance remain required.
 
 No real-prospect email was sent. No secrets were committed. No DNS/MX changes were made.
+
+
+### Phase 9 update — authenticated OpenOutSend handoff (2026-10-09)
+
+- Added a remote ingest-only TypeScript client on `phase9/end-to-end-orchestration`; it validates batches and requires the server acknowledgement to confirm no send was triggered.
+- Added PR #68 (`phase9/openoutsend-ingest-api` → `fix/openoutsend-pydantic-compat`) for the corresponding bearer-authenticated API in the existing OpenOutSend runtime. This PR is a draft and has not been deployed.
+- The endpoint is designed to invoke only `outsend` with NDJSON on stdin, never `outsend send`. The API requires a runtime-only `OPENOUTREACH_INGEST_TOKEN`, has bounded request sizes, and contains no secrets in source.
+- Python API tests and Docker image verification are still pending. No production service source/configuration has been changed for this bridge.
