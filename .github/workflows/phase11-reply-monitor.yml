@@ -1,0 +1,32 @@
+name: Phase 11 OpenOutSend Read-Only Reply Monitor
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "openoutsend_ingest_api.py"
+      - "openoutsend_resend.py"
+      - "Dockerfile"
+      - "tests/test_openoutsend_ingest_api.py"
+      - ".github/workflows/phase11-reply-monitor.yml"
+  push:
+    branches: ["phase11/production"]
+    paths:
+      - "openoutsend_ingest_api.py"
+      - "openoutsend_resend.py"
+      - "Dockerfile"
+      - "tests/test_openoutsend_ingest_api.py"
+      - ".github/workflows/phase11-reply-monitor.yml"
+
+jobs:
+  test-reply-monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Run bridge and reply monitor unit tests
+        run: python -m unittest discover -s tests -p 'test_openoutsend_ingest_api.py' -v
+      - name: Build Docker image with pinned OpenOutSend and runtime tests
+        run: docker build --tag gullkornet-phase11-reply-monitor .
