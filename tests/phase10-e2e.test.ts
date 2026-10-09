@@ -145,7 +145,7 @@ test("OpenOutSend adapter converts transport timeout into a stable failure", asy
 
   await assert.rejects(() => client.ingestLeads([
     { lead_id: "lead-1", email: "hello@example.no", company: "Example AS" }
-  ]), /OPENOUTREACH_INGEST_TIMEOUT/);
+  ]), /OPENOUTSEND_INGEST_TIMEOUT/);
 });
 
 test("OpenOutSend adapter never contacts the network for invalid batches", async () => {
