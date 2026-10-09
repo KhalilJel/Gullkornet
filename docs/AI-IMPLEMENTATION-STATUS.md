@@ -465,3 +465,11 @@ No real-prospect email was sent. No secrets were committed. No DNS/MX changes we
 - Added PR #68 (`phase9/openoutsend-ingest-api` → `fix/openoutsend-pydantic-compat`) for the corresponding bearer-authenticated API in the existing OpenOutSend runtime. This PR is a draft and has not been deployed.
 - The endpoint is designed to invoke only `outsend` with NDJSON on stdin, never `outsend send`. The API requires a runtime-only `OPENOUTREACH_INGEST_TOKEN`, has bounded request sizes, and contains no secrets in source.
 - Python API tests and Docker image verification are still pending. No production service source/configuration has been changed for this bridge.
+
+
+### Phase 9 runtime composition (2026-10-09)
+
+- Added the Phase 9 runtime composition adapter and a dry-run-by-default `npm run sales-engine` entrypoint on the Phase 9 branch.
+- The entrypoint uses KeeLead for discovery/enrichment/email verification, the existing public-URL-safe website audit/contact research, and Airtable Do Not Contact flags. Airtable lookup fails closed.
+- Human-review-required findings are preserved in a local ignored review-queue file; they are not sent to OpenOutSend. The runtime entrypoint has not yet been run against live prospect data.
+- Latest CI and KeeLead live acceptance checks are pending for the newest commit. The separate OpenOutSend ingest API unit tests have passed, but that API has not been deployed.
