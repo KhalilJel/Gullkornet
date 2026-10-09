@@ -82,12 +82,11 @@ Do not skip or reorder steps. Each step must pass its own tests and be documente
 - Acceptance: deterministic unit tests for malformed records, missing identity, duplicates, and configured limits.
 
 ### Step 4 — Evidence-backed Website Intelligence integration
-- **Current blocker found during execution:** Railway shows `cidea-website-intelligence` runs as a one-shot CLI (`npm run audit:website:intelligence -- https://cidealeads.com CideaLead`), with restart policy `NEVER` and no service domain. It is not a callable HTTP API.
-- Keep website intelligence separate from lead discovery; do not invent an HTTP endpoint or silently duplicate the dedicated engine.
-- Under the current repository-only rule, do not edit the separate WIE repository or alter Railway service configuration/source branch.
-- To proceed, either an approved callable WIE contract must be made available within the allowed boundary, or the owner must explicitly approve using Gullkornet's existing `website-audit.ts` as the Phase 12 provider. Until that choice is resolved, do not advance to Step 5.
-- Once resolved, record source URL, observation, checked time, final URL, and confidence/verification status for each finding; preserve public-URL safety controls and bounded requests.
-- Acceptance: mock-based tests for valid evidence, no website, blocked URL, timeout, malformed provider response, and upstream failure; no unsupported claims promoted to facts.
+- **Decision (owner approved 2026-10-09):** use Gullkornet's existing `src/integrations/website-audit.ts` as the Phase 12 website-intelligence provider. Do not edit the separate WIE repository or change Railway service configuration.
+- The adapter remains separate from lead discovery and formats audit results into traceable evidence: requested/final URL when available, checked timestamp, HTTP status when available, HTTPS signal, title/description observations, audit status, and explicitly labeled automated flags.
+- Automated signals are not verified claims. Weak evidence and all current contact-research results still require human review.
+- Preserve public-URL/DNS safety checks, manual redirect validation, timeout, response-body cap, and concurrency limits in the existing audit implementation.
+- Acceptance: unit tests verify provenance fields, explicit automated-signal labels, and omission of unavailable final URL/HTTP status; existing website audit tests cover basic signals and unsafe URLs. CI/typecheck/test suite must pass before step completion.
 
 ### Step 5 — Qualification and prioritization
 - Separate raw candidates, researched candidates, qualified leads, and human-review-required records.
@@ -146,6 +145,6 @@ Do not skip or reorder steps. Each step must pass its own tests and be documente
 - Step 3 implementation is complete: candidates are deduplicated by normalized website domain as well as company/email identity, and explicit non-HTTP schemes or credential-bearing website URLs are rejected.
 - Step 3 tests were added for domain normalization/deduplication and unsafe URL normalization.
 - Validation on code commit `a1953539bdc614ade7ab9f6da48cc3ac6e997360`: CI typecheck and test suite PASS; Phase 10 E2E PASS; Phase 11 Production Readiness PASS; KeeLead Live Acceptance PASS.
-- Step 4 is next. No Railway runtime/code changes or deployments have been made.
+- Step 4 implementation is complete on the Phase 12 branch: existing in-repository website audit is the approved provider, with provenance-rich evidence formatting and regression tests. No Railway runtime/code changes or deployments have been made.
 - No prospect emails were sent during Phase 12 execution.
 - No DNS/MX or Railway configuration changes were made.

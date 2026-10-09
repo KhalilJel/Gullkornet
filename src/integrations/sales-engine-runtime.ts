@@ -34,6 +34,23 @@ function websiteFrom(value: unknown): string | undefined {
   }
 }
 
+/**
+ * Convert the in-repository Website Audit result into traceable review-queue evidence.
+ * These are automated signals, not verified claims.
+ */
+export function formatWebsiteAuditEvidence(audit: Awaited<ReturnType<typeof auditCandidate>>): string[] {
+  const evidence = [
+    "Automated website audit status: " + audit.status + "; checked at " + audit.checkedAt + ".",
+    audit.websiteUrl ? "Website audit requested URL: " + audit.websiteUrl : undefined,
+    audit.finalUrl ? "Website audit final URL: " + audit.finalUrl : undefined,
+    typeof audit.httpStatus === "number" ? "Website audit HTTP status: " + audit.httpStatus : undefined,
+    typeof audit.https === "boolean" ? "Website audit HTTPS enabled: " + audit.https : undefined,
+    audit.title ? "Observed page title: " + audit.title : undefined,
+    audit.metaDescription ? "Observed meta description: " + audit.metaDescription : undefined,
+    ...audit.flags.map((flag) => "Automated website signal (requires human verification): " + flag)
+  ];
+  return evidence.filter((item): item is string => typeof item === "string" && item.trim().length >= 12);
+}
 export function parseKeeLeadSearch(payload: unknown): SalesLead[] {
   const root = asRecord(payload);
   if (!root || !Array.isArray(root.leads)) throw new Error("KEELEAD_INVALID_SEARCH_RESPONSE");
@@ -198,10 +215,10 @@ export function createPhase9SalesEngineDependencies(options: Phase9RuntimeOption
       const audit = await auditCandidate(candidate);
       const contact = await researchContactAndDraft(candidate, audit);
       const evidence = [
-        contact.pageTitle,
-        contact.headline,
-        contact.serviceEvidence,
-        ...audit.flags.map((flag) => "Automated website signal: " + flag)
+        ...formatWebsiteAuditEvidence(audit),
+        contact.pageTitle ? "Contact research observed page title: " + contact.pageTitle : undefined,
+        contact.headline ? "Contact research observed headline: " + contact.headline : undefined,
+        contact.serviceEvidence ? "Contact research service signal: " + contact.serviceEvidence : undefined
       ].filter((value): value is string => typeof value === "string" && value.trim().length >= 12);
       const score = Math.max(0, Math.min(100, 40 + audit.flags.length * 8 + (audit.status === "NO_WEBSITE" ? 20 : 0)));
       return {
