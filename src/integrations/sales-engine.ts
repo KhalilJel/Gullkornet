@@ -23,11 +23,18 @@ export type SalesEngineDependencies = {
   ingest: (leads: Array<SalesLead & { research: LeadResearch }>) => Promise<void>;
 };
 
+export type SalesEngineReviewItem = {
+  lead: SalesLead;
+  reason: string;
+  research?: LeadResearch;
+};
+
 export type SalesEngineResult = {
   discovered: number;
   deduplicated: number;
   researched: number;
   queued: number;
+  reviewRequired: SalesEngineReviewItem[];
   skipped: Record<string, number>;
   dryRun: boolean;
 };
@@ -84,6 +91,7 @@ export async function runSalesEngine(
   }
 
   const queue: Array<SalesLead & { research: LeadResearch }> = [];
+  const reviewRequired: SalesEngineReviewItem[] = [];
   let researched = 0;
 
   for (const candidate of unique.slice(0, maxLeads)) {
@@ -143,7 +151,11 @@ export async function runSalesEngine(
     const hasDraft = Boolean(research.draft?.subject?.trim() && research.draft?.body?.trim());
     const validScore = Number.isFinite(research.score) && research.score >= 0 && research.score <= 100;
     if (research.requiresHumanReview || !hasEvidence || !hasDraft || !validScore) {
-      skip("insufficient_evidence_or_draft");
+      const reason = research.requiresHumanReview
+        ? "human_review_required"
+        : "insufficient_evidence_or_draft";
+      reviewRequired.push({ lead, reason, research });
+      skip(reason);
       continue;
     }
 
@@ -160,6 +172,7 @@ export async function runSalesEngine(
     deduplicated: unique.length,
     researched,
     queued: queue.length,
+    reviewRequired,
     skipped,
     dryRun
   };
