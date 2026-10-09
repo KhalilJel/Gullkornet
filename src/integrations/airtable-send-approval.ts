@@ -15,7 +15,7 @@ function normalizeEmail(value: unknown): string {
 export function assertAirtableRecipientApproved(
   records: AirtableSendApproval[],
   recipient: string
-): void {
+): string {
   const normalized = normalizeEmail(recipient);
   const matches = records.filter(record => normalizeEmail(record.fields.Email) === normalized);
   if (matches.length !== 1) {
@@ -31,6 +31,11 @@ export function assertAirtableRecipientApproved(
   if (fields["Review Status"] !== "Ready for outreach") {
     throw new Error("Airtable Review Status must be Ready for outreach before sending.");
   }
+  const recordId = matches[0].id;
+  if (typeof recordId !== "string" || !/^rec[A-Za-z0-9]+$/.test(recordId)) {
+    throw new Error("Airtable approval record has no valid record ID. Refusing to send.");
+  }
+  return recordId;
 }
 
 function escapeFormulaString(value: string): string {
@@ -72,12 +77,7 @@ export async function fetchAirtableRecipientApproval(
   if ("offset" in payload && typeof (payload as { offset?: unknown }).offset === "string") {
     throw new Error("Airtable approval lookup was paginated. Refusing to send until duplicates are reconciled.");
   }
-  assertAirtableRecipientApproved(records, recipient);
-  const recordId = records[0]?.id;
-  if (typeof recordId !== "string" || !/^rec[A-Za-z0-9]+$/.test(recordId)) {
-    throw new Error("Airtable approval response has no valid record ID. Refusing to send.");
-  }
-  return recordId;
+  return assertAirtableRecipientApproved(records, recipient);
 }
 
 export async function markAirtableRecipientSent(
