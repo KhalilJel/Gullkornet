@@ -152,3 +152,91 @@ class ReplyMonitorTests(unittest.TestCase):
         self.assertIn("reply-monitor startup status=blocked_mailbox_mismatch", output.getvalue())
         self.assertNotIn("smartsvar.no", output.getvalue())
         self.assertNotIn("cideamarketing.com", output.getvalue())
+
+
+class ReplyStatusEndpointTests(unittest.TestCase):
+    def setUp(self):
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), api.IngestHandler)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        self.base_url = f"http://127.0.0.1:{self.server.server_port}"
+        self.env = patch.dict(os.environ, {
+            api.TOKEN_ENV: "secret-test-token",
+            api.REPLY_MONITOR_ENABLED_ENV: "true",
+            api.REPLY_MONITOR_MAILBOX_ENV: "jelassi@cideamarketing.com",
+            "OUTSEND_MAILBOX_ADDRESS": "jelassi@cideamarketing.com",
+        })
+        self.env.start()
+        api._update_reply_monitor_state(
+            status="running",
+            last_check_at="2026-10-09T10:00:00+00:00",
+            last_success_at="2026-10-09T10:00:00+00:00",
+            last_counts={"mirrored": 0, "classified": 0, "projected": 0},
+            last_error_code=None,
+        )
+
+    def tearDown(self):
+        self.env.stop()
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=2)
+
+    def request_status(self, payload, token="secret-test-token", content_type="application/json"):
+        body = json.dumps(payload).encode("utf-8")
+        request = Request(
+            self.base_url + api.REPLY_STATUS_PATH,
+            data=body,
+            headers={"Authorization": "Bearer " + token, "Content-Type": content_type},
+            method="POST",
+        )
+        return urlopen(request, timeout=3)
+
+    def test_reply_status_reports_detected_reply_without_send_capability(self):
+        with patch.object(api, "recipient_has_replied", return_value=True) as lookup:
+            with self.request_status({"email": "michael@example.no"}) as response:
+                payload = json.loads(response.read())
+            self.assertEqual(payload, {
+                "replied": True,
+                "mode": "read_only_reply_check",
+                "send_triggered": False,
+            })
+            lookup.assert_called_once_with("michael@example.no", "jelassi@cideamarketing.com")
+
+    def test_reply_status_reports_no_match_only_after_successful_read_check(self):
+        with patch.object(api, "recipient_has_replied", return_value=False) as lookup:
+            with self.request_status({"email": "michael@example.no"}) as response:
+                payload = json.loads(response.read())
+            self.assertEqual(payload["replied"], False)
+            self.assertEqual(payload["send_triggered"], False)
+            lookup.assert_called_once()
+
+    def test_reply_status_fails_closed_when_monitor_is_degraded(self):
+        api._update_reply_monitor_state(status="degraded", last_error_code="TimeoutError")
+        with patch.object(api, "recipient_has_replied") as lookup:
+            with self.assertRaises(HTTPError) as error:
+                self.request_status({"email": "michael@example.no"})
+            self.assertEqual(error.exception.code, 503)
+            lookup.assert_not_called()
+
+    def test_reply_status_rejects_unauthorized_requests(self):
+        with patch.object(api, "recipient_has_replied") as lookup:
+            with self.assertRaises(HTTPError) as error:
+                self.request_status({"email": "michael@example.no"}, token="wrong")
+            self.assertEqual(error.exception.code, 401)
+            lookup.assert_not_called()
+
+    def test_reply_status_rejects_invalid_email(self):
+        with patch.object(api, "recipient_has_replied") as lookup:
+            with self.assertRaises(HTTPError) as error:
+                self.request_status({"email": "not-an-email"})
+            self.assertEqual(error.exception.code, 400)
+            lookup.assert_not_called()
+
+    def test_reply_status_fails_closed_on_imap_error(self):
+        with patch.object(api, "recipient_has_replied", side_effect=TimeoutError("private mailbox detail")):
+            with self.assertRaises(HTTPError) as error:
+                self.request_status({"email": "michael@example.no"})
+            self.assertEqual(error.exception.code, 503)
+            payload = json.loads(error.exception.read())
+            self.assertEqual(payload["error"], "REPLY_LOOKUP_FAILED")
+            self.assertNotIn("private mailbox detail", json.dumps(payload))
