@@ -268,3 +268,10 @@ class ReplyStatusEndpointTests(unittest.TestCase):
         client.search.return_value = []
         with self.assertRaises(TimeoutError):
             api.search_folders_for_sender(client, "michael@example.no")
+
+
+    def test_reply_search_fails_closed_when_no_folders_can_be_checked(self):
+        client = unittest.mock.Mock()
+        client.list_folders.return_value = [([b"\\Noselect"], b"/", b"Root")]
+        with self.assertRaisesRegex(RuntimeError, "NO_SELECTABLE_FOLDERS"):
+            api.search_folders_for_sender(client, "michael@example.no")
