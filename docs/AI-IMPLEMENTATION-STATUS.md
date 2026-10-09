@@ -481,3 +481,11 @@ No real-prospect email was sent. No secrets were committed. No DNS/MX changes we
 - TypeScript CI passed on `fd0366ebc181c8a69ebf7c8f45bbdb06a96c7ad8` (typecheck and unit tests).
 - The separate OpenOutSend ingest bridge's Python unit tests and Docker image build passed. PR #68 remains draft and is not deployed.
 - KeeLead live acceptance is being rechecked on the latest commit. End-to-end runtime acceptance is still outstanding because the bridge has not been configured/deployed on the existing Railway service.
+
+
+### Phase 9 verification checkpoint (2026-10-09)
+
+- Phase 9 TypeScript CI and KeeLead Live Acceptance passed on commit `66da0cba614a0222a77bfc9c1ae46c0083cbf717`.
+- OpenOutSend ingest bridge Python tests and Docker build passed on commit `048a6c955af11066a9438d039c08127fada95e6e`.
+- The bridge is not deployed; the current Railway service still starts `outsend check` with restart policy `NEVER` and has no service domain. Phase 9 remains IN PROGRESS until private runtime acceptance passes.
+- The research adapter requires human review by design. Do not bypass that gate to make the queue appear active.
