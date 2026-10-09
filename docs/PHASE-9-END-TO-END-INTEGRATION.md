@@ -88,3 +88,14 @@ Do not claim end-to-end integration or runtime acceptance until a supported, aut
 4. Connect eligible lead records to the new ingest-only client using stable `lead_id` values.
 5. Configure the existing OpenOutSend service for the authenticated endpoint and a private Railway address only after tests pass. Keep sending disabled.
 6. Run a no-send runtime acceptance test and record deployment/commit evidence.
+
+
+### Runtime composition added
+
+- Added `src/integrations/sales-engine-runtime.ts` to compose KeeLead discovery/enrichment/verification, public website audit/contact research, Airtable suppression checks, and the ingest-only OpenOutSend client.
+- The runtime adapter defaults to the currently deployed KeeLead API URL but allows `KEELEAD_API_URL` override.
+- Airtable suppression lookup is paginated, cached per run, and fails closed when configuration or API access is unavailable.
+- Email verification accepts only an explicit valid/deliverable result and rejects disposable addresses.
+- Added `npm run sales-engine` as a dry-run-by-default entrypoint. It writes a local, permission-restricted review queue under the ignored `data/` directory and prints counts only, not email addresses or draft text.
+- The contact research adapter intentionally marks findings for human review. As a result, those findings are not handed to OpenOutSend automatically. This is deliberate until a review/approval step is implemented and verified.
+- The latest TypeScript CI and KeeLead live acceptance workflows are running for the newest CLI commit; record final status only after the checks settle.
