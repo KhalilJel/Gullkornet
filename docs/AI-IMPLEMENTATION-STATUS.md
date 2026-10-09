@@ -473,3 +473,11 @@ No real-prospect email was sent. No secrets were committed. No DNS/MX changes we
 - The entrypoint uses KeeLead for discovery/enrichment/email verification, the existing public-URL-safe website audit/contact research, and Airtable Do Not Contact flags. Airtable lookup fails closed.
 - Human-review-required findings are preserved in a local ignored review-queue file; they are not sent to OpenOutSend. The runtime entrypoint has not yet been run against live prospect data.
 - Latest CI and KeeLead live acceptance checks are pending for the newest commit. The separate OpenOutSend ingest API unit tests have passed, but that API has not been deployed.
+
+
+### Phase 9 CRM sync and verification checkpoint (2026-10-09)
+
+- `npm run sales-engine` now persists human-review findings through the existing Airtable sync path, using the existing CRM duplicate-key and do-not-contact rules. The record is marked for review; this does not send email.
+- TypeScript CI passed on `fd0366ebc181c8a69ebf7c8f45bbdb06a96c7ad8` (typecheck and unit tests).
+- The separate OpenOutSend ingest bridge's Python unit tests and Docker image build passed. PR #68 remains draft and is not deployed.
+- KeeLead live acceptance is being rechecked on the latest commit. End-to-end runtime acceptance is still outstanding because the bridge has not been configured/deployed on the existing Railway service.
