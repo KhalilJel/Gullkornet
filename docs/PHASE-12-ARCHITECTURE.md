@@ -37,7 +37,7 @@ The workflow is run by `src/cli/run-sales-engine.ts`, with orchestration in `src
 | OpenOutSend | Store accepted leads and maintain mailbox/outreach state | Authenticated ingest-only API; this client exposes no send method |
 | Hermes / Railway | Existing runtime/orchestration infrastructure | Do not change runtime config or deploy as part of documentation/contract work |
 
-The existing Railway project is `powerful-patience`. The `cidea-website-intelligence` service is online, but Railway configuration shows it is a one-shot CLI task (`npm run audit:website:intelligence -- https://cidealeads.com CideaLead`), has restart policy `NEVER`, and has no service domain. It is not currently a callable HTTP API. The service is sourced from a separate repository, outside the permitted `KhalilJel/Gullkornet` code-change boundary. Do not guess an endpoint or change that service's source/configuration. Step 4 cannot claim live WIE integration until an approved callable contract is available or the owner explicitly chooses an in-repository fallback.
+The existing Railway project is `powerful-patience`. The `cidea-website-intelligence` service is online, but Railway configuration shows it is a one-shot CLI task (`npm run audit:website:intelligence -- https://cidealeads.com CideaLead`), has restart policy `NEVER`, and has no service domain. It is not currently a callable HTTP API. On 2026-10-09, the owner approved using Gullkornet's existing `src/integrations/website-audit.ts` as the Phase 12 provider. No endpoint was guessed, and the separate WIE repository/service was not modified. The in-repository adapter now includes audit provenance and clearly labels flags as automated signals requiring human verification.
 
 ## Important current behavior and limitations
 
@@ -75,4 +75,5 @@ The existing Railway project is `powerful-patience`. The `cidea-website-intellig
 - [x] Data flow and component ownership documented.
 - [x] Existing review gate and ingest-only boundary recorded.
 - [x] Railway service inspected: WIE is a one-shot CLI, not a callable API; no endpoint was guessed.
+- [x] Owner-approved in-repository provider selected; evidence provenance formatter and tests added.
 - [x] Gaps for Phase 12 qualification, evidence and acceptance are documented.
