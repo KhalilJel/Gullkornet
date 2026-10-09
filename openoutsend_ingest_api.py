@@ -454,6 +454,36 @@ def run_startup_acceptance_test(base_url: str, token: str) -> None:
         raise SystemExit("Synthetic reply-status acceptance returned an unexpected response")
     print("Synthetic reply-status acceptance passed; mode=read_only_reply_check; send_triggered=false")
 
+    # Optional one-time check of the approved Phase 11 pilot recipient. The address
+    # is supplied only as a Railway runtime variable during acceptance and is never
+    # printed to logs or stored by this code.
+    pilot_email = os.environ.get("OPENOUTREACH_REPLY_ACCEPTANCE_EMAIL", "").strip().lower()
+    if pilot_email:
+        if not EMAIL_PATTERN.fullmatch(pilot_email):
+            raise SystemExit("Configured pilot reply acceptance address is invalid")
+        pilot_request = urllib.request.Request(
+            base_url + REPLY_STATUS_PATH,
+            data=json.dumps({"email": pilot_email}).encode("utf-8"),
+            headers={
+                "Authorization": "Bearer " + token,
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(pilot_request, timeout=10) as response:
+                pilot_result = json.loads(response.read().decode("utf-8"))
+        except Exception as exc:
+            raise SystemExit("Pilot reply-status acceptance failed") from exc
+        if (
+            not isinstance(pilot_result, dict)
+            or not isinstance(pilot_result.get("replied"), bool)
+            or pilot_result.get("mode") != "read_only_reply_check"
+            or pilot_result.get("send_triggered") is not False
+        ):
+            raise SystemExit("Pilot reply-status acceptance returned an unexpected response")
+        print("Pilot recipient reply lookup completed; replied=" + str(pilot_result["replied"]).lower())
+
 
 def main() -> None:
     if not os.environ.get(TOKEN_ENV, "").strip():
