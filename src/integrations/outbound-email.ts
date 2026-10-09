@@ -7,7 +7,7 @@ export type OutreachDraft = {
 
 export type PreparedEmail = { from: string; to: string; subject: string; text: string };
 
-export const DEFAULT_SENDER = "jelassi@smartsvar.no";
+export const DEFAULT_SENDER = "jelassi@cideamarketing.com";
 
 export function prepareEmail(
   records: OutreachDraft[],
