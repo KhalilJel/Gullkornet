@@ -125,7 +125,9 @@ export function createAirtableSuppressionChecker(options: AirtableSuppressionOpt
       for (const recordValue of payload.records) {
         const record = asRecord(recordValue);
         const fields = asRecord(record?.fields);
-        if (fields?.["Do Not Contact"] !== true && fields?.["Lead Status"] !== "Suppressed") continue;
+        const status = nonEmptyString(fields?.["Lead Status"]);
+        const replyOrSuppressionStatus = status === "Replied" || status === "Suppressed" || status === "Do Not Contact";
+        if (fields?.["Do Not Contact"] !== true && !replyOrSuppressionStatus) continue;
         const email = nonEmptyString(fields.Email)?.toLowerCase();
         if (email) suppressed.add(email);
       }
