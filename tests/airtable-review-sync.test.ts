@@ -122,8 +122,9 @@ test("preserves sent, replied, suppressed, and do-not-contact states and outreac
     fetchImpl: async (_input, init) => {
       if (init?.method === "GET") return jsonResponse({ records: existing });
       if (init?.method === "PATCH") {
-        patchBody = JSON.parse(String(init.body));
-        return jsonResponse({ records: patchBody.records.map((record) => ({ id: record.id, fields: record.fields })) });
+        const body: { records: Array<{ id: string; fields: Record<string, unknown> }> } = JSON.parse(String(init.body));
+        patchBody = body;
+        return jsonResponse({ records: body.records.map((record) => ({ id: record.id, fields: record.fields })) });
       }
       throw new Error("Unexpected method");
     }
