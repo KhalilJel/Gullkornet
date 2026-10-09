@@ -119,3 +119,19 @@ Phase 11 completion means the controlled one-recipient production pilot and safe
 
 PR #70 was squash-merged to `main`: `https://github.com/KhalilJel/Gullkornet/pull/70`.
 Phase 12 may now be considered separately, but no Phase 12 implementation is included in this PR.
+
+## Follow-up verification note — 2026-10-09
+
+This note records the connector-based post-merge inspection performed after PR #70 was merged.
+
+- Confirmed repository: `KhalilJel/Gullkornet`.
+- PR #70 is merged to `main` with merge commit `5efcb4a0c5ecde7e5815eddaec68a398c2de0976`; branch head at merge was `30358eb488072a7893d385ac83cc78226486f768`.
+- CI and KeeLead Live Acceptance passed on main commit `e080c0d1b2dd0c156162ebb15be8f574bc63d610`. The five Phase 11-related workflows (CI, Phase 11 readiness, Phase 10 E2E, KeeLead Live Acceptance and OpenOutSend read-only reply monitor) passed at branch head `30358eb488072a7893d385ac83cc78226486f768`.
+- Railway project `powerful-patience`, production service `openoutreach` is configured from `KhalilJel/Gullkornet`, branch `phase11/production`, commit `30358eb488072a7893d385ac83cc78226486f768`. Deployment `71dad39b-f961-4e9f-9b3b-23d0a76b9d55` reports `SUCCESS`, the service is online with one running replica, and the configured healthcheck is `/health`.
+- Railway HTTP metrics for the three-hour inspection window showed 80 successful 2xx GET requests to `/health`, with zero 3xx, 4xx or 5xx responses.
+- Runtime logs repeatedly recorded `reply-monitor status=running error=none`. The metrics query recorded no `POST /v1/reply-status` requests during that window, so a fresh external endpoint acceptance was not observed in this follow-up.
+- The Railway connector withheld all environment variable values. Therefore this inspection could confirm that the acceptance/send flag names exist, but could not independently re-confirm their current Boolean values. Do not treat this limitation as proof of their values; verify in the Railway UI without exposing secret values before any future live send.
+- The daily outreach workflow job is `skipped` on the inspected `main` commit; the workflow source retains a hard false condition on its sending job. The OpenOutSend bridge continues to expose no send endpoint by design.
+- No production send, DNS/MX change, Railway configuration change, or secret disclosure was performed during this inspection.
+
+This follow-up note is evidence about the checks above only; it does not authorize bulk sends or weaken any Phase 11 gate.
