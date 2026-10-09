@@ -1,6 +1,6 @@
 # Phase 9 — End-to-end integration
 
-Status: IN PROGRESS — bounded runtime acceptance passed; final signoff pending
+Status: COMPLETE
 Last updated: 2026-10-09
 
 ## Objective
@@ -132,3 +132,14 @@ Do not claim end-to-end integration or runtime acceptance until a supported, aut
 - GitHub Actions acceptance run #2 completed successfully and produced the Phase 9 acceptance artifact.
 - The orchestration remains dry-run-by-default and the research layer retains its human-review gate.
 - Phase 9 is not signed off yet; artifact/Airtable persistence verification and final documentation/CI remain.
+
+
+## Phase 9 final signoff — 2026-10-09
+
+- Authenticated OpenOutSend ingest boundary verified with a synthetic `example.invalid` record and explicit `send_triggered=false` acknowledgement.
+- Bounded Gullkornet dry-run acceptance #3 passed on `ab2a2041e8545e589776fbac64d8ebb24041bd3a`.
+- Runtime result: 35 discovered, 26 deduplicated, 3 researched, 3 mandatory human-review items, 0 automated outreach queue items, 0 emails sent.
+- Airtable review persistence verified: one new `Needs Review` record created by the acceptance run and confirmed through Airtable.
+- Final verification: CI #292 PASS; KeeLead Live Acceptance #63 PASS; Phase 9 Sales Engine Acceptance #3 PASS.
+- The human-review gate remains active and sending remains disabled.
+- **Phase 9 COMPLETE.**
