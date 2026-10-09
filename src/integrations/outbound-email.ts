@@ -35,6 +35,26 @@ export function assertProductionKillSwitchEnabled(env: NodeJS.ProcessEnv = proce
   }
 }
 
+export function assertRecipientNotAlreadySent(
+  entries: SendLedgerEntry[],
+  recipient: string,
+  nowMs = Date.now()
+): void {
+  const normalized = recipient.trim().toLowerCase();
+  for (const entry of entries) {
+    const timestamp = Date.parse(entry.created_at);
+    if (!Number.isFinite(timestamp)) {
+      throw new Error("Send ledger contains an invalid timestamp. Refusing to send.");
+    }
+    const age = nowMs - timestamp;
+    if (age < 0 || age >= 24 * 60 * 60 * 1000) continue;
+    const recipients = Array.isArray(entry.to) ? entry.to : [];
+    if (recipients.some((value) => typeof value === "string" && value.trim().toLowerCase() === normalized)) {
+      throw new Error("Recipient already appears in Resend send history within the last 24 hours. Refusing duplicate outreach.");
+    }
+  }
+}
+
 export function countRecentSends(
   entries: SendLedgerEntry[],
   nowMs = Date.now()
