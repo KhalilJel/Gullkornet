@@ -161,3 +161,32 @@ test("Phase 11 Airtable approval check fails closed on provider failure", async 
     globalThis.fetch = originalFetch;
   }
 });
+
+
+test("Phase 11 Airtable approval lookup accepts exactly one reviewed record", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    assert.equal(url.hostname, "api.airtable.com");
+    assert.match(url.searchParams.get("filterByFormula") ?? "", /pilot@example\.no/);
+    return new Response(JSON.stringify({
+      records: [{
+        id: "rec123",
+        fields: {
+          Email: "pilot@example.no",
+          "Lead Status": "Approved",
+          "Review Status": "Ready for outreach"
+        }
+      }]
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+  try {
+    await assert.doesNotReject(fetchAirtableRecipientApproval("pilot@example.no", {
+      AIRTABLE_API_TOKEN: "test",
+      GULLKORNET_AIRTABLE_BASE_ID: "appXe2XtbbhripqFq",
+      GULLKORNET_AIRTABLE_TABLE: "Leads"
+    }));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
