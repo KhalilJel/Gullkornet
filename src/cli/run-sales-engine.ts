@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { runSalesEngine } from "../integrations/sales-engine.js";
 import { createPhase9SalesEngineDependencies } from "../integrations/sales-engine-runtime.js";
@@ -8,11 +9,53 @@ function boundedCount(value: string | undefined, fallback: number): number {
   return Number.isInteger(parsed) && parsed >= 1 && parsed <= 100 ? parsed : fallback;
 }
 
+function syncReviewQueueToAirtable(inputPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [
+      "--import", "tsx",
+      "src/cli/sync-airtable-leads.ts",
+      inputPath
+    ], { stdio: "inherit" });
+    child.once("error", reject);
+    child.once("exit", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error("AIRTABLE_REVIEW_QUEUE_SYNC_FAILED"));
+    });
+  });
+}
+
 async function main(): Promise<void> {
   const dryRun = process.env.GULLKORNET_SALES_ENGINE_DRY_RUN !== "false";
   const maxLeads = boundedCount(process.env.GULLKORNET_SALES_ENGINE_MAX_LEADS, 20);
   const dependencies = createPhase9SalesEngineDependencies();
   const result = await runSalesEngine(dependencies, { dryRun, maxLeads });
+
+  const reviewRecords = result.reviewRequired.map(({ lead, reason, research }) => ({
+    companyName: typeof lead.company === "string" ? lead.company : "Unknown business",
+    websiteUrl: research?.websiteUrl ?? (typeof lead.website === "string" ? lead.website : undefined),
+    city: typeof lead.location === "string" ? lead.location : undefined,
+    industry: typeof lead.industry === "string" ? lead.industry : undefined,
+    sourceUrl: "https://keelead-production-9f05.up.railway.app/api/leads",
+    researchStatus: "REVIEW_REQUIRED",
+    emails: typeof lead.email === "string" && lead.email.trim()
+      ? [{
+          email: lead.email,
+          sourceUrl: "https://keelead-production-9f05.up.railway.app/api/enrich",
+          sourceType: "KeeLead"
+        }]
+      : [],
+    subject: research?.draft?.subject,
+    draftBody: research?.draft?.body,
+    personalizationEvidence: research?.evidence?.length
+      ? "Automatisk hentet fra nettside/KeeLead, ikke uavhengig verifisert: " + research.evidence.join(" | ")
+      : undefined,
+    notes: [
+      "MANUAL REVIEW: " + reason,
+      "Kontroller at kontaktpersonen og e-postadressen tilhører virksomheten før eventuell kontakt.",
+      "Automatiske nettsidesignaler må kontrolleres før de brukes i kundekommunikasjon."
+    ],
+    researchedAt: new Date().toISOString()
+  }));
 
   await mkdir("data", { recursive: true });
   await writeFile(
@@ -20,6 +63,14 @@ async function main(): Promise<void> {
     JSON.stringify(result.reviewRequired, null, 2),
     { encoding: "utf8", mode: 0o600 }
   );
+  await writeFile(
+    "data/contact-research-drafts.json",
+    JSON.stringify(reviewRecords, null, 2),
+    { encoding: "utf8", mode: 0o600 }
+  );
+
+  // Persist review-only records to Airtable. This path never sends email.
+  await syncReviewQueueToAirtable("data/contact-research-drafts.json");
 
   // Do not print emails or full draft content into deployment logs.
   console.log(JSON.stringify({
@@ -29,6 +80,7 @@ async function main(): Promise<void> {
     researched: result.researched,
     eligibleForOpenOutSend: result.queued,
     reviewRequired: result.reviewRequired.length,
+    airtableReviewRecords: reviewRecords.length,
     skipped: result.skipped,
     reviewQueuePath: "data/sales-engine-review-queue.json",
     emailSent: 0
