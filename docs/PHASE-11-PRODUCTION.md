@@ -73,17 +73,25 @@ Result:
 
 The OpenOutSend bridge remains ingest-only. The pilot was deliberately sent through the separately guarded Resend production boundary rather than bypassing the ingest-only bridge.
 
-## Next locked steps
+## Additional safety findings
 
-1. Complete the Phase 11 production gate tests and CI.
-2. Select one explicit pilot recipient for a controlled live send.
-3. Verify the corresponding draft, recipient, suppression state and legal/marketing suitability.
-4. Perform exactly one controlled live send.
-5. Verify Resend acceptance and mailbox state.
-6. Verify CRM state and duplicate protection.
-7. Test reply detection and suppression behavior.
-8. Only after successful acceptance, define the next small production batch.
-9. Document results, commit and verify.
-10. Mark Phase 11 COMPLETE only after all acceptance gates pass.
+- The legacy `send:daily` command was found to allow batches up to 20 without the Phase 11 recipient review gate or durable hourly/daily rate-limit enforcement. Historical Resend records confirm prior batch activity, so this path must not be used.
+- The legacy batch CLI is now hard-disabled in source during Phase 11, and a regression test asserts the lock. The GitHub Actions batch workflow remains disabled with `if: ${{ false }}`.
+- Airtable's existing `Sent` statuses are not a reliable timestamp ledger: many records have no send timestamp and some notes still describe drafts as unsent. Resend is the better historical source, and any future limits must use a durable, reconciled send ledger rather than trusting the Airtable status alone.
+- The currently deployed Railway `openoutreach` service starts only `python /app/openoutsend_ingest_api.py`. It is an ingest-only HTTP service, not an active mailbox polling worker. Therefore reply detection is not currently running in this runtime.
+- Mailopoly inbox access currently returns `subscription_inactive`, so it cannot be used to verify the pilot's mailbox replies right now.
+- No additional prospect emails were sent while carrying out this audit and hardening.
 
-No Phase 12 work starts before this signoff.
+## Remaining Phase 11 acceptance blockers
+
+1. Implement a real mailbox reply detector using an available, authenticated mailbox interface.
+2. Store and process reply events so a reply blocks all follow-ups, and test that behavior end to end.
+3. Implement a durable send ledger and enforce the agreed limits: maximum 3 per run, 3 per hour, 10 per day. Reconcile historical activity before calculating current limits.
+4. Verify suppression is fail-closed across persistent Do Not Contact flags and the suppression list, including provider or Airtable failures.
+5. Prove the kill switch blocks all send paths, not only the paused workflow.
+6. Add production monitoring for accepted, delivered, bounced, replied, suppressed, and blocked events.
+7. Run final end-to-end acceptance, record CI/runtime evidence, commit the signoff and only then merge this PR.
+
+## Phase 11 status
+
+**IN PROGRESS.** The first controlled email is delivered and the legacy batch sender is now hard-disabled. Reply detection, durable global rate limits, complete suppression integration, kill-switch acceptance, and production monitoring are not yet proven. Phase 12 remains locked.
