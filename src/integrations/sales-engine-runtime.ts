@@ -20,9 +20,14 @@ function nonEmptyString(value: unknown): string | undefined {
 function websiteFrom(value: unknown): string | undefined {
   const raw = nonEmptyString(value);
   if (!raw) return undefined;
+  // Do not reinterpret explicit non-HTTP schemes as hostnames.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(raw) && !/^https?:\/\//i.test(raw)) return undefined;
   try {
     const url = new URL(/^https?:\/\//i.test(raw) ? raw : "https://" + raw);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+    if (
+      (url.protocol !== "http:" && url.protocol !== "https:") ||
+      url.username || url.password || !url.hostname
+    ) return undefined;
     return url.toString();
   } catch {
     return undefined;
