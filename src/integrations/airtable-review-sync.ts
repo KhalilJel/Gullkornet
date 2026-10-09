@@ -83,7 +83,7 @@ export function getStatus(item: ResearchRecord, existing?: AirtableRecord): stri
   const status = existingStatus(existing);
   const doNotContact = existing?.fields["Do Not Contact"] === true;
 
-  if (doNotContact) return "Suppressed";
+  if (doNotContact) return status === "Do Not Contact" ? "Do Not Contact" : "Suppressed";
   if (status === "Suppressed" || status === "Do Not Contact") return status;
   if (PRESERVED_STATUSES.has(status)) return status;
   if (item.notes?.some((note) => note.includes("MANUAL REVIEW:"))) return "Needs Review";
