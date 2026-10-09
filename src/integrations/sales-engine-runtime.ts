@@ -91,6 +91,7 @@ export function createAirtableSuppressionChecker(options: AirtableSuppressionOpt
       url.searchParams.set("pageSize", "100");
       url.searchParams.append("fields[]", "Email");
       url.searchParams.append("fields[]", "Do Not Contact");
+      url.searchParams.append("fields[]", "Lead Status");
       if (offset) url.searchParams.set("offset", offset);
       const response = await fetchImpl(url.toString(), {
         headers: { Authorization: "Bearer " + apiToken, Accept: "application/json" },
@@ -102,7 +103,7 @@ export function createAirtableSuppressionChecker(options: AirtableSuppressionOpt
       for (const recordValue of payload.records) {
         const record = asRecord(recordValue);
         const fields = asRecord(record?.fields);
-        if (fields?.["Do Not Contact"] !== true) continue;
+        if (fields?.["Do Not Contact"] !== true && fields?.["Lead Status"] !== "Suppressed") continue;
         const email = nonEmptyString(fields.Email)?.toLowerCase();
         if (email) suppressed.add(email);
       }
