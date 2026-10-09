@@ -5,6 +5,7 @@ import os
 import threading
 import unittest
 from http.server import ThreadingHTTPServer
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -169,8 +170,8 @@ class ReplyStatusEndpointTests(unittest.TestCase):
         self.env.start()
         api._update_reply_monitor_state(
             status="running",
-            last_check_at="2026-10-09T10:00:00+00:00",
-            last_success_at="2026-10-09T10:00:00+00:00",
+            last_check_at=datetime.now(timezone.utc).isoformat(),
+            last_success_at=datetime.now(timezone.utc).isoformat(),
             last_counts={"mirrored": 0, "classified": 0, "projected": 0},
             last_error_code=None,
         )
@@ -275,3 +276,18 @@ class ReplyStatusEndpointTests(unittest.TestCase):
         client.list_folders.return_value = [([b"\\Noselect"], b"/", b"Root")]
         with self.assertRaisesRegex(RuntimeError, "NO_SELECTABLE_FOLDERS"):
             api.search_folders_for_sender(client, "michael@example.no")
+
+
+    def test_reply_status_fails_closed_when_monitor_health_is_stale(self):
+        api._update_reply_monitor_state(
+            status="running",
+            last_check_at=(datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+            last_success_at=(datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+            last_counts={"mirrored": 0, "classified": 0, "projected": 0},
+            last_error_code=None,
+        )
+        with patch.object(api, "recipient_has_replied") as lookup:
+            with self.assertRaises(HTTPError) as error:
+                self.request_status({"email": "michael@example.no"})
+            self.assertEqual(error.exception.code, 503)
+            lookup.assert_not_called()
