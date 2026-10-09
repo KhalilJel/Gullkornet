@@ -99,3 +99,13 @@ Do not claim end-to-end integration or runtime acceptance until a supported, aut
 - Added `npm run sales-engine` as a dry-run-by-default entrypoint. It writes a local, permission-restricted review queue under the ignored `data/` directory and prints counts only, not email addresses or draft text.
 - The contact research adapter intentionally marks findings for human review. As a result, those findings are not handed to OpenOutSend automatically. This is deliberate until a review/approval step is implemented and verified.
 - The latest TypeScript CI and KeeLead live acceptance workflows are running for the newest CLI commit; record final status only after the checks settle.
+
+
+### Step 2 progress — CRM persistence and checks
+
+- The `npm run sales-engine` CLI now maps human-review findings into the existing Airtable sync format and calls `sync-airtable-leads.ts`. Records are marked `Needs Review` through the existing `MANUAL REVIEW:` status rule; no email is sent.
+- The local review JSON files are under ignored `data/` and created with owner-only permissions. Logs include counts only, not contact emails or draft content.
+- TypeScript CI passed on commit `fd0366ebc181c8a69ebf7c8f45bbdb06a96c7ad8` (typecheck and unit tests).
+- KeeLead live acceptance was passing on the previous functionally equivalent commit and is running again for the latest commit.
+- PR #68's Python unit tests and Docker image build both passed. The API bridge remains a draft and is not deployed.
+- No live prospect outreach has been run through the new pipeline. Phase 9 remains IN PROGRESS until the authenticated bridge is configured in the existing Railway service and a no-send runtime acceptance passes.
