@@ -156,6 +156,34 @@ class IngestHandler(BaseHTTPRequestHandler):
         })
 
 
+def run_startup_acceptance_test(base_url: str, token: str) -> None:
+    if os.environ.get("OPENOUTREACH_STARTUP_ACCEPTANCE_TEST", "").strip().lower() != "true":
+        return
+
+    import urllib.request
+
+    payload = b'{"lead_id":"phase9-synthetic-acceptance","email":"acceptance@example.invalid","company":"Phase 9 Synthetic Acceptance"}\\n'
+    request = urllib.request.Request(
+        base_url + INGEST_PATH,
+        data=payload,
+        headers={
+            "Authorization": "Bearer " + token,
+            "Content-Type": "application/x-ndjson",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            response_body = response.read().decode("utf-8")
+            result = json.loads(response_body)
+    except Exception as exc:
+        raise SystemExit("Synthetic acceptance test failed") from exc
+
+    if result != {"accepted": 1, "mode": "ingest_only", "send_triggered": False}:
+        raise SystemExit("Synthetic acceptance test returned an unexpected response")
+    print("Synthetic acceptance test passed: accepted=1; mode=ingest_only; send_triggered=false")
+
+
 def main() -> None:
     if not os.environ.get(TOKEN_ENV, "").strip():
         raise SystemExit(f"{TOKEN_ENV} must be configured; refusing to start an unauthenticated ingest API")
@@ -165,6 +193,8 @@ def main() -> None:
         raise SystemExit("OpenOutSend runtime check failed; ingest API will not start")
 
     port = int(os.environ.get("PORT", "8080"))
+    if os.environ.get("OPENOUTREACH_STARTUP_ACCEPTANCE_TEST", "").strip().lower() == "true":
+        run_startup_acceptance_test(f"http://127.0.0.1:{port}", os.environ[TOKEN_ENV].strip())
     server = ThreadingHTTPServer(("0.0.0.0", port), IngestHandler)
     print(f"OpenOutSend ingest API listening on port {port}; send endpoint is not exposed")
     server.serve_forever()
