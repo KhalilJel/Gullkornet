@@ -24,11 +24,11 @@ Implement → test/verify → document → commit → verify → next phase.
 - [x] Phase 9 — End-to-end integration (COMPLETE)
 - [x] Phase 10 — End-to-end testing (COMPLETE)
 - [x] Phase 11 — Production (COMPLETE; runtime safety flags operator-verified false on 2026-10-09)
-- [ ] Phase 12 — Autonomous Cidea AI Sales Engine
+- [ ] Phase 12 — Autonomous Cidea AI Sales Engine (IN PROGRESS; Steps 1–3 complete, Step 4 blocked)
 
 ## Current phase
 
-Phase 11 — Production is COMPLETE on main. The operator confirmed `OPENOUTREACH_ALLOW_SEND=false` and `OPENOUTREACH_STARTUP_ACCEPTANCE_TEST=false` in the Railway UI on 2026-10-09; the connector redacts values, so this is operator-verified. Phase 12 has NOT STARTED and remains locked until explicitly authorized.
+Phase 11 — Production is COMPLETE on main. The operator confirmed `OPENOUTREACH_ALLOW_SEND=false` and `OPENOUTREACH_STARTUP_ACCEPTANCE_TEST=false` in the Railway UI on 2026-10-09; the connector redacts values, so this is operator-verified. Phase 12 was explicitly authorized on 2026-10-09 and is now IN PROGRESS on branch `phase12/step1-baseline-and-plan`. Step 1 baseline and Step 2 architecture mapping are complete; Step 3 lead/domain normalization is implemented and passed CI, Phase 10 E2E, Phase 11 readiness, and KeeLead acceptance on commit `a1953539bdc614ade7ab9f6da48cc3ac6e997360`. Step 4 is blocked because Railway's `cidea-website-intelligence` service is a one-shot CLI with restart policy `NEVER` and no service domain, not a callable HTTP API. Do not invent an endpoint, edit another repository, change Railway configuration, or advance to Step 5 until the owner approves a supported integration contract or the existing in-repository website-audit fallback.
 
 ## Current architecture boundary
 
