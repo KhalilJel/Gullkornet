@@ -24,7 +24,7 @@ jobs:
             local path="$1"
             local body="$2"
             curl --fail-with-body --silent --show-error \
-              --connect-timeout 10 --max-time 45 \
+              --connect-timeout 10 --max-time 45 --retry 1 --retry-delay 2 --retry-max-time 60 \
               -H 'content-type: application/json' \
               -X POST "$KEELEAD_BASE_URL$path" \
               -d "$body"

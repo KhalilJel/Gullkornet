@@ -1,8 +1,13 @@
 import "dotenv/config";
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { runSalesEngine } from "../integrations/sales-engine.js";
 import { createPhase9SalesEngineDependencies } from "../integrations/sales-engine-runtime.js";
+import { salesEngineCompletedEvent, salesEngineFailedEvent, salesEngineStartedEvent } from "../integrations/sales-engine-observability.js";
+
+const correlationId = randomUUID();
+const runStartedAt = Date.now();
 
 function boundedCount(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? "", 10);
@@ -27,6 +32,7 @@ function syncReviewQueueToAirtable(inputPath: string): Promise<void> {
 async function main(): Promise<void> {
   const dryRun = process.env.GULLKORNET_SALES_ENGINE_DRY_RUN !== "false";
   const maxLeads = boundedCount(process.env.GULLKORNET_SALES_ENGINE_MAX_LEADS, 20);
+  console.log(JSON.stringify(salesEngineStartedEvent({ correlationId, dryRun, maxLeads })));
   const dependencies = createPhase9SalesEngineDependencies();
   const result = await runSalesEngine(dependencies, { dryRun, maxLeads });
 
@@ -83,25 +89,20 @@ async function main(): Promise<void> {
   // Persist review-only records to Airtable. This path never sends email.
   await syncReviewQueueToAirtable("data/contact-research-drafts.json");
 
-  // Do not print emails or full draft content into deployment logs.
-  console.log(JSON.stringify({
-    mode: dryRun ? "dry-run" : "queue-ingest",
-    discovered: result.discovered,
-    deduplicated: result.deduplicated,
-    researched: result.researched,
-    qualified: result.qualified,
-    rejected: result.rejected,
-    rejectedArtifactPath: "data/sales-engine-rejected.json",
-    eligibleForOpenOutSend: result.queued,
-    reviewRequired: result.reviewRequired.length,
-    airtableReviewRecords: reviewRecords.length,
-    skipped: result.skipped,
-    reviewQueuePath: "data/sales-engine-review-queue.json",
-    emailSent: 0
-  }, null, 2));
+  // Emit counts and a correlation ID only; never log email addresses or draft bodies.
+  console.log(JSON.stringify(salesEngineCompletedEvent({
+    correlationId,
+    durationMs: Date.now() - runStartedAt,
+    result,
+    airtableReviewRecords: reviewRecords.length
+  })));
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.message : "Sales engine failed.");
+  console.error(JSON.stringify(salesEngineFailedEvent({
+    correlationId,
+    durationMs: Date.now() - runStartedAt,
+    error
+  })));
   process.exitCode = 1;
 });
