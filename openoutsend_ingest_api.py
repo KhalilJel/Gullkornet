@@ -10,6 +10,7 @@ import json
 import os
 import re
 import subprocess
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
@@ -193,10 +194,19 @@ def main() -> None:
         raise SystemExit("OpenOutSend runtime check failed; ingest API will not start")
 
     port = int(os.environ.get("PORT", "8080"))
-    if os.environ.get("OPENOUTREACH_STARTUP_ACCEPTANCE_TEST", "").strip().lower() == "true":
-        run_startup_acceptance_test(f"http://127.0.0.1:{port}", os.environ[TOKEN_ENV].strip())
     server = ThreadingHTTPServer(("0.0.0.0", port), IngestHandler)
     print(f"OpenOutSend ingest API listening on port {port}; send endpoint is not exposed")
+
+    if os.environ.get("OPENOUTREACH_STARTUP_ACCEPTANCE_TEST", "").strip().lower() == "true":
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            run_startup_acceptance_test(f"http://127.0.0.1:{port}", os.environ[TOKEN_ENV].strip())
+        finally:
+            server.shutdown()
+            thread.join(timeout=2)
+        server = ThreadingHTTPServer(("0.0.0.0", port), IngestHandler)
+
     server.serve_forever()
 
 
