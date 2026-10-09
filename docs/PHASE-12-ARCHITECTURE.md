@@ -34,7 +34,7 @@ The workflow is run by `src/cli/run-sales-engine.ts`, with orchestration in `src
 | Website audit | Inspect public website metadata and bounded HTML signals | `auditCandidate`; public URL/DNS safety checks, timeout and body-size limits |
 | Qualification | Score explicit opportunity evidence and service fit | `evaluateLeadQualification`; deterministic reasons, pilot-area and competitor checks; unknown identity/industry/geography routes to review |
 | Contact research | Extract public business contact details and prepare the approved generic draft | `researchContactAndDraft`; output always requires human review |
-| Airtable | Suppression source and durable review queue | Suppression lookup fails closed; sync is separate from sending |
+| Airtable | Suppression source and durable review queue | `createAirtableSuppressionChecker` fails closed and can retry after a failed read; `syncAirtableReviewRecords` paginates and performs idempotent upserts while preserving protected records |
 | OpenOutSend | Store accepted leads and maintain mailbox/outreach state | Authenticated ingest-only API; this client exposes no send method |
 | Hermes / Railway | Existing runtime/orchestration infrastructure | Do not change runtime config or deploy as part of documentation/contract work |
 
@@ -51,6 +51,7 @@ The existing Railway project is `powerful-patience`. The `cidea-website-intellig
 7. `src/integrations/openoutsend-ingest.ts` can only call `POST /v1/leads` with NDJSON. It asserts accepted count, `mode=ingest_only`, and `send_triggered=false`. Do not add a send method.
 8. The daily outreach workflow's send job has a hard false condition. Keep it that way throughout Phase 12.
 9. The existing Phase 9 acceptance workflow is scoped to the legacy `phase9/end-to-end-orchestration` branch. A dedicated Phase 12 dry-run acceptance workflow will be needed later; it must never send real email.
+10. Airtable suppression reads fail closed for the current attempt. A failed cached read is cleared so a later attempt can retry. CRM sync retries transient GET failures only; create/update writes are not automatically retried.
 
 ## Target Phase 12 contracts
 
@@ -58,7 +59,7 @@ The existing Railway project is `powerful-patience`. The `cidea-website-intellig
 - **Website finding:** source URL, final URL, checked timestamp, observation, evidence excerpt or signal, and a clear distinction between automated signal and human-verified fact.
 - **Qualification decision:** `evaluateLeadQualification` returns explicit score/reasons plus a state of qualified, review-required, rejected, or suppressed. Missing/uncertain evidence must not become a qualified lead. The runtime continues to require human review for its current research outputs.
 - **Draft:** approved template, source-linked internal rationale, draft text, review state, and no implicit send authorization.
-- **CRM operation:** idempotent upsert, preserve terminal/suppression states, and fail closed when suppression or persistence cannot be checked.
+- **CRM operation:** idempotent upsert by duplicate key/domain/name, including legacy rows without a stored key; preserve terminal/suppression states and outreach history; fail closed when suppression or persistence cannot be checked. GET reads may retry transient failures. Writes are not blindly retried because an ambiguous create response could produce duplicates.
 - **Outreach boundary:** ingest-only, authenticated, bounded, and incapable of sending from the Gullkornet adapter.
 - **Observability:** outcome counts and safe correlation IDs; no secrets, mailbox contents, full email addresses, or full draft bodies in routine logs.
 
