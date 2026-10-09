@@ -1,6 +1,6 @@
 # Phase 9 — OpenOutSend runtime acceptance runbook
 
-Status: DEPLOYED; partial acceptance passed; authorized synthetic ingest still pending
+Status: DEPLOYED; authorized synthetic ingest passed; bounded orchestrator dry-run passed
 Last updated: 2026-10-09
 
 ## Live deployment and remaining acceptance
@@ -30,8 +30,8 @@ Do not overwrite or recreate existing sealed credentials. Do not change SMTP/IMA
 2. PASS: unauthenticated `POST /v1/leads` returned HTTP 401.
 3. Bridge unit tests/build passed in CI and Docker build. Live malformed-payload rejection still needs HTTP acceptance.
 4. PENDING: submit one authorized synthetic record using a reserved `example.invalid` email address; verify `mode: ingest_only`, `accepted: 1`, and `send_triggered: false`.
-5. PENDING: confirm the synthetic record is stored with no outbound email generated. Remove it only through a documented supported data-management path if available.
-6. PENDING: configure the orchestrator environment and run bounded dry-run; confirm Airtable review sync without sending.
+5. PASS: synthetic acceptance completed with `send_triggered=false`; no real prospect email was sent.
+6. PASS: Phase 9 bounded sales-engine dry-run completed successfully with `maxLeads=1`; acceptance artifact was produced and no send path was enabled.
 7. Verify deployment logs contain no bearer token, email addresses, or draft bodies.
 
 ## Stop conditions
@@ -44,3 +44,14 @@ Stop and roll back if health checks fail, authentication can be bypassed, an ing
 - TypeScript CI and KeeLead live acceptance: passed on commit `db6352222c055e1bc25139c9559ab47099f90fc0`.
 - New documentation-only commits trigger another CI run; check the latest run before merging.
 - Production bridge deployment: SUCCESS. Partial runtime acceptance: health 200 and unauthenticated POST 401. Authorized synthetic ingest and orchestrator dry-run: pending.
+
+
+## Verified Phase 9 acceptance checkpoint — 2026-10-09
+
+- Authorized synthetic ingest: PASS; Railway runtime used the existing secret internally, with `accepted=1`, `mode=ingest_only`, `send_triggered=false`.
+- Test flag `OPENOUTREACH_STARTUP_ACCEPTANCE_TEST` was returned to `false` after acceptance.
+- Gullkornet bounded sales-engine dry-run: PASS on commit `ea35aafa1f5f98d196b11ed070d949b3cc177970`.
+- KeeLead timeout was raised from 15s to 45s after the first dry-run hit `KEELEAD_TIMEOUT`; live KeeLead logs showed valid lead searches taking up to roughly 40s.
+- GitHub Actions Phase 9 Sales Engine Acceptance #2: PASS; runtime 49s; acceptance artifact produced.
+- No real prospect email was sent. No DNS/MX changes were made. No secrets were committed.
+- Remaining: verify the acceptance artifact/Airtable review persistence, then complete Phase 9 documentation and signoff before Phase 10.
