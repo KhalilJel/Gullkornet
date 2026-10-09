@@ -117,20 +117,11 @@ export function createOpenOutreachClient(
       return run(["outsend"], { stdin: jsonl });
     },
 
-    async send(count = "all") {
-      if (!allowSend) {
-        throw new Error("OPENOUTREACH_SEND_DISABLED");
-      }
-
-      const args = ["send"];
-      if (count !== "all") {
-        if (!Number.isInteger(count) || count < 1) {
-          throw new Error("OPENOUTREACH_INVALID_SEND_COUNT");
-        }
-        args.push(String(count));
-      }
-
-      return run(args);
+    async send(_count = "all") {
+      // Phase 11 safety lock: the legacy OpenOutreach send path lacks the
+      // approved-recipient, persistent rate-limit, and reply/suppression gates.
+      // Do not let OPENOUTREACH_ALLOW_SEND or constructor options bypass it.
+      throw new Error("OPENOUTREACH_SEND_DISABLED_PHASE11");
     }
   };
 }
