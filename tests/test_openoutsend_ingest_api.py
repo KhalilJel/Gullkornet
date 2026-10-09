@@ -245,9 +245,9 @@ class ReplyStatusEndpointTests(unittest.TestCase):
     def test_reply_search_checks_all_selectable_folders_read_only(self):
         client = unittest.mock.Mock()
         client.list_folders.return_value = [
-            ([b"\\\\HasNoChildren"], b"/", b"INBOX"),
-            ([b"\\\\Noselect"], b"/", b"Root"),
-            ([b"\\\\HasNoChildren"], b"/", b"Junk"),
+            ([b"\\HasNoChildren"], b"/", b"INBOX"),
+            ([b"\\Noselect"], b"/", b"Root"),
+            ([b"\\HasNoChildren"], b"/", b"Junk"),
         ]
         client.search.side_effect = [[], [123]]
         found = api.search_folders_for_sender(client, "michael@example.no")
