@@ -57,3 +57,17 @@ test("Airtable suppression checker fails closed when configuration is missing", 
   const checker = createAirtableSuppressionChecker({ apiToken: "", baseId: "" });
   await assert.rejects(() => checker("hello@example.no"), /AIRTABLE_SUPPRESSION_NOT_CONFIGURED/);
 });
+
+test("rejects non-HTTP schemes and credential-bearing website URLs", () => {
+  const leads = parseKeeLeadSearch({
+    leads: [
+      { company: "FTP Example AS", website: "ftp://example.no", email: "a@example.no" },
+      { company: "Credential Example AS", website: "https://user:pass@example.no", email: "b@example.no" },
+      { company: "Valid Example AS", website: "www.example.no", email: "c@example.no" }
+    ]
+  });
+  assert.equal(leads.length, 3);
+  assert.equal(leads[0]?.website, undefined);
+  assert.equal(leads[1]?.website, undefined);
+  assert.equal(leads[2]?.website, "https://www.example.no/");
+});

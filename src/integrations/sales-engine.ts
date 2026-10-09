@@ -53,6 +53,20 @@ function normalizeCompany(lead: SalesLead): string {
     : "";
 }
 
+function normalizeWebsiteDomain(lead: SalesLead): string {
+  if (typeof lead.website !== "string" || !lead.website.trim()) return "";
+  const raw = lead.website.trim();
+  // Only HTTP(S) URLs are identity evidence; reject other explicit schemes.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(raw) && !/^https?:\/\//i.test(raw)) return "";
+  try {
+    const url = new URL(/^https?:\/\//i.test(raw) ? raw : "https://" + raw);
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || !url.hostname) return "";
+    return url.hostname.toLowerCase().replace(/\.$/, "").replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
 /**
  * Phase 9 orchestration boundary. Prepares a qualified queue only.
  * It never sends email; sending remains a separately gated OpenOutSend operation.
@@ -73,20 +87,27 @@ export async function runSalesEngine(
   const unique: SalesLead[] = [];
   const seenEmails = new Set<string>();
   const seenCompanies = new Set<string>();
+  const seenDomains = new Set<string>();
 
   for (const lead of found) {
     const email = normalizeEmail(lead);
     const company = normalizeCompany(lead);
+    const domain = normalizeWebsiteDomain(lead);
     if (!email && !company) {
       skip("missing_identity");
       continue;
     }
-    if ((email && seenEmails.has(email)) || (company && seenCompanies.has(company))) {
+    if (
+      (email && seenEmails.has(email)) ||
+      (company && seenCompanies.has(company)) ||
+      (domain && seenDomains.has(domain))
+    ) {
       skip("duplicate");
       continue;
     }
     if (email) seenEmails.add(email);
     if (company) seenCompanies.add(company);
+    if (domain) seenDomains.add(domain);
     unique.push(lead);
   }
 
