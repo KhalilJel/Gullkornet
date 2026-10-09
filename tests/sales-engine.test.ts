@@ -189,3 +189,44 @@ test("retains rejected qualification decision and its explanation", async () => 
   assert.ok(result.rejectedLeads[0]?.reason.includes("No supported website/digital-presence opportunity"));
   assert.equal(result.queued, 0);
 });
+
+test("retries one explicitly transient provider timeout and then continues", async () => {
+  let attempts = 0;
+  const result = await runSalesEngine(deps({
+    enrich: async (lead) => {
+      attempts += 1;
+      if (attempts === 1) throw new Error("KEELEAD_TIMEOUT");
+      return { location: "Oslo", industry: "professional services", identityVerified: true, ...lead };
+    }
+  }));
+  assert.equal(attempts, 2);
+  assert.equal(result.queued, 1);
+  assert.equal(result.skipped.enrichment_failed, undefined);
+});
+
+test("does not retry permanent provider failures", async () => {
+  let attempts = 0;
+  const result = await runSalesEngine(deps({
+    enrich: async () => {
+      attempts += 1;
+      throw new Error("KEELEAD_HTTP_400");
+    }
+  }));
+  assert.equal(attempts, 1);
+  assert.equal(result.queued, 0);
+  assert.equal(result.skipped.enrichment_failed, 1);
+});
+
+test("does not retry ingest writes after an ambiguous failure", async () => {
+  let attempts = 0;
+  await assert.rejects(
+    () => runSalesEngine(deps({
+      ingest: async () => {
+        attempts += 1;
+        throw new Error("OPENOUTSEND_INGEST_TIMEOUT");
+      }
+    }), { dryRun: false }),
+    /OPENOUTSEND_INGEST_TIMEOUT/
+  );
+  assert.equal(attempts, 1);
+});
