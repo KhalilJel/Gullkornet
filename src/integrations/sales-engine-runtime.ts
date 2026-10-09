@@ -160,6 +160,10 @@ export function createPhase9SalesEngineDependencies(options: Phase9RuntimeOption
         if (!value) continue;
         if (key === "companyName") merged.company = value;
         else if (key === "domain" && !merged.website) merged.website = websiteFrom(value);
+        else if (key === "website") {
+          const safeWebsite = websiteFrom(value);
+          if (safeWebsite) merged.website = safeWebsite;
+        }
         else if (key === "lead_id") merged.id = value;
         else if (key === "firstName") merged.firstName = value;
         else if (key === "lastName") merged.lastName = value;
