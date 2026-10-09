@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
-import { fetchAirtableRecipientApproval } from "../integrations/airtable-send-approval.js";
+import { fetchAirtableRecipientApproval, markAirtableRecipientSent } from "../integrations/airtable-send-approval.js";
 import { assertRecipientHasNotReplied } from "../integrations/reply-status.js";
-import { assertLiveSendAllowed, assertProductionKillSwitchEnabled, assertRateLimits, countRecentSends, fetchRecentSendLedger, parseSuppressionList, prepareEmail, sendOneEmail, type OutreachDraft } from "../integrations/outbound-email.js";
+import { assertLiveSendAllowed, assertProductionKillSwitchEnabled, assertRateLimits, assertRecipientNotAlreadySent, countRecentSends, fetchRecentSendLedger, parseSuppressionList, prepareEmail, sendOneEmail, type OutreachDraft } from "../integrations/outbound-email.js";
 
 const args = process.argv.slice(2);
 const sendRequested = args.includes("--send");
@@ -27,6 +27,9 @@ try {
     process.exit(0);
   }
 
+  // The kill switch is the first live-path gate: if off, no provider/CRM calls occur.
+  assertProductionKillSwitchEnabled(process.env);
+
   let suppressionContents: string;
   try {
     suppressionContents = await readFile("data/suppressed-emails.txt", "utf8");
@@ -34,18 +37,19 @@ try {
     throw new Error("Required data/suppressed-emails.txt is missing. Create it before any live send; one email per line, # for comments.");
   }
   const suppressedEmails = parseSuppressionList(suppressionContents);
-  await fetchAirtableRecipientApproval(email.to, process.env);
+  const airtableRecordId = await fetchAirtableRecipientApproval(email.to, process.env);
   await assertRecipientHasNotReplied(email.to, process.env);
-  assertProductionKillSwitchEnabled(process.env);
   assertLiveSendAllowed(email, process.env, suppressedEmails);
   const ledger = await fetchRecentSendLedger(process.env.RESEND_API_KEY!.trim());
+  assertRecipientNotAlreadySent(ledger, email.to);
   assertRateLimits(countRecentSends(ledger), process.env);
   const result = await sendOneEmail(
     email,
     process.env.RESEND_API_KEY!.trim(),
     process.env.GULLKORNET_SEND_IDEMPOTENCY_KEY!.trim()
   );
-  console.log(`Resend accepted one email. Email ID: ${result.id}`);
+  await markAirtableRecipientSent(airtableRecordId, process.env);
+  console.log(`Resend accepted one email and Airtable is marked Sent. Email ID: ${result.id}`);
 } catch (error) {
   console.error(error instanceof Error ? error.message : "Outbound email failed.");
   process.exitCode = 1;
