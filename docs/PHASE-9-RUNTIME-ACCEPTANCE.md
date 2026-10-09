@@ -1,0 +1,69 @@
+# Phase 9 — OpenOutSend runtime acceptance runbook
+
+Status: COMPLETE
+Last updated: 2026-10-09
+
+## Live deployment and remaining acceptance
+
+The existing Railway `openoutreach` service is now deployed as the authenticated ingest-only API. Deployment ID: `3a8e90f7-2a42-4236-a59e-9be77eefe24c` (SUCCESS). Source is pinned to `KhalilJel/Gullkornet` commit `048a6c955af11066a9438d039c08127fada95e6e` on branch `phase9/openoutsend-ingest-api`. Generated Railway domain: `https://openoutreach-production-ab8b.up.railway.app` on port 8080.
+
+Verified so far: runtime `GET /health` returned 200, and an unauthenticated `POST /v1/leads` returned 401. The deployment includes Python bridge tests and Docker build verification. `OPENOUTREACH_ALLOW_SEND=false` is configured. No DNS/MX/custom-domain changes or real-prospect sends were made.
+
+The repository still has no separate deployed Gullkornet orchestration service. Configure the generated HTTPS URL and the matching bearer token only in the actual Gullkornet execution environment when that environment is ready. Do not put the token in source, GitHub docs, logs, or chat.
+
+## Applied deployment configuration
+
+1. Existing `openoutreach` service points to `KhalilJel/Gullkornet`, branch `phase9/openoutsend-ingest-api`, pinned to commit `048a6c955af11066a9438d039c08127fada95e6e`.
+2. Existing Dockerfile build retained; Python unit tests run during image build.
+3. Start command: `python /app/openoutsend_ingest_api.py`.
+4. Restart policy: `ALWAYS`; health check path: `/health`.
+5. Generated Railway HTTPS domain: `https://openoutreach-production-ab8b.up.railway.app`, container port `8080`; no custom domain.
+6. Fresh high-entropy `OPENOUTREACH_INGEST_TOKEN` set as a Railway runtime variable. Never commit it or print it to logs.
+7. `OPENOUTREACH_ALLOW_SEND=false` is explicitly set. No sending switch was enabled.
+8. Still pending: set `OPENOUTREACH_INGEST_URL` and the same token only in the actual environment that runs Gullkornet. No deployed orchestrator service currently exists.
+
+Do not overwrite or recreate existing sealed credentials. Do not change SMTP/IMAP/Resend or DNS/MX settings for this step.
+
+## No-send acceptance sequence
+
+1. PASS: deployment reports SUCCESS; runtime logs confirm `GET /health` returned HTTP 200.
+2. PASS: unauthenticated `POST /v1/leads` returned HTTP 401.
+3. Bridge unit tests/build passed in CI and Docker build. Live malformed-payload rejection still needs HTTP acceptance.
+4. PENDING: submit one authorized synthetic record using a reserved `example.invalid` email address; verify `mode: ingest_only`, `accepted: 1`, and `send_triggered: false`.
+5. PASS: synthetic acceptance completed with `send_triggered=false`; no real prospect email was sent.
+6. PASS: Phase 9 bounded sales-engine dry-run completed successfully with `maxLeads=1`; acceptance artifact was produced and no send path was enabled.
+7. Verify deployment logs contain no bearer token, email addresses, or draft bodies.
+
+## Stop conditions
+
+Stop and roll back if health checks fail, authentication can be bypassed, an ingest request triggers delivery, or the runtime attempts to send to any real prospect. Keep the existing send gate disabled.
+
+## Current state
+
+- Bridge unit tests and Docker build: passed in [workflow 37888603594](https://github.com/KhalilJel/Gullkornet/actions/runs/37888603594).
+- TypeScript CI and KeeLead live acceptance: passed on commit `db6352222c055e1bc25139c9559ab47099f90fc0`.
+- New documentation-only commits trigger another CI run; check the latest run before merging.
+- Production bridge deployment: SUCCESS. Partial runtime acceptance: health 200 and unauthenticated POST 401. Authorized synthetic ingest and orchestrator dry-run: pending.
+
+
+## Verified Phase 9 acceptance checkpoint — 2026-10-09
+
+- Authorized synthetic ingest: PASS; Railway runtime used the existing secret internally, with `accepted=1`, `mode=ingest_only`, `send_triggered=false`.
+- Test flag `OPENOUTREACH_STARTUP_ACCEPTANCE_TEST` was returned to `false` after acceptance.
+- Gullkornet bounded sales-engine dry-run: PASS on commit `ea35aafa1f5f98d196b11ed070d949b3cc177970`.
+- KeeLead timeout was raised from 15s to 45s after the first dry-run hit `KEELEAD_TIMEOUT`; live KeeLead logs showed valid lead searches taking up to roughly 40s.
+- GitHub Actions Phase 9 Sales Engine Acceptance #2: PASS; runtime 49s; acceptance artifact produced.
+- No real prospect email was sent. No DNS/MX changes were made. No secrets were committed.
+- Remaining: verify the acceptance artifact/Airtable review persistence, then complete Phase 9 documentation and signoff before Phase 10.
+
+
+## Phase 9 final signoff — 2026-10-09
+
+- Authorized OpenOutSend synthetic ingest: PASS. The existing Railway runtime used the secret internally and returned `accepted=1`, `mode=ingest_only`, `send_triggered=false`.
+- Startup acceptance flag was disabled again after verification.
+- Gullkornet bounded sales-engine acceptance run #3: PASS on commit `ab2a2041e8545e589776fbac64d8ebb24041bd3a`.
+- Acceptance processed 35 discovered leads, deduplicated to 26, researched 3, routed 3 to mandatory human review, queued 0 for automated outreach, and reported `emailSent=0`.
+- Airtable persistence: PASS. One new review record was created in the Gullkornet Lead Registry `Leads` table at `2026-10-09T09:13:55Z` with status `Needs Review`. The record was verified through the Airtable connector after the acceptance run.
+- GitHub Actions CI #292: PASS. KeeLead Live Acceptance #63: PASS. Phase 9 Sales Engine Acceptance #3: PASS.
+- No real prospect email was sent. No DNS/MX changes were made. No secrets were committed.
+- Phase 9 is complete. Phase 10 is the next locked phase.

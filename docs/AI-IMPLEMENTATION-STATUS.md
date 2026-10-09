@@ -1,6 +1,6 @@
 # AI Layer Implementation Status
 
-Last updated: 2026-10-08
+Last updated: 2026-10-09
 
 ## Rule
 
@@ -20,15 +20,15 @@ Implement → test/verify → document → commit → verify → next phase.
 - [x] Phase 5 — TypeSafe + JEV autonomous decision layer
 - [x] Phase 6 — Browser Use
 - [x] Phase 7 — KeeLead
-- [ ] Phase 8 — OpenOutreach
-- [ ] Phase 9 — End-to-end integration
+- [x] Phase 8 — OpenOutreach
+- [x] Phase 9 — End-to-end integration (COMPLETE)
 - [ ] Phase 10 — End-to-end testing
 - [ ] Phase 11 — Production
 - [ ] Phase 12 — Autonomous Cidea AI Sales Engine
 
 ## Current phase
 
-Phase 8 — OpenOutreach is the active phase.
+Phase 10 — End-to-end testing is the active phase.
 
 ## Current architecture boundary
 
@@ -444,3 +444,97 @@ Phase 6 is now **NOT STARTED**. No Browser Use provider, API key, DNS/MX record,
 ### KeeLead implementation boundary
 
 The deployed KeeLead service points to `KhalilJel/keelead`, but the connected GitHub integration cannot read or modify that repository (404/403). The upstream KeeLead repository documents 35 free sources and explicitly notes that some data sources are placeholder implementations. The current deployed `/api/leads` path was inspected from the upstream source and uses the legacy lead engine rather than the newer SourceManager. Therefore the next required implementation is to switch the deployed API route to the SourceManager based pipeline before production use. No new Railway service should be created just to work around repository access.
+
+
+## Phase 9 — runtime boundary audit (2026-10-09)
+
+Phase 9 is **IN PROGRESS**. The orchestration unit boundary and tests have been hardened on `phase9/end-to-end-orchestration`, but this is not yet end-to-end integration.
+
+Verified architecture finding:
+- The deployed KeeLead service is reachable at `https://keelead-production-9f05.up.railway.app`; its source repository remains inaccessible to the connected GitHub integration, and documented placeholder sources are not production evidence.
+- The current OpenOutreach TypeScript adapter invokes a local CLI. The deployed Railway `openoutreach` service has no domain and starts `outsend check` with restart policy `NEVER`; it does not currently expose a remote queue-ingestion endpoint.
+- PR #66 remains an open draft. Its runtime changes are deployed from the phase-8 branch but are not merged into `main`.
+- Therefore, the current code must not be described as a live integrated sales engine. A secure queue handoff and real runtime acceptance remain required.
+
+No real-prospect email was sent. No secrets were committed. No DNS/MX changes were made.
+
+
+### Phase 9 update — authenticated OpenOutSend handoff (2026-10-09)
+
+- Added a remote ingest-only TypeScript client on `phase9/end-to-end-orchestration`; it validates batches and requires the server acknowledgement to confirm no send was triggered.
+- Added PR #68 (`phase9/openoutsend-ingest-api` → `fix/openoutsend-pydantic-compat`) for the corresponding bearer-authenticated API in the existing OpenOutSend runtime. This PR is a draft and has not been deployed.
+- The endpoint is designed to invoke only `outsend` with NDJSON on stdin, never `outsend send`. The API requires a runtime-only `OPENOUTREACH_INGEST_TOKEN`, has bounded request sizes, and contains no secrets in source.
+- Python API tests and Docker image verification are still pending. No production service source/configuration has been changed for this bridge.
+
+
+### Phase 9 runtime composition (2026-10-09)
+
+- Added the Phase 9 runtime composition adapter and a dry-run-by-default `npm run sales-engine` entrypoint on the Phase 9 branch.
+- The entrypoint uses KeeLead for discovery/enrichment/email verification, the existing public-URL-safe website audit/contact research, and Airtable Do Not Contact flags. Airtable lookup fails closed.
+- Human-review-required findings are preserved in a local ignored review-queue file; they are not sent to OpenOutSend. The runtime entrypoint has not yet been run against live prospect data.
+- Latest CI and KeeLead live acceptance checks are pending for the newest commit. The separate OpenOutSend ingest API unit tests have passed, but that API has not been deployed.
+
+
+### Phase 9 CRM sync and verification checkpoint (2026-10-09)
+
+- `npm run sales-engine` now persists human-review findings through the existing Airtable sync path, using the existing CRM duplicate-key and do-not-contact rules. The record is marked for review; this does not send email.
+- TypeScript CI passed on `fd0366ebc181c8a69ebf7c8f45bbdb06a96c7ad8` (typecheck and unit tests).
+- The separate OpenOutSend ingest bridge's Python unit tests and Docker image build passed. PR #68 remains draft and is not deployed.
+- KeeLead live acceptance is being rechecked on the latest commit. End-to-end runtime acceptance is still outstanding because the bridge has not been configured/deployed on the existing Railway service.
+
+
+### Phase 9 verification checkpoint (2026-10-09)
+
+- Phase 9 TypeScript CI and KeeLead Live Acceptance passed on commit `66da0cba614a0222a77bfc9c1ae46c0083cbf717`.
+- OpenOutSend ingest bridge Python tests and Docker build passed on commit `048a6c955af11066a9438d039c08127fada95e6e`.
+- The bridge is not deployed; the current Railway service still starts `outsend check` with restart policy `NEVER` and has no service domain. Phase 9 remains IN PROGRESS until private runtime acceptance passes.
+- The research adapter requires human review by design. Do not bypass that gate to make the queue appear active.
+
+
+### Phase 9 deployment checkpoint — OpenOutSend ingest bridge (2026-10-09)
+
+**Deployment: SUCCESS. End-to-end acceptance: INCOMPLETE.**
+
+- Deployed the existing Railway `openoutreach` service in project `powerful-patience`; no new Railway service was created.
+- Source is pinned to `KhalilJel/Gullkornet` commit `048a6c955af11066a9438d039c08127fada95e6e` on branch `phase9/openoutsend-ingest-api`.
+- Railway deployment `3a8e90f7-2a42-4236-a59e-9be77eefe24c`: SUCCESS.
+- Generated Railway HTTPS domain: `https://openoutreach-production-ab8b.up.railway.app`, routed to container port 8080. No custom domain and no DNS/MX changes.
+- Runtime health check: `GET /health` returned HTTP 200; runtime logs confirm the service started and no send endpoint is exposed.
+- Authentication check: unauthenticated `POST /v1/leads` returned HTTP 401.
+- `OPENOUTREACH_ALLOW_SEND=false` is configured. A fresh high-entropy `OPENOUTREACH_INGEST_TOKEN` is stored only as a Railway runtime variable; its value is not documented or logged.
+- The Docker build includes and passed the bridge's Python unit tests. CI/Docker build evidence: https://github.com/KhalilJel/Gullkornet/actions/runs/37888603594
+- No real prospect was sent an email.
+
+Remaining acceptance:
+1. Send one authorized synthetic `example.invalid` lead through `POST /v1/leads` and verify the response has `mode=ingest_only`, `accepted=1`, and `send_triggered=false`.
+2. Verify the synthetic item is stored and no email is generated.
+3. Configure `OPENOUTREACH_INGEST_URL` and the same runtime token only in the actual Gullkornet execution environment. No deployed orchestration service currently exists, so do not claim the end-to-end runtime is complete.
+4. Run the bounded Gullkornet dry-run and confirm Airtable review sync, suppression fail-closed behavior, and no sends.
+5. Document the results and rerun CI before closing Phase 9.
+
+The bridge deployment is complete, but Phase 9 is not complete until the authorized synthetic ingest and orchestrator dry-run are verified.
+
+
+## Phase 9 bounded runtime acceptance checkpoint — 2026-10-09
+
+- Authorized OpenOutSend synthetic ingest: PASS; ingest-only acknowledgement confirmed and sending remained disabled.
+- Gullkornet bounded sales-engine dry-run: PASS on `ea35aafa1f5f98d196b11ed070d949b3cc177970`.
+- KeeLead client timeout corrected from 15s to 45s after the initial acceptance exposed the mismatch.
+- Phase 9 Sales Engine Acceptance #2: PASS; acceptance artifact produced.
+- No real prospect email was sent. No DNS/MX changes. No secrets committed.
+- Phase 9 remains IN PROGRESS until artifact/Airtable persistence is verified and final signoff is committed.
+
+
+## Phase 9 completion checkpoint — 2026-10-09
+
+Phase 9 is COMPLETE.
+
+- Authorized OpenOutSend synthetic ingest: PASS; ingest-only acknowledgement confirmed and sending remained disabled.
+- Gullkornet bounded sales-engine acceptance #3: PASS on `ab2a2041e8545e589776fbac64d8ebb24041bd3a`.
+- Acceptance result: 35 discovered, 26 deduplicated, 3 researched, 3 human-review records, 0 automated outreach queue items, 0 emails sent.
+- Airtable review persistence: PASS; one new `Needs Review` record created and independently verified in the Gullkornet Lead Registry.
+- CI #292: PASS.
+- KeeLead Live Acceptance #63: PASS.
+- Phase 9 Sales Engine Acceptance #3: PASS.
+- No real prospect email sent. No DNS/MX changes. No secrets committed.
+- Next locked phase: Phase 10 — End-to-end testing.
