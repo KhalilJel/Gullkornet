@@ -37,7 +37,7 @@ export type KeeLeadClient = {
   scoreLead(input: Record<string, unknown>): Promise<unknown>;
 };
 
-const DEFAULT_TIMEOUT_MS = 15_000;
+const DEFAULT_TIMEOUT_MS = 45_000;
 
 function normalizeBaseUrl(raw: string): string {
   const url = new URL(raw);
