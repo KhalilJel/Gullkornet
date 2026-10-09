@@ -32,6 +32,7 @@ The workflow is run by `src/cli/run-sales-engine.ts`, with orchestration in `src
 | Gullkornet sales engine | Coordinate discovery, deduplication, verification, suppression, research and review routing | TypeScript interfaces in `sales-engine.ts`; bounded `maxLeads` |
 | KeeLead | Prospect discovery, enrichment and email verification | `KeeLeadClient`; provider failures are caught and counted |
 | Website audit | Inspect public website metadata and bounded HTML signals | `auditCandidate`; public URL/DNS safety checks, timeout and body-size limits |
+| Qualification | Score explicit opportunity evidence and service fit | `evaluateLeadQualification`; deterministic reasons, pilot-area and competitor checks; unknown identity/industry/geography routes to review |
 | Contact research | Extract public business contact details and prepare the approved generic draft | `researchContactAndDraft`; output always requires human review |
 | Airtable | Suppression source and durable review queue | Suppression lookup fails closed; sync is separate from sending |
 | OpenOutSend | Store accepted leads and maintain mailbox/outreach state | Authenticated ingest-only API; this client exposes no send method |
@@ -43,7 +44,7 @@ The existing Railway project is `powerful-patience`. The `cidea-website-intellig
 
 1. `runSalesEngine` defaults to dry-run when no options are supplied.
 2. `createPhase9SalesEngineDependencies` currently marks every website research result `requiresHumanReview: true`. This is a deliberate safety gate: the runtime creates review records rather than qualifying records for downstream ingest.
-3. The current score is a simple heuristic based on website flags; it is not evidence of lost revenue, business harm, or likely conversion.
+3. Qualification now produces a bounded, explainable score and explicit reasons from known website flags, configured pilot geography, identity confidence and industry. Automated flags are only signals for human review, never evidence of lost revenue, business harm, or likely conversion.
 4. Website signals and extracted email addresses are not independent verification. Publicly listed addresses still require manual confirmation and legal/contact-policy review.
 5. The CLI writes local JSON artifacts with restrictive file mode and syncs review records to Airtable. It logs counts rather than draft bodies or email addresses.
 6. `src/integrations/openoutsend-ingest.ts` can only call `POST /v1/leads` with NDJSON. It asserts accepted count, `mode=ingest_only`, and `send_triggered=false`. Do not add a send method.
@@ -54,7 +55,7 @@ The existing Railway project is `powerful-patience`. The `cidea-website-intellig
 
 - **Candidate:** stable business identity, business name, official website if known, geography/industry, and provenance.
 - **Website finding:** source URL, final URL, checked timestamp, observation, evidence excerpt or signal, and a clear distinction between automated signal and human-verified fact.
-- **Qualification decision:** explicit score/reasons plus a state of qualified, review-required, rejected, or suppressed. Missing/uncertain evidence must not become a qualified lead.
+- **Qualification decision:** `evaluateLeadQualification` returns explicit score/reasons plus a state of qualified, review-required, rejected, or suppressed. Missing/uncertain evidence must not become a qualified lead. The runtime continues to require human review for its current research outputs.
 - **Draft:** approved template, source-linked internal rationale, draft text, review state, and no implicit send authorization.
 - **CRM operation:** idempotent upsert, preserve terminal/suppression states, and fail closed when suppression or persistence cannot be checked.
 - **Outreach boundary:** ingest-only, authenticated, bounded, and incapable of sending from the Gullkornet adapter.
