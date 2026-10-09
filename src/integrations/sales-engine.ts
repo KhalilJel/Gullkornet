@@ -40,6 +40,7 @@ export type SalesEngineResult = {
   researched: number;
   qualified: number;
   rejected: number;
+  rejectedLeads: SalesEngineReviewItem[];
   queued: number;
   reviewRequired: SalesEngineReviewItem[];
   skipped: Record<string, number>;
@@ -122,6 +123,7 @@ export async function runSalesEngine(
   const reviewRequired: SalesEngineReviewItem[] = [];
   let researched = 0;
   let rejected = 0;
+  const rejectedLeads: SalesEngineReviewItem[] = [];
 
   for (const candidate of unique.slice(0, maxLeads)) {
     let lead: SalesLead;
@@ -210,6 +212,11 @@ export async function runSalesEngine(
     }
     if (qualification.status === "rejected") {
       rejected += 1;
+      rejectedLeads.push({
+        lead,
+        reason: qualification.reasons[0] ?? "qualification_rejected",
+        research: evaluatedResearch
+      });
       skip("qualification_rejected");
       continue;
     }
@@ -234,6 +241,7 @@ export async function runSalesEngine(
     researched,
     qualified: queue.length,
     rejected,
+    rejectedLeads,
     queued: queue.length,
     reviewRequired,
     skipped,
