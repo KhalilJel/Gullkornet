@@ -196,3 +196,36 @@ test("fails before network access when Airtable credentials are missing", async 
   );
   assert.equal(called, false);
 });
+
+test("matches legacy CRM rows without a Duplicate Key using the website domain", async () => {
+  let postCount = 0;
+  let patchCount = 0;
+  const result = await syncAirtableReviewRecords([item({ websiteUrl: "https://www.example.no/new-path" })], {
+    ...options,
+    fetchImpl: async (_input, init) => {
+      if (init?.method === "GET") {
+        return jsonResponse({ records: [{
+          id: "legacy",
+          fields: { Company: "Example AS", Website: "https://example.no/old-path", "Lead Status": "Needs Review" }
+        }] });
+      }
+      if (init?.method === "POST") {
+        postCount += 1;
+        return jsonResponse({ records: [] });
+      }
+      if (init?.method === "PATCH") {
+        patchCount += 1;
+        const body = JSON.parse(String(init.body));
+        assert.equal(body.records[0].id, "legacy");
+        return jsonResponse({ records: [{ id: "legacy", fields: body.records[0].fields }] });
+      }
+      throw new Error("Unexpected method");
+    }
+  });
+
+  assert.equal(result.created, 0);
+  assert.equal(result.updated, 1);
+  assert.equal(postCount, 0);
+  assert.equal(patchCount, 1);
+});
+
