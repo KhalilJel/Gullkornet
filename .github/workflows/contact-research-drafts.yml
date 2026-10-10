@@ -58,7 +58,7 @@ jobs:
             throw new Error("Website audit handoff contains a candidate without a valid company name.");
           }
           await mkdir("data/input/source", { recursive: true });
-          await writeFile("data/input/source/google-candidates.json", JSON.stringify(candidates, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
+          await writeFile("data/input/source/google-candidates.json", JSON.stringify(candidates, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
           console.log(`Reconstructed ${candidates.length} minimized candidate records from the audit handoff.`);
           NODE
 
@@ -94,7 +94,7 @@ jobs:
               recordsNeedingReview: records.filter((record) => record.researchStatus === "REVIEW_REQUIRED").length,
               emailSent: 0
             };
-            await writeFile("data/contact-research-summary.json", JSON.stringify(summary, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
+            await writeFile("data/contact-research-summary.json", JSON.stringify(summary, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
           '
 
       - name: Upload metadata-only research summary
