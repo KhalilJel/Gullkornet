@@ -606,4 +606,9 @@ Step 9 is complete and merged through PR #86 (`de8e5410038fe5b0866521dd9632dc386
 
 - No real prospect emails were sent. No DNS/MX, Railway configuration, or deployment changes were made.
 - A workflow-only lockfile assumption and a GitHub expression-interpolation issue were corrected before the passing run.
-- **Next:** Step 11 production-readiness review without activation; Step 12 closeout remains pending. Phase 12 is not complete.
+- **Phase 12 Step 11 read-only production-readiness review** is documented in `docs/PHASE-12-PRODUCTION-READINESS.md`. It found the Railway production environment healthy at inspection time, with no pending changes; OpenOutSend remains on its existing Phase 11 branch and reply-monitor logs were healthy. No configuration or deployment changes were made.
+
+- PR #89 removes raw review-queue and draft JSON from Phase 10 CI artifact uploads; only the structured sales-engine log remains as an artifact.
+- Remaining pre-pilot blockers: no dependency lockfile, no formal prospect-data retention schedule, sender CLI preview prints recipient/draft content to stdout, and current Railway safety flags must be directly reverified before any separately authorized send.
+- Sending remains **not approved**; no real prospect emails were sent. No DNS/MX or Railway configuration changes were made.
+- **Next:** Step 12 closeout after PR #89 and its docs pass all checks and merge. Phase 12 is not complete.
