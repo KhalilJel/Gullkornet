@@ -40,7 +40,7 @@ This is a read-only production-readiness review. It does not authorize or perfor
 
 1. Create and commit a dependency lockfile, then use deterministic dependency installation in CI.
 2. Merge and verify PR #89 so GitHub Actions artifacts no longer include raw prospect/draft JSON.
-3. Define a prospect/research/draft retention and deletion policy for Airtable, local artifacts, and CI logs.
+3. Approve or revise the proposed schedule in `docs/PROSPECT-DATA-RETENTION-POLICY.md`, then implement and verify deletion/retention controls for Airtable, local artifacts, and CI logs.
 4. Merge and verify PR #93 (privacy-safe sender CLI output and explicit local preview path) after owner approval; until merged, treat `main` as still containing the old log behavior.
 5. Directly reverify both Railway safety flags in the Railway UI immediately before any separately authorized pilot; do not expose their values in logs or commits.
 6. For each future single-recipient pilot, verify a fresh, unique idempotency key and exact recipient approval, suppression status, reply status, sender identity, and current rate limits.
@@ -64,4 +64,4 @@ Phase 12 is complete for controlled, non-sending dry-run acceptance only. Produc
 - Added synthetic coverage for log redaction, local preview contents and permissions, overwrite prevention, and incompatible flags.
 - GitHub Actions verification on PR head `949a0cd111dc45c464261b8a7c0ba07fc059e8a1` completed successfully: CI and the Phase 12 Dry-Run Acceptance, KeeLead Live Acceptance, Phase 10 End to End Testing, and Phase 11 Production Readiness workflows all report `success` (run IDs: `38055472307`, `38055472259`, `38055472271`, `38055472284`, `38055472280`).
 - PR #93 remains unmerged pending explicit owner approval. No production email, DNS/MX, Railway configuration, or deployment actions were performed.
-- Remaining blockers include the missing `package-lock.json` and deterministic CI installation, plus a documented prospect/research/draft retention and deletion policy. Live sending remains not approved.
+- Remaining blockers include the missing `package-lock.json` and deterministic CI installation, plus owner approval and implementation of the proposed prospect/research/draft retention and deletion policy in `docs/PROSPECT-DATA-RETENTION-POLICY.md`. Live sending remains not approved.
