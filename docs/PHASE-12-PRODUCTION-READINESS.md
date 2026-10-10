@@ -87,3 +87,10 @@ Phase 12 is complete for controlled, non-sending dry-run acceptance only. Produc
 - Contact research continues to upload only aggregate metadata. Website audit still hands off minimized candidate fields and structured audit signals to downstream research for functional continuity; it expires after 7 days and contains no raw HTML. This remains a prospect-data artifact and needs a future persistent, access-controlled handoff design before live outreach.
 - The retention policy now distinguishes approved internal defaults from implementation status. Airtable/local deletion and provider log-retention controls remain unimplemented. No automatic deletion, live sending, DNS/MX changes, Railway changes, or deployment was performed.
 - These latest changes are on PR #93 and require fresh CI/acceptance verification. PR remains open and unmerged pending explicit owner approval.
+
+## Audit handoff minimization follow-up — 2026-10-10
+
+- Website Audit now uploads only `website-audit.json`; the duplicate `google-candidates.json` artifact file was removed.
+- Contact Research and Digital Presence reconstruct their minimal candidate input (company name, website URL, city, industry, source URL) from the audit records inside their runner, with restrictive local file mode where supported. This avoids storing a second copy in the cross-workflow artifact while preserving downstream processing.
+- The single audit handoff still contains business/prospect data and structured audit signals and expires after 7 days. It does not contain raw HTML. This is a minimization improvement, not full metadata-only compliance; persistent, access-controlled transfer and Airtable/local deletion controls remain open blockers.
+- These changes are on PR #93 and require fresh CI and acceptance verification. PR remains open and unmerged; no live sending, DNS/MX, Railway configuration, or deployment actions were performed.
