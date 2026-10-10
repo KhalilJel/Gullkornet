@@ -602,15 +602,18 @@ Step 9 is complete and merged through PR #86 (`de8e5410038fe5b0866521dd9632dc386
 - OpenOutSend remains ingest-only and the scheduled sending workflow remains hard-disabled.
 - Known limitation: centralized alerting, stale-monitor detection, and a new health endpoint remain out of scope.
 
-**Phase 12 Step 10 acceptance workflow is implemented and verified** in PR #88 (pending merge at documentation time). The synthetic workflow passed on commit `35e45e1551a59ef9d64e1835c4d4eeb8f8a87dda`, alongside CI/tests, Phase 10 E2E, Phase 11 readiness, and KeeLead Live Acceptance. It runs deterministic tests without configuring live provider credentials, verifies the scheduled send guard and OpenOutSend ingest-only boundary, and uploads no prospect data.
+## Phase 12 — final closeout (2026-10-10)
 
-- No real prospect emails were sent. No DNS/MX, Railway configuration, or deployment changes were made.
-- A workflow-only lockfile assumption and a GitHub expression-interpolation issue were corrected before the passing run.
-- **Phase 12 Step 11 read-only production-readiness review** is documented in `docs/PHASE-12-PRODUCTION-READINESS.md`. It found the Railway production environment healthy at inspection time, with no pending changes; OpenOutSend remains on its existing Phase 11 branch and reply-monitor logs were healthy. No configuration or deployment changes were made.
+**Status: COMPLETE for the controlled, non-sending dry-run scope. Production sending is NOT approved.**
 
-- PR #89 removes raw review-queue and draft JSON from Phase 10 CI artifact uploads; only the structured sales-engine log remains as an artifact.
-- Remaining pre-pilot blockers: no dependency lockfile, no formal prospect-data retention schedule, sender CLI preview prints recipient/draft content to stdout, and current Railway safety flags must be directly reverified before any separately authorized send.
-- Sending remains **not approved**; no real prospect emails were sent. No DNS/MX or Railway configuration changes were made.
-- PR #89 is merged at `871bada745d6dda30ab7f798b5acd032861c89f8`; all five checks passed on its final head.
-- **Step 11 is complete as a read-only readiness review.** Production sending remains not approved because the documented pre-pilot blockers remain open.
-- **Step 12 closeout is in progress:** the acceptance workflow is being configured to run on relevant `main` pushes, and final-main checks must pass before Phase 12 can be marked complete.
+- Step 9 observability is merged in PR #86; documentation in PR #87 is merged.
+- Step 10 synthetic acceptance workflow is merged in PR #88.
+- Step 11 read-only readiness review and CI artifact privacy remediation are merged in PR #89.
+- Step 12 final-main acceptance trigger and closeout record are merged in PR #90.
+- Final-main commit `711e4df1ad546dd28167c56884a2d8d884893b2c` passed `Synthetic non-sending acceptance`, `test`, and `keelead-live-acceptance`. PR #90 final-head checks also passed `phase10` and `phase11-readiness`.
+- Railway production was healthy during the read-only inspection; no configuration changes or deployments were made. The runtime's current safety-flag values were not independently read during this review.
+- The readiness report documents open pre-pilot blockers: no dependency lockfile, no formal prospect-data retention policy, sender CLI preview output contains recipient/draft content, and current Railway flags must be reverified before any separately approved send.
+- The synthetic workflow is now configured to run on relevant pushes to `main`; it must continue to pass. The scheduled send job remains hard-disabled, and OpenOutSend remains ingest-only.
+- No real prospect emails were sent. No DNS/MX or Railway configuration changes were made.
+
+Phase 12 closeout does not imply or authorize production sending. Any live pilot requires separate explicit authorization and completion of the documented pre-pilot gates.
