@@ -17,8 +17,7 @@ if (sendRequested && previewFilePath) {
 
 const positional = args.filter((arg, index) =>
   arg !== "--send" &&
-  index !== previewFileIndex &&
-  index !== previewFileIndex + 1
+  (previewFileIndex < 0 || (index !== previewFileIndex && index !== previewFileIndex + 1))
 );
 const inputPath = positional[0] ?? "data/contact-research-drafts.json";
 const recipient = positional[1];
