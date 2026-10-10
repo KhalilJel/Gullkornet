@@ -143,6 +143,6 @@ test("draft lookup failure does not expose the requested recipient in logs", () 
 
 test("post-send Airtable failure never includes provider/CRM error details in the CLI", () => {
   const source = readFileSync("src/cli/send-email.ts", "utf8");
-  assert.match(source, /catch \\{\\s*\\/\\/ Do not echo provider\\/CRM error details/);
-  assert.doesNotMatch(source, /Detail: \\${reason}/);
+  assert.ok(source.includes("Do not echo provider/CRM error details"));
+  assert.equal(source.includes("Detail: ${reason}"), false);
 });
