@@ -62,6 +62,7 @@ test("aggregate run summary contains counts and control metadata only", () => {
   const summaryObject = summaryStep.match(/const summary = \{([\s\S]*?)\n          \};/)?.[1];
   assert.ok(summaryObject, "summary object must be explicit");
   assert.doesNotMatch(summaryObject, /(?:companyName|websiteUrl|sourceUrl|draftBody|subject|recipient|pageTitle|personalizationEvidence|emails)\s*:/);
+  assert.doesNotMatch(summaryObject, /searchTerm\s*:/, "user-provided search text should not be persisted in the summary artifact");
 });
 
 test("every workflow shell stage uses a restrictive umask", () => {
