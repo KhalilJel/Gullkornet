@@ -166,7 +166,6 @@ jobs:
           const records = JSON.parse(await readFile("data/contact-research-drafts.json", "utf8"));
           const summary = {
             generatedAt: new Date().toISOString(),
-            searchTerm: process.env.SEARCH_TERM ?? "manual",
             candidates: candidates.length,
             websitesAudited: audits.length,
             recordsWithPublicEmail: records.filter((row) => Array.isArray(row.emails) && row.emails.length > 0).length,
