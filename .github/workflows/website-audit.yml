@@ -31,7 +31,7 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Download candidate artifact
         uses: actions/download-artifact@v4
@@ -47,11 +47,9 @@ jobs:
           npm run --silent audit:websites -- data/source/google-candidates.json > data/website-audit.json
           echo "Website audit output created. Signals are automated and require manual review."
 
-      - name: Upload website audit and candidate inputs
+      - name: Upload single website audit handoff
         uses: actions/upload-artifact@v4
         with:
           name: gullkornet-website-audit
-          path: |
-            data/website-audit.json
-            data/source/google-candidates.json
-          retention-days: 30
+          path: data/website-audit.json
+          retention-days: 7

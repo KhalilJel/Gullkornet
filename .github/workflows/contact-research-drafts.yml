@@ -31,7 +31,7 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Download website audit and candidate inputs
         uses: actions/download-artifact@v4
@@ -40,6 +40,27 @@ jobs:
           path: data/input
           run-id: ${{ github.event_name == 'workflow_dispatch' && inputs.audit_run_id || github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Reconstruct minimal candidate input from audit handoff
+        run: |
+          node --input-type=module <<'NODE'
+          import { mkdir, readFile, writeFile } from "node:fs/promises";
+          const audits = JSON.parse(await readFile("data/input/website-audit.json", "utf8"));
+          if (!Array.isArray(audits)) throw new Error("Website audit handoff must be an array.");
+          const candidates = audits.map((row) => ({
+            companyName: row.companyName,
+            ...(typeof row.websiteUrl === "string" ? { websiteUrl: row.websiteUrl } : {}),
+            ...(typeof row.city === "string" ? { city: row.city } : {}),
+            ...(typeof row.industry === "string" ? { industry: row.industry } : {}),
+            ...(typeof row.sourceUrl === "string" ? { sourceUrl: row.sourceUrl } : {})
+          }));
+          if (candidates.some((row) => typeof row.companyName !== "string" || !row.companyName.trim())) {
+            throw new Error("Website audit handoff contains a candidate without a valid company name.");
+          }
+          await mkdir("data/input/source", { recursive: true });
+          await writeFile("data/input/source/google-candidates.json", JSON.stringify(candidates, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
+          console.log(`Reconstructed ${candidates.length} minimized candidate records from the audit handoff.`);
+          NODE
 
       - name: Research public contact emails and prepare drafts
         run: |
@@ -60,11 +81,25 @@ jobs:
           fi
           npm run --silent sync:airtable -- data/contact-research-drafts.json
 
-      - name: Upload contact research and draft artifact
+      - name: Create metadata-only research summary
+        run: |
+          node --input-type=module -e '
+            import { readFile, writeFile } from "node:fs/promises";
+            const records = JSON.parse(await readFile("data/contact-research-drafts.json", "utf8"));
+            const summary = {
+              generatedAt: new Date().toISOString(),
+              totalRecords: records.length,
+              recordsWithPublicEmail: records.filter((record) => Array.isArray(record.emails) && record.emails.length > 0).length,
+              recordsWithDraft: records.filter((record) => typeof record.subject === "string" && typeof record.draftBody === "string").length,
+              recordsNeedingReview: records.filter((record) => record.researchStatus === "REVIEW_REQUIRED").length,
+              emailSent: 0
+            };
+            await writeFile("data/contact-research-summary.json", JSON.stringify(summary, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
+          '
+
+      - name: Upload metadata-only research summary
         uses: actions/upload-artifact@v4
         with:
-          name: gullkornet-contact-research-drafts
-          path: |
-            data/contact-research-drafts.json
-            data/lead-review-queue.md
-          retention-days: 30
+          name: gullkornet-contact-research-summary
+          path: data/contact-research-summary.json
+          retention-days: 7
