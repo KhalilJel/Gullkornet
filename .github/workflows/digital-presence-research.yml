@@ -64,4 +64,4 @@ jobs:
         with:
           name: gullkornet-digital-presence-research
           path: data/digital-presence-results.json
-          retention-days: 30
+          retention-days: 7
