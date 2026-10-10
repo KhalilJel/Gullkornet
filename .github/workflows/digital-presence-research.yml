@@ -45,23 +45,28 @@ jobs:
         run: |
           test -f data/input/source/google-candidates.json
           npx tsx src/cli/research-digital-presence.ts data/input/source/google-candidates.json > data/digital-presence-results.json
-          node --input-type=module -e '
-            import { readFileSync } from "node:fs";
-            const rows = JSON.parse(readFileSync("data/digital-presence-results.json", "utf8"));
-            const count = (segment) => rows.filter((row) => row.segment === segment).length;
-            console.log(JSON.stringify({
-              total: rows.length,
-              noWebsiteListed: count("NO_WEBSITE_LISTED"),
-              withSocialLinks: count("WEBSITE_WITH_SOCIAL_LINKS"),
-              withoutDetectedSocialLinks: count("WEBSITE_WITHOUT_DETECTED_SOCIAL_LINKS"),
-              errors: count("FETCH_ERROR") + count("BLOCKED_URL")
-            }, null, 2));
-            console.log("No emails were sent. Missing links are not proof of absent websites or social accounts.");
-          '
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from "node:fs/promises";
+          const rows = JSON.parse(await readFile("data/digital-presence-results.json", "utf8"));
+          if (!Array.isArray(rows)) throw new Error("Digital presence results must be an array.");
+          const count = (segment) => rows.filter((row) => row.segment === segment).length;
+          const summary = {
+            generatedAt: new Date().toISOString(),
+            total: rows.length,
+            noWebsiteListed: count("NO_WEBSITE_LISTED"),
+            withSocialLinks: count("WEBSITE_WITH_SOCIAL_LINKS"),
+            withoutDetectedSocialLinks: count("WEBSITE_WITHOUT_DETECTED_SOCIAL_LINKS"),
+            errors: count("FETCH_ERROR") + count("BLOCKED_URL"),
+            emailSent: 0
+          };
+          await writeFile("data/digital-presence-summary.json", JSON.stringify(summary, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
+          console.log(JSON.stringify(summary, null, 2));
+          console.log("No emails were sent. Missing links are not proof of absent websites or social accounts.");
+          NODE
 
-      - name: Upload digital presence research
+      - name: Upload metadata-only digital presence summary
         uses: actions/upload-artifact@v4
         with:
-          name: gullkornet-digital-presence-research
-          path: data/digital-presence-results.json
+          name: gullkornet-digital-presence-summary
+          path: data/digital-presence-summary.json
           retention-days: 7
