@@ -38,6 +38,13 @@ These are internal defaults, not statutory retention periods or legal advice.
 5. Record only a minimal deletion audit entry: internal record ID, data classes deleted, date, outcome, and any provider limitation. Do not copy the deleted personal data into the audit log.
 6. If a provider backup or immutable log cannot be immediately purged, record the limitation and its expiry/remediation date.
 
+## Timestamp semantics and deletion safety
+
+- The current Airtable review-sync implementation writes `Last Seen` on each sync. A sync/rediscovery is not necessarily meaningful activity by the prospect or a human operator.
+- Do **not** use `Last Seen` alone to determine that a record has reached its retention deadline or is eligible for deletion.
+- Before any retention automation, define and test an explicit `Last Meaningful Activity` rule (for example, a human review/status transition, reply, or documented client activity), including how suppressed records and active client engagements are handled.
+- A dry-run inventory should report aggregate counts and record IDs only where access-controlled; it must not delete or mutate records. Deletion remains disabled until legal/provider checks and separate authorization are complete.
+
 ## Operational controls
 
 - Data retention must not override consent, objection, suppression, contract, or legal requirements.
