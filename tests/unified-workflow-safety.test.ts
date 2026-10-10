@@ -37,3 +37,13 @@ test("unified lead research rejects unsafe or accidental discovery limits", () =
   assert.match(workflow, /A non-empty search term is required/);
   assert.match(workflow, /DAILY_LEAD_LIMIT must be an integer from 1 to 100/);
 });
+
+test("unified workflow keeps CLI stdout and stderr private", () => {
+  assert.match(workflow, /discover:google -- "\$SEARCH_TERM" > data\/google-candidates\.json 2> data\/discovery\.stderr\.log/);
+  assert.match(workflow, /audit:websites -- data\/google-candidates\.json > data\/website-audit\.json 2> data\/website-audit\.stderr\.log/);
+  assert.match(workflow, /research:contacts -- data\/google-candidates\.json data\/website-audit\.json > data\/contact-research-drafts\.json 2> data\/contact-research\.stderr\.log/);
+  assert.match(workflow, /sync:airtable -- data\/contact-research-drafts\.json > data\/airtable-sync\.stdout\.log 2> data\/airtable-sync\.stderr\.log/);
+  assert.match(workflow, /umask 077/);
+  assert.match(workflow, /private diagnostics were not printed/);
+  assert.doesNotMatch(workflow, /tee\s/);
+});
