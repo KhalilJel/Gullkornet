@@ -70,3 +70,6 @@ Phase 12 is complete for controlled, non-sending dry-run acceptance only. Produc
 - Dependency reproducibility follow-up: generated a real npm lockfile using GitHub Actions with `--package-lock-only --ignore-scripts`; committed it to the PR branch and changed all ten workflows that ran `npm install` to `npm ci`. No dependency lifecycle scripts ran during lockfile generation. CI, Phase 12 Dry-Run Acceptance, Phase 11 Production Readiness, Phase 10 End to End Testing, and KeeLead Live Acceptance all passed on commit `d3f152882b7d863ee1879779042721da67853be5`.
 
 - Additional privacy review found that a missing draft could echo the requested recipient and that Resend error messages could include provider-supplied details. Both paths now emit generic errors; regression tests verify recipient and message metadata are not propagated. All five workflows passed on `7d5deb253332101a87c0e39c136f9976dd44807c`.
+
+
+- Additional CLI privacy review: post-send Airtable state-update failures now return a reconciliation warning without echoing provider/CRM error details, which could contain prospect data. A regression test guards against reintroducing detailed error output. This change remains on PR #93 until separately approved and merged; no live send was performed.
