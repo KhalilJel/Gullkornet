@@ -37,9 +37,9 @@ This is preferred over a new persistent handoff service because it avoids introd
 ### Phase B — implement replacement workflow
 
 - **Prototype added:** `.github/workflows/unified-lead-research.yml` composes discovery, audit, and contact research in a single manually triggered job using existing CLI commands.
-- Use only runner-local intermediate files; do not upload raw intermediate JSON. The prototype sets restrictive permissions on its data directory and intermediate files.
+- Use only runner-local intermediate files; do not upload raw intermediate JSON. The prototype sets restrictive permissions on its data directory and intermediate files, and redirects CLI stdout/stderr into runner-local files rather than exposing diagnostic text in Actions logs.
 - Retain the existing Airtable sync as a human-review persistence step, with sending explicitly outside this workflow.
-- Add tests or workflow checks that fail if raw candidate, audit, contact-research, or draft JSON is included in uploaded artifact paths.
+- Add tests or workflow checks that fail if raw candidate, audit, contact-research, or draft JSON is included in uploaded artifact paths, or if CLI stdout/stderr is printed to Actions logs.
 - Upload only a metadata summary and keep its expiry at 7 days. The prototype does this.
 - The prototype is `workflow_dispatch`-only; Airtable sync defaults to off and requires an explicit input to turn on. It has no sender credentials or send command.
 - Do not alter DNS/MX, Railway, secrets, live sending, or production deployments.
@@ -88,4 +88,4 @@ Until the rule, legal/provider checks, and field availability are confirmed, ret
 
 ## Current status
 
-This document records the target design and the first manual-only prototype. The existing scheduled workflow chain is unchanged; its website-audit artifact still contains minimized prospect data. The new workflow has not been manually run or end-to-end validated against live services. Static safety tests were added to enforce manual-only operation, no sender path, opt-in Airtable sync, restrictive local file permissions, and aggregate-only artifact upload. No live Airtable records were read or changed as part of this work, and no deletion or outreach was performed.
+This document records the target design and the first manual-only prototype. The existing scheduled workflow chain is unchanged; its website-audit artifact still contains minimized prospect data. The new workflow has not been manually run or end-to-end validated against live services. Static safety tests were added to enforce manual-only operation, no sender path, opt-in Airtable sync, restrictive local file permissions, private CLI stdout/stderr, and aggregate-only artifact upload. No live Airtable records were read or changed as part of this work, and no deletion or outreach was performed.
