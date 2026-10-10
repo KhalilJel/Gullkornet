@@ -47,6 +47,11 @@ These are proposed internal defaults, not a statement of statutory retention per
 
 ## Approval record
 
-- Owner approval: **PENDING**
-- Implementation status: **NOT IMPLEMENTED**
-- Next review: after owner approval and before any live outreach pilot
+- Owner approval: **APPROVED AS INTERNAL DEFAULTS on 2026-10-10**, subject to confirming applicable Norwegian/EU requirements and provider capabilities before operational deletion is enabled.
+- Implementation status: **PARTIAL** — PR #93 replaces the raw research/draft GitHub Actions artifact with a metadata-only summary and a 7-day artifact window. This is on the PR branch pending CI and merge. Airtable/local retention, deletion automation, and provider log retention are **NOT IMPLEMENTED**.
+- Next review: before implementing operational deletion and before any live outreach pilot.
+
+
+## Implementation boundary
+
+The contact-research workflow should not upload raw prospect records, contact details, research evidence, or draft bodies as GitHub Actions artifacts. PR #93 implements a metadata-only summary artifact with a 7-day expiry. The downstream scheduled sender remains hard-disabled; re-enabling it requires a separately reviewed data-transfer design and explicit authorization. Local workflow files and Airtable records are not automatically deleted by this artifact change.
