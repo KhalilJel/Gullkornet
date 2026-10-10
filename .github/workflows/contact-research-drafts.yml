@@ -60,11 +60,25 @@ jobs:
           fi
           npm run --silent sync:airtable -- data/contact-research-drafts.json
 
-      - name: Upload contact research and draft artifact
+      - name: Create metadata-only research summary
+        run: |
+          node --input-type=module -e '
+            import { readFile, writeFile } from "node:fs/promises";
+            const records = JSON.parse(await readFile("data/contact-research-drafts.json", "utf8"));
+            const summary = {
+              generatedAt: new Date().toISOString(),
+              totalRecords: records.length,
+              recordsWithPublicEmail: records.filter((record) => Array.isArray(record.emails) && record.emails.length > 0).length,
+              recordsWithDraft: records.filter((record) => typeof record.subject === "string" && typeof record.draftBody === "string").length,
+              recordsNeedingReview: records.filter((record) => record.researchStatus === "REVIEW_REQUIRED").length,
+              emailSent: 0
+            };
+            await writeFile("data/contact-research-summary.json", JSON.stringify(summary, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
+          '
+
+      - name: Upload metadata-only research summary
         uses: actions/upload-artifact@v4
         with:
-          name: gullkornet-contact-research-drafts
-          path: |
-            data/contact-research-drafts.json
-            data/lead-review-queue.md
-          retention-days: 30
+          name: gullkornet-contact-research-summary
+          path: data/contact-research-summary.json
+          retention-days: 7
