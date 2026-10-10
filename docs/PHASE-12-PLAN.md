@@ -165,4 +165,15 @@ Do not skip or reorder steps. Each step must pass its own tests and be documente
 - Safety remains unchanged: no real prospect emails, no DNS/MX changes, no Railway configuration/deployment changes, OpenOutSend remains ingest-only, and the scheduled send job remains hard-disabled.
 - Limitation: this step adds run-level structured logs and failure classification; it does not add centralized alerting or a new health endpoint.
 
-**Next locked step: Step 10 — Phase 12 end-to-end dry-run acceptance.** Use controlled inputs where possible, verify the complete discovery-to-review/CRM path, and assert `send_triggered=false` and `emailSent=0`. Do not activate sending.
+## Step 10 — completion checkpoint (2026-10-10)
+
+**Step 10 acceptance workflow: IMPLEMENTED; CI VERIFIED.** PR #88 adds `.github/workflows/phase12-e2e-acceptance.yml`, a secret-free synthetic acceptance workflow.
+
+- The workflow runs TypeScript typecheck and the full deterministic test suite; the suite includes controlled discovery-to-review orchestration, suppression and human-review gates, deduplication, persistence-adapter coverage, and ingest contract safety.
+- It checks that the scheduled send workflow remains hard-disabled and that OpenOutSend remains ingest-only.
+- It does not configure KeeLead, Airtable, OpenOutSend, or email-provider credentials and does not upload prospect data or send email.
+- Acceptance workflow passed on commit `35e45e1551a59ef9d64e1835c4d4eeb8f8a87dda`; all repository checks on that commit passed: `test`, `phase10`, `phase11-readiness`, `keelead-live-acceptance`, and `Synthetic non-sending acceptance`.
+- A first workflow attempt exposed two workflow-only issues (no package lockfile, then GitHub expression interpolation in the shell assertion); both were corrected before the passing run.
+- Safety unchanged: no DNS/MX or Railway changes, no real prospect emails, OpenOutSend ingest-only, scheduled send job hard-disabled.
+
+**Next locked step: Step 11 — production-readiness review without activation.** Review access, dependencies, retention, cost/rate limits, suppression/replies, idempotency, rollback/recovery, and available Railway state. Do not deploy, switch branches, or activate sending.
