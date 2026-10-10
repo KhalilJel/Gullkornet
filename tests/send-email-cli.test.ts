@@ -117,3 +117,26 @@ test("preview file cannot overwrite an existing file and cannot be combined with
     assert.match(live.stderr, /available only in dry-run mode/);
   });
 });
+
+test("draft lookup failure does not expose the requested recipient in logs", () => {
+  withDraft((draftPath) => {
+    const requestedRecipient = "not-the-draft@example.no";
+    const result = spawnSync(process.execPath, [
+      "--import", "tsx", "src/cli/send-email.ts", draftPath, requestedRecipient
+    ], {
+      encoding: "utf8",
+      timeout: 15000,
+      env: {
+        ...process.env,
+        GULLKORNET_ENABLE_LIVE_SEND: "false",
+        AIRTABLE_API_TOKEN: "",
+        RESEND_API_KEY: "",
+        OPENOUTREACH_INGEST_TOKEN: "",
+        OPENOUTREACH_REPLY_STATUS_URL: ""
+      }
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Expected exactly one matching draft/);
+    assert.doesNotMatch(result.stdout + result.stderr, /not-the-draft@example\.no/);
+  });
+});
