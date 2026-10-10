@@ -59,6 +59,7 @@ jobs:
           UPDATE_DISCOVERY_HISTORY: "true"
         run: |
           set -euo pipefail
+          umask 077
           if [ -z "${GOOGLE_MAPS_API_KEY:-}" ]; then
             echo "Missing repository secret GOOGLE_MAPS_API_KEY."
             exit 1
@@ -73,8 +74,12 @@ jobs:
           fi
           mkdir -p data
           chmod 700 data
-          npm run --silent discover:google -- "$SEARCH_TERM" > data/google-candidates.json
-          chmod 600 data/google-candidates.json
+          if ! npm run --silent discover:google -- "$SEARCH_TERM" > data/google-candidates.json 2> data/discovery.stderr.log; then
+            chmod 600 data/google-candidates.json data/discovery.stderr.log 2>/dev/null || true
+            echo "Candidate discovery failed; private diagnostics were not printed."
+            exit 1
+          fi
+          chmod 600 data/google-candidates.json data/discovery.stderr.log
           node --input-type=module <<'NODE'
           import { readFile } from "node:fs/promises";
           const rows = JSON.parse(await readFile("data/google-candidates.json", "utf8"));
@@ -85,8 +90,12 @@ jobs:
       - name: Audit candidate websites in runner-local storage
         run: |
           set -euo pipefail
-          npm run --silent audit:websites -- data/google-candidates.json > data/website-audit.json
-          chmod 600 data/website-audit.json
+          if ! npm run --silent audit:websites -- data/google-candidates.json > data/website-audit.json 2> data/website-audit.stderr.log; then
+            chmod 600 data/website-audit.json data/website-audit.stderr.log 2>/dev/null || true
+            echo "Website audit failed; private diagnostics were not printed."
+            exit 1
+          fi
+          chmod 600 data/website-audit.json data/website-audit.stderr.log
           node --input-type=module <<'NODE'
           import { readFile } from "node:fs/promises";
           const rows = JSON.parse(await readFile("data/website-audit.json", "utf8"));
@@ -103,8 +112,12 @@ jobs:
       - name: Research public contacts and prepare drafts locally
         run: |
           set -euo pipefail
-          npm run --silent research:contacts -- data/google-candidates.json data/website-audit.json > data/contact-research-drafts.json
-          chmod 600 data/contact-research-drafts.json
+          if ! npm run --silent research:contacts -- data/google-candidates.json data/website-audit.json > data/contact-research-drafts.json 2> data/contact-research.stderr.log; then
+            chmod 600 data/contact-research-drafts.json data/contact-research.stderr.log 2>/dev/null || true
+            echo "Contact research failed; private diagnostics were not printed."
+            exit 1
+          fi
+          chmod 600 data/contact-research-drafts.json data/contact-research.stderr.log
           node --input-type=module <<'NODE'
           import { readFile } from "node:fs/promises";
           const rows = JSON.parse(await readFile("data/contact-research-drafts.json", "utf8"));
@@ -131,7 +144,12 @@ jobs:
             echo "Airtable sync was requested but required credentials/configuration are missing."
             exit 1
           fi
-          npm run --silent sync:airtable -- data/contact-research-drafts.json
+          if ! npm run --silent sync:airtable -- data/contact-research-drafts.json > data/airtable-sync.stdout.log 2> data/airtable-sync.stderr.log; then
+            chmod 600 data/airtable-sync.stdout.log data/airtable-sync.stderr.log 2>/dev/null || true
+            echo "Airtable sync failed; private diagnostics were not printed."
+            exit 1
+          fi
+          chmod 600 data/airtable-sync.stdout.log data/airtable-sync.stderr.log
           echo "Airtable sync complete. No emails were sent."
 
       - name: Create aggregate-only run summary
