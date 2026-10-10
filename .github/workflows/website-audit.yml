@@ -54,4 +54,4 @@ jobs:
           path: |
             data/website-audit.json
             data/source/google-candidates.json
-          retention-days: 30
+          retention-days: 7
