@@ -1,0 +1,67 @@
+name: Phase 12 Dry-Run Acceptance
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["phase12/step10-e2e-acceptance"]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/phase12-e2e-acceptance.yml"
+      - ".github/workflows/daily-outreach.yml"
+      - "docs/PHASE-12-PLAN.md"
+      - "docs/PHASE-12-ARCHITECTURE.md"
+      - "docs/AI-IMPLEMENTATION-STATUS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-acceptance:
+    name: Synthetic non-sending acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run deterministic end-to-end and safety tests
+        run: npm test
+
+      - name: Assert production sending remains disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'if: ${{ false }}' .github/workflows/daily-outreach.yml
+          grep -F 'send_triggered' src/integrations/openoutsend-ingest.ts
+          grep -F 'ingest_only' src/integrations/openoutsend-ingest.ts
+          echo "Sending workflow hard-disabled; OpenOutSend contract remains ingest-only."
+
+      - name: Write privacy-safe acceptance summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Phase 12 synthetic dry-run acceptance"
+            echo
+            echo "- No live KeeLead, Airtable, OpenOutSend, or email provider credentials are configured by this workflow."
+            echo "- Deterministic tests exercise discovery-to-review orchestration, suppression, qualification/review gates, deduplication, persistence adapters, and ingest safety."
+            echo "- Production sending workflow is checked for its hard-disabled guard."
+            echo "- This workflow does not send email or persist real prospect records."
+          } >> "$GITHUB_STEP_SUMMARY"
