@@ -41,7 +41,7 @@ test("production CLI kill switch stops before suppression, CRM, or provider acce
     assert.match(result.stderr, /Production kill switch is active/);
     assert.doesNotMatch(result.stderr, /Airtable approval check|Resend send history|reply-status/);
     assert.doesNotMatch(result.stdout, /Resend accepted one email/);
-    assert.doesNotMatch(result.stdout + result.stderr, /pilot@example\.no|Synthetic no-send acceptance|Synthetic test only/);
+    assert.doesNotMatch(result.stdout + result.stderr, /pilot@example\\.no|Synthetic no-send acceptance|Synthetic test only/);
   });
 });
 
@@ -63,9 +63,9 @@ test("production CLI defaults to dry-run and suppresses recipient and draft cont
     });
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /DRY RUN — nothing sent/);
-    assert.match(result.stdout, /Dry run complete\. No suppression list or provider credentials were accessed/);
+    assert.match(result.stdout, /Dry run complete\\. No suppression list or provider credentials were accessed/);
     assert.match(result.stdout, /Recipient and draft content are suppressed/);
-    assert.doesNotMatch(result.stdout + result.stderr, /pilot@example\.no|Synthetic no-send acceptance|Synthetic test only/);
+    assert.doesNotMatch(result.stdout + result.stderr, /pilot@example\\.no|Synthetic no-send acceptance|Synthetic test only/);
     assert.doesNotMatch(result.stdout + result.stderr, /Resend accepted one email/);
   });
 });
@@ -89,9 +89,9 @@ test("explicit local preview file contains the draft while logs remain redacted"
       }
     });
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.match(readFileSync(previewPath, "utf8"), /pilot@example\.no/);
+    assert.match(readFileSync(previewPath, "utf8"), /pilot@example\\.no/);
     assert.match(readFileSync(previewPath, "utf8"), /Synthetic no-send acceptance/);
-    assert.doesNotMatch(result.stdout + result.stderr, /pilot@example\.no|Synthetic no-send acceptance|Synthetic test only/);
+    assert.doesNotMatch(result.stdout + result.stderr, /pilot@example\\.no|Synthetic no-send acceptance|Synthetic test only/);
     if (process.platform !== "win32") {
       assert.equal(statSync(previewPath).mode & 0o777, 0o600);
     }
@@ -137,6 +137,12 @@ test("draft lookup failure does not expose the requested recipient in logs", () 
     });
     assert.equal(result.status, 1);
     assert.match(result.stderr, /Expected exactly one matching draft/);
-    assert.doesNotMatch(result.stdout + result.stderr, /not-the-draft@example\.no/);
+    assert.doesNotMatch(result.stdout + result.stderr, /not-the-draft@example\\.no/);
   });
+});
+
+test("post-send Airtable failure never includes provider/CRM error details in the CLI", () => {
+  const source = readFileSync("src/cli/send-email.ts", "utf8");
+  assert.match(source, /catch \\{\\s*\\/\\/ Do not echo provider\\/CRM error details/);
+  assert.doesNotMatch(source, /Detail: \\${reason}/);
 });
