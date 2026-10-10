@@ -611,4 +611,6 @@ Step 9 is complete and merged through PR #86 (`de8e5410038fe5b0866521dd9632dc386
 - PR #89 removes raw review-queue and draft JSON from Phase 10 CI artifact uploads; only the structured sales-engine log remains as an artifact.
 - Remaining pre-pilot blockers: no dependency lockfile, no formal prospect-data retention schedule, sender CLI preview prints recipient/draft content to stdout, and current Railway safety flags must be directly reverified before any separately authorized send.
 - Sending remains **not approved**; no real prospect emails were sent. No DNS/MX or Railway configuration changes were made.
-- **Next:** Step 12 closeout after PR #89 and its docs pass all checks and merge. Phase 12 is not complete.
+- PR #89 is merged at `871bada745d6dda30ab7f798b5acd032861c89f8`; all five checks passed on its final head.
+- **Step 11 is complete as a read-only readiness review.** Production sending remains not approved because the documented pre-pilot blockers remain open.
+- **Step 12 closeout is in progress:** the acceptance workflow is being configured to run on relevant `main` pushes, and final-main checks must pass before Phase 12 can be marked complete.
