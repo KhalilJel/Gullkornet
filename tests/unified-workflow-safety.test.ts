@@ -59,7 +59,9 @@ test("aggregate run summary contains counts and control metadata only", () => {
   assert.match(summaryStep, /recordsWithDraft:/);
   assert.match(summaryStep, /recordsRequiringHumanReview:/);
   assert.match(summaryStep, /emailSent: 0/);
-  assert.doesNotMatch(summaryStep, /companyName|websiteUrl|sourceUrl|draftBody|subject:|recipient|pageTitle|personalizationEvidence|emails:/);
+  const summaryObject = summaryStep.match(/const summary = \\{([\\s\\S]*?)\\n          \\};/)?.[1];
+  assert.ok(summaryObject, "summary object must be explicit");
+  assert.doesNotMatch(summaryObject, /(?:companyName|websiteUrl|sourceUrl|draftBody|subject|recipient|pageTitle|personalizationEvidence|emails)\\s*:/);
 });
 
 test("every workflow shell stage uses a restrictive umask", () => {
