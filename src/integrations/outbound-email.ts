@@ -150,7 +150,7 @@ export function prepareEmail(
     record.emails.some((entry) => entry.email.trim().toLowerCase() === normalizedRecipient)
   );
   if (matches.length !== 1) {
-    throw new Error(`Expected exactly one draft for ${normalizedRecipient}; found ${matches.length}. Refusing to send.`);
+    throw new Error(`Expected exactly one matching draft; found ${matches.length}. Refusing to send.`);
   }
   const draft = matches[0];
   if (!draft.subject?.trim() || !draft.draftBody?.trim()) {
