@@ -55,3 +55,12 @@ These are proposed internal defaults, not a statement of statutory retention per
 ## Implementation boundary
 
 The contact-research workflow should not upload raw prospect records, contact details, research evidence, or draft bodies as GitHub Actions artifacts. PR #93 implements a metadata-only summary artifact with a 7-day expiry. The downstream scheduled sender remains hard-disabled; re-enabling it requires a separately reviewed data-transfer design and explicit authorization. Local workflow files and Airtable records are not automatically deleted by this artifact change.
+
+
+## Current implementation status — 2026-10-10
+
+- The contact-research workflow now uploads only aggregate counts and a timestamp, with a 7-day expiry; raw contact-research drafts and the review queue are no longer uploaded by that workflow.
+- Website-audit, Google-discovery, and digital-presence workflow artifacts have been shortened from 30 days to 7 days to reduce exposure while preserving current pipeline handoffs.
+- **Important gap:** Google discovery candidates, discovery history, website-audit results, and digital-presence results still contain business/prospect research data in transient workflow artifacts. These are temporary handoff artifacts, not a fully compliant metadata-only design. The policy is not fully implemented until those handoffs are redesigned or otherwise minimized. Resolve this before any live outreach pilot.
+- The scheduled sender remains hard-disabled. Its old raw-draft artifact input is intentionally not provided; enabling that job without a separately reviewed replacement transfer design must fail closed.
+- Airtable and local-file retention/deletion automation, plus provider log-retention configuration, remain unimplemented.
