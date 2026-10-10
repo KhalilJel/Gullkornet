@@ -89,12 +89,9 @@ jobs:
           grep -Eq '"mode"[[:space:]]*:[[:space:]]*"dry-run"' phase10-sales-engine.log
           echo "bounded live dry run: PASS; emailSent=0"
 
-      - name: Upload Phase 10 evidence
+      - name: Upload privacy-safe Phase 10 evidence
         uses: actions/upload-artifact@v4
         with:
           name: phase10-end-to-end-evidence
-          path: |
-            phase10-sales-engine.log
-            data/sales-engine-review-queue.json
-            data/contact-research-drafts.json
+          path: phase10-sales-engine.log
           retention-days: 7

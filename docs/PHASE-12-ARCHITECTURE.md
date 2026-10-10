@@ -108,3 +108,13 @@ Step 9 was merged in PR #86 at `de8e5410038fe5b0866521dd9632dc38628441f7`; CI, P
 `.github/workflows/phase12-e2e-acceptance.yml` runs typecheck and the deterministic in-repository test suite without configuring live provider credentials. The tests cover the controlled orchestration path and its suppression, review, persistence-adapter, and ingest-safety boundaries. The workflow also asserts that the scheduled send job remains hard-disabled and that the OpenOutSend adapter remains ingest-only.
 
 The workflow emits only a privacy-safe step summary; it does not upload lead/draft artifacts, contact live providers, send email, or write real prospect records. This is deterministic test acceptance, not proof of live provider availability or authorization for production sending. Phase 10's existing separate acceptance workflow retains its existing bounded provider checks.
+
+
+## Production-readiness findings (Phase 12 Step 11)
+
+The read-only review is recorded in `docs/PHASE-12-PRODUCTION-READINESS.md`. Key findings:
+
+- The production Railway environment was healthy during inspection, with no pending changes; OpenOutSend remains on the existing Phase 11 branch, ingest-only, and its reply monitor was reporting healthy status.
+- Phase 10 CI previously uploaded raw prospect/research/draft JSON artifacts. PR #89 removes those files from artifact upload; the workflow continues to assert that local dry-run outputs exist.
+- Production sending remains not approved. The repository has no dependency lockfile, no documented prospect-data retention schedule, and the single-send CLI prints recipient and draft content to stdout during preview. These are documented blockers/follow-ups before a live pilot or automated sender use.
+- Current Railway safety-flag values were not read in this review; the latest operator-confirmed values are recorded in the Phase 11 document and must be reverified directly before any separately approved live send.
