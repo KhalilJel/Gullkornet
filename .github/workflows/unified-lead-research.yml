@@ -90,6 +90,7 @@ jobs:
       - name: Audit candidate websites in runner-local storage
         run: |
           set -euo pipefail
+          umask 077
           if ! npm run --silent audit:websites -- data/google-candidates.json > data/website-audit.json 2> data/website-audit.stderr.log; then
             chmod 600 data/website-audit.json data/website-audit.stderr.log 2>/dev/null || true
             echo "Website audit failed; private diagnostics were not printed."
@@ -112,6 +113,7 @@ jobs:
       - name: Research public contacts and prepare drafts locally
         run: |
           set -euo pipefail
+          umask 077
           if ! npm run --silent research:contacts -- data/google-candidates.json data/website-audit.json > data/contact-research-drafts.json 2> data/contact-research.stderr.log; then
             chmod 600 data/contact-research-drafts.json data/contact-research.stderr.log 2>/dev/null || true
             echo "Contact research failed; private diagnostics were not printed."
@@ -140,6 +142,7 @@ jobs:
           GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
         run: |
           set -euo pipefail
+          umask 077
           if [ -z "${AIRTABLE_API_TOKEN:-}" ] || [ -z "${GULLKORNET_AIRTABLE_BASE_ID:-}" ]; then
             echo "Airtable sync was requested but required credentials/configuration are missing."
             exit 1
@@ -155,6 +158,7 @@ jobs:
       - name: Create aggregate-only run summary
         run: |
           set -euo pipefail
+          umask 077
           node --input-type=module <<'NODE'
           import { readFile, writeFile } from "node:fs/promises";
           const candidates = JSON.parse(await readFile("data/google-candidates.json", "utf8"));
