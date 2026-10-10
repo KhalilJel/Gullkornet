@@ -73,3 +73,6 @@ Phase 12 is complete for controlled, non-sending dry-run acceptance only. Produc
 
 
 - Additional CLI privacy review: post-send Airtable state-update failures now return a reconciliation warning without echoing provider/CRM error details, which could contain prospect data. A regression test guards against reintroducing detailed error output. This change remains on PR #93 until separately approved and merged; no live send was performed.
+
+
+- Retention-policy decision (2026-10-10): owner approved the proposed periods as internal defaults, subject to confirming applicable requirements and provider capabilities before operational deletion. PR #93 now changes `.github/workflows/contact-research-drafts.yml` from uploading raw prospect/draft JSON and a review queue for 30 days to uploading only aggregate metadata with a 7-day expiry. This change is on the PR branch pending CI/merge. Airtable/local retention and deletion automation remain unimplemented. The daily sender remains hard-disabled; its former artifact input is intentionally not restored, and any future sender reactivation needs a separate reviewed transfer design and explicit authorization.
