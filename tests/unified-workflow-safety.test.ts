@@ -50,11 +50,11 @@ test("unified workflow keeps CLI stdout and stderr private", () => {
 
 test("aggregate run summary contains counts and control metadata only", () => {
   const summaryStep = workflow.match(
-    /- name: Create aggregate-only run summary[\\s\\S]*?(?=\\n      - name:|$)/
+    /- name: Create aggregate-only run summary[\s\S]*?(?=\n      - name:|$)/
   )?.[0];
   assert.ok(summaryStep, "aggregate summary step must exist");
-  assert.match(summaryStep, /candidates: candidates\\.length/);
-  assert.match(summaryStep, /websitesAudited: audits\\.length/);
+  assert.match(summaryStep, /candidates: candidates\.length/);
+  assert.match(summaryStep, /websitesAudited: audits\.length/);
   assert.match(summaryStep, /recordsWithPublicEmail:/);
   assert.match(summaryStep, /recordsWithDraft:/);
   assert.match(summaryStep, /recordsRequiringHumanReview:/);
