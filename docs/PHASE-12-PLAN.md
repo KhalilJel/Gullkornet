@@ -176,4 +176,14 @@ Do not skip or reorder steps. Each step must pass its own tests and be documente
 - A first workflow attempt exposed two workflow-only issues (no package lockfile, then GitHub expression interpolation in the shell assertion); both were corrected before the passing run.
 - Safety unchanged: no DNS/MX or Railway changes, no real prospect emails, OpenOutSend ingest-only, scheduled send job hard-disabled.
 
-**Next locked step: Step 11 — production-readiness review without activation.** Review access, dependencies, retention, cost/rate limits, suppression/replies, idempotency, rollback/recovery, and available Railway state. Do not deploy, switch branches, or activate sending.
+## Step 11 — production-readiness review checkpoint (2026-10-10)
+
+The read-only review is documented in `docs/PHASE-12-PRODUCTION-READINESS.md`. Railway production was inspected without changing configuration: 8 services listed, no health issues, no pending work; OpenOutSend is online on the existing `phase11/production` branch, and recent reply-monitor logs report `running error=none`. Current safety-flag values were not independently read during this review; the last operator confirmation is recorded in Phase 11.
+
+The review found a CI privacy issue: Phase 10 acceptance uploaded raw review-queue and draft JSON as artifacts. PR #89 changes the artifact to include only the structured log while retaining local file assertions. It also records production blockers: no dependency lockfile, no formal prospect-data retention policy, and the sender CLI's preview path writes full recipient/draft content to stdout.
+
+- Sending remains **not approved**; do not enable scheduled/bulk sending.
+- No real emails, DNS/MX changes, Railway configuration changes, branch switches, or deployments were performed.
+- Step 11 is ready to close only after PR #89 and its documentation pass all checks and merge.
+
+**Next locked step: Step 12 — Phase 12 closeout.** It remains blocked until the Step 11 review/remediation PR is merged and verified. Phase 12 must not be marked complete until all acceptance criteria pass.
