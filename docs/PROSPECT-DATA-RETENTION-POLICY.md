@@ -1,10 +1,10 @@
-# Prospect Data Retention and Deletion Policy — Proposal
+# Prospect Data Retention and Deletion Policy
 
-Status: **PROPOSED — OWNER APPROVAL REQUIRED BEFORE OPERATIONAL ADOPTION**  
+Status: **INTERNAL DEFAULTS APPROVED; operational deletion not yet authorized**  
 Last reviewed: 2026-10-10  
 Scope: Gullkornet prospect discovery, website research, contact research, review queues, outreach drafts, Airtable CRM, local artifacts, and GitHub Actions logs/artifacts.
 
-This proposal is a default minimization schedule for review. It does not authorize live outreach or change any provider configuration.
+The schedule below records the owner's internal defaults. It does not authorize live outreach or automatic deletion. Confirm applicable Norwegian/EU requirements and provider capabilities before operational deletion is enabled.
 
 ## Principles
 
@@ -14,9 +14,9 @@ This proposal is a default minimization schedule for review. It does not authori
 - Keep suppression records long enough to honor opt-outs and prevent re-contact; minimize the record to the fields needed to enforce suppression.
 - Apply deletion to all controlled copies, not just the primary CRM record. Provider backups and immutable Git history may have separate limits.
 
-## Proposed retention schedule
+## Approved internal retention defaults
 
-| Data class | Proposed default retention | Required handling |
+| Data class | Internal default retention | Required handling |
 |---|---|---|
 | Unqualified discovery candidates | 30 days from last meaningful activity | Delete or re-evaluate; keep only minimal deduplication fields if necessary |
 | Website/contact research and evidence | 90 days from last meaningful activity | Retain source URL, observation date, and relevant business-level finding; remove stale or irrelevant personal details |
@@ -27,7 +27,7 @@ This proposal is a default minimization schedule for review. It does not authori
 | Suppression / do-not-contact record | Retain while needed to prevent future contact; review annually | Store only minimal identifier, suppression reason/source, and timestamp; never delete merely because other prospect data expires |
 | Client data handled under a CIDEA Leads contract | Contract-specific documented schedule | Contract terms and applicable legal requirements take precedence; define deletion/return at engagement end |
 
-These are proposed internal defaults, not a statement of statutory retention periods or legal advice.
+These are internal defaults, not statutory retention periods or legal advice.
 
 ## Deletion procedure
 
@@ -42,25 +42,24 @@ These are proposed internal defaults, not a statement of statutory retention per
 
 - Data retention must not override consent, objection, suppression, contract, or legal requirements.
 - No live outreach is permitted by this document.
-- Before adoption, the owner must approve the retention periods and confirm the schedule against the intended CIDEA Leads service, provider capabilities, and applicable Norwegian/EU privacy requirements.
+- Confirm the schedule against the intended CIDEA Leads service, provider capabilities, and applicable Norwegian/EU privacy requirements before operational deletion.
 - Implementation must be tracked separately; documenting a policy does not automatically delete existing records or configure provider retention.
 
 ## Approval record
 
 - Owner approval: **APPROVED AS INTERNAL DEFAULTS on 2026-10-10**, subject to confirming applicable Norwegian/EU requirements and provider capabilities before operational deletion is enabled.
-- Implementation status: **PARTIAL** — PR #93 replaces the raw research/draft GitHub Actions artifact with a metadata-only summary and a 7-day artifact window. This is on the PR branch pending CI and merge. Airtable/local retention, deletion automation, and provider log retention are **NOT IMPLEMENTED**.
+- Implementation status: **PARTIAL**. Contact research now uploads only an aggregate summary. Google discovery now uploads only an allowlisted candidate shape and does not upload discovery history. Digital-presence research now uploads only aggregate metadata. Website-audit artifacts still contain the minimum candidate handoff plus structured audit signals because the downstream contact-research workflow depends on them. Airtable/local retention, deletion automation, and provider log retention are **NOT IMPLEMENTED**.
 - Next review: before implementing operational deletion and before any live outreach pilot.
-
 
 ## Implementation boundary
 
-The contact-research workflow should not upload raw prospect records, contact details, research evidence, or draft bodies as GitHub Actions artifacts. PR #93 implements a metadata-only summary artifact with a 7-day expiry. The downstream scheduled sender remains hard-disabled; re-enabling it requires a separately reviewed data-transfer design and explicit authorization. Local workflow files and Airtable records are not automatically deleted by this artifact change.
-
+The scheduled sender remains hard-disabled. Its old raw-draft artifact input is intentionally not provided; enabling that job without a separately reviewed data-transfer design must fail closed. Local workflow files and Airtable records are not automatically deleted by artifact minimization.
 
 ## Current implementation status — 2026-10-10
 
-- The contact-research workflow now uploads only aggregate counts and a timestamp, with a 7-day expiry; raw contact-research drafts and the review queue are no longer uploaded by that workflow.
-- Website-audit, Google-discovery, and digital-presence workflow artifacts have been shortened from 30 days to 7 days to reduce exposure while preserving current pipeline handoffs.
-- **Important gap:** Google discovery candidates, discovery history, website-audit results, and digital-presence results still contain business/prospect research data in transient workflow artifacts. These are temporary handoff artifacts, not a fully compliant metadata-only design. The policy is not fully implemented until those handoffs are redesigned or otherwise minimized. Resolve this before any live outreach pilot.
-- The scheduled sender remains hard-disabled. Its old raw-draft artifact input is intentionally not provided; enabling that job without a separately reviewed replacement transfer design must fail closed.
-- Airtable and local-file retention/deletion automation, plus provider log-retention configuration, remain unimplemented.
+- Contact-research workflow uploads only aggregate counts and a timestamp, with a 7-day expiry; raw contact-research drafts and the review queue are not uploaded.
+- Google discovery artifact is now limited to company name, website URL, city, industry, and source URL. Discovery history remains in the workflow cache for deduplication but is not uploaded as a workflow artifact.
+- Digital-presence workflow now uploads only aggregate metadata with a 7-day expiry; raw research rows are not uploaded.
+- Website-audit workflow continues to pass the minimized candidate fields and structured audit signals to downstream research, with a 7-day expiry. This is still prospect/business data, but no raw page HTML is stored in the artifact. Replacing this handoff with a metadata-only artifact would break the current pipeline; a persistent, access-controlled data-transfer design is needed before a live pilot.
+- The sender remains hard-disabled. Its prior raw-draft artifact is no longer produced.
+- Airtable/local-file retention and deletion automation, plus provider log-retention configuration, remain unimplemented. No automatic deletion is enabled by this policy.
