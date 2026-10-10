@@ -9,7 +9,6 @@ on:
       - "src/**"
       - "tests/**"
       - "package.json"
-      - "package-lock.json"
       - ".github/workflows/phase12-e2e-acceptance.yml"
       - ".github/workflows/daily-outreach.yml"
       - "docs/PHASE-12-PLAN.md"
@@ -33,10 +32,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
-      - name: Install locked dependencies
-        run: npm ci
+      - name: Install dependencies
+        run: npm install
 
       - name: Typecheck
         run: npm run typecheck
