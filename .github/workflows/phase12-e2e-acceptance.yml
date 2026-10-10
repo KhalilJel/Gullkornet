@@ -46,7 +46,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -F 'if: ${{ false }}' .github/workflows/daily-outreach.yml
+          grep -F 'if: $' .github/workflows/daily-outreach.yml
+          grep -F '{{ false }}' .github/workflows/daily-outreach.yml
           grep -F 'send_triggered' src/integrations/openoutsend-ingest.ts
           grep -F 'ingest_only' src/integrations/openoutsend-ingest.ts
           echo "Sending workflow hard-disabled; OpenOutSend contract remains ingest-only."
