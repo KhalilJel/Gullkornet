@@ -47,3 +47,21 @@ test("unified workflow keeps CLI stdout and stderr private", () => {
   assert.match(workflow, /private diagnostics were not printed/);
   assert.doesNotMatch(workflow, /tee\s/);
 });
+
+test("aggregate run summary contains counts and control metadata only", () => {
+  const summaryStep = workflow.match(
+    /- name: Create aggregate-only run summary[\\s\\S]*?(?=\\n      - name:|$)/
+  )?.[0];
+  assert.ok(summaryStep, "aggregate summary step must exist");
+  assert.match(summaryStep, /candidates: candidates\\.length/);
+  assert.match(summaryStep, /websitesAudited: audits\\.length/);
+  assert.match(summaryStep, /recordsWithPublicEmail:/);
+  assert.match(summaryStep, /recordsWithDraft:/);
+  assert.match(summaryStep, /recordsRequiringHumanReview:/);
+  assert.match(summaryStep, /emailSent: 0/);
+  assert.doesNotMatch(summaryStep, /companyName|websiteUrl|sourceUrl|draftBody|subject:|recipient|pageTitle|personalizationEvidence|emails:/);
+});
+
+test("every workflow shell stage uses a restrictive umask", () => {
+  assert.equal((workflow.match(/umask 077/g) ?? []).length, 5);
+});
