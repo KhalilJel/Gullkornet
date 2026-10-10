@@ -602,4 +602,8 @@ Step 9 is complete and merged through PR #86 (`de8e5410038fe5b0866521dd9632dc386
 - OpenOutSend remains ingest-only and the scheduled sending workflow remains hard-disabled.
 - Known limitation: centralized alerting, stale-monitor detection, and a new health endpoint remain out of scope.
 
-**Next:** Phase 12 Step 10, end-to-end dry-run acceptance. Step 11 production-readiness review and Step 12 closeout remain pending; Phase 12 is not complete.
+**Phase 12 Step 10 acceptance workflow is implemented and verified** in PR #88 (pending merge at documentation time). The synthetic workflow passed on commit `35e45e1551a59ef9d64e1835c4d4eeb8f8a87dda`, alongside CI/tests, Phase 10 E2E, Phase 11 readiness, and KeeLead Live Acceptance. It runs deterministic tests without configuring live provider credentials, verifies the scheduled send guard and OpenOutSend ingest-only boundary, and uploads no prospect data.
+
+- No real prospect emails were sent. No DNS/MX, Railway configuration, or deployment changes were made.
+- A workflow-only lockfile assumption and a GitHub expression-interpolation issue were corrected before the passing run.
+- **Next:** Step 11 production-readiness review without activation; Step 12 closeout remains pending. Phase 12 is not complete.
