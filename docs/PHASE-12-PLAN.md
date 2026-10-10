@@ -176,14 +176,24 @@ Do not skip or reorder steps. Each step must pass its own tests and be documente
 - A first workflow attempt exposed two workflow-only issues (no package lockfile, then GitHub expression interpolation in the shell assertion); both were corrected before the passing run.
 - Safety unchanged: no DNS/MX or Railway changes, no real prospect emails, OpenOutSend ingest-only, scheduled send job hard-disabled.
 
-## Step 11 — production-readiness review checkpoint (2026-10-10)
+## Step 11 — production-readiness review (COMPLETE; 2026-10-10)
 
-The read-only review is documented in `docs/PHASE-12-PRODUCTION-READINESS.md`. Railway production was inspected without changing configuration: 8 services listed, no health issues, no pending work; OpenOutSend is online on the existing `phase11/production` branch, and recent reply-monitor logs report `running error=none`. Current safety-flag values were not independently read during this review; the last operator confirmation is recorded in Phase 11.
+The read-only review is documented in `docs/PHASE-12-PRODUCTION-READINESS.md`. Railway production was inspected without changes: 8 services listed, no health issues, no pending work; OpenOutSend is online on the existing `phase11/production` branch, and recent reply-monitor logs report `running error=none`. Current safety-flag values were not independently read during this review; the last operator confirmation is recorded in Phase 11.
 
-The review found a CI privacy issue: Phase 10 acceptance uploaded raw review-queue and draft JSON as artifacts. PR #89 changes the artifact to include only the structured log while retaining local file assertions. It also records production blockers: no dependency lockfile, no formal prospect-data retention policy, and the sender CLI's preview path writes full recipient/draft content to stdout.
+PR #89 is merged at `871bada745d6dda30ab7f798b5acd032861c89f8`; it removes raw review-queue and draft JSON from Phase 10 CI artifacts while retaining local dry-run assertions. The review records remaining pre-pilot blockers: no dependency lockfile, no formal prospect-data retention schedule, sender CLI preview output includes recipient/draft content, and current Railway safety flags require direct preflight verification before any separately authorized send.
 
-- Sending remains **not approved**; do not enable scheduled/bulk sending.
 - No real emails, DNS/MX changes, Railway configuration changes, branch switches, or deployments were performed.
-- Step 11 is ready to close only after PR #89 and its documentation pass all checks and merge.
+- Production sending remains **not approved**; scheduled/bulk sending stays hard-disabled and OpenOutSend stays ingest-only.
 
-**Next locked step: Step 12 — Phase 12 closeout.** It remains blocked until the Step 11 review/remediation PR is merged and verified. Phase 12 must not be marked complete until all acceptance criteria pass.
+## Step 12 — Phase 12 closeout (COMPLETE; 2026-10-10)
+
+**Phase 12 is complete for the controlled, non-sending dry-run scope. This does not approve production sending.**
+
+- Reviewed PRs #86, #87, #88, #89, and #90 are all merged.
+- PR #90 enables the synthetic acceptance workflow on relevant pushes to `main`.
+- Final-main commit `711e4df1ad546dd28167c56884a2d8d884893b2c` passed `Synthetic non-sending acceptance`, `test`, and `keelead-live-acceptance`. The PR #90 final head also passed `phase10` and `phase11-readiness`.
+- The Phase 12 acceptance workflow uses deterministic in-repository tests, uploads no prospect/draft data, verifies the scheduled send guard, and asserts the OpenOutSend ingest-only contract.
+- The Step 11 readiness review and its open pre-pilot blockers are documented; they are not silently waived by closeout.
+- No real prospect emails, DNS/MX changes, Railway configuration changes, branch switches, or deployments were performed.
+
+**Final status:** Phase 12 engineering/dry-run acceptance is complete. Production sending remains separately gated and **not approved** until the documented pre-pilot blockers are addressed and a separate explicit authorization is given.
