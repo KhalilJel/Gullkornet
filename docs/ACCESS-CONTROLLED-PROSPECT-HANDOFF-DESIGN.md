@@ -53,6 +53,11 @@ This is preferred over a new persistent handoff service because it avoids introd
 ### Phase C — acceptance and cutover
 
 - Run CI, unit/privacy tests, Phase 10, Phase 11, Phase 12, and KeeLead acceptance on the PR branch.
+- **Live-service acceptance is a separate, explicitly authorized action.** It may call Google Places and fetch public business websites, so it can consume API quota and incur costs. Do not start it merely because CI passed.
+- For the first authorized manual run, use a small lead limit (suggested: 5), a narrow search term, and `sync_to_airtable=false`. Do not configure or invoke a sender.
+- Before running, verify the run is on the intended PR branch and that the workflow file still has only `workflow_dispatch`, no sender command, and Airtable sync defaulted off.
+- After the run, verify only the aggregate summary artifact exists (7-day expiry), confirm the summary contains counts/control metadata only, and review the run's logs for any candidate names, URLs, email addresses, draft text, or provider response bodies. Do not download or publish raw intermediate files.
+- If any raw prospect/draft content appears in logs or artifacts, stop the cutover, preserve only the minimum necessary evidence, and fix the leak before another run.
 - Verify the replacement creates expected local intermediates, completes the research/Airtable step in a non-sending test, and uploads only aggregate metadata.
 - Verify no downstream workflow still requires the old candidate/audit artifacts.
 - Only after passing checks, propose retiring the old artifact-transfer triggers in a separately reviewed commit. Do not merge without owner approval.
@@ -94,4 +99,4 @@ Until the rule, legal/provider checks, and field availability are confirmed, ret
 
 ## Current status
 
-This document records the target design and the first manual-only prototype. The existing scheduled workflow chain is unchanged; its website-audit artifact still contains minimized prospect data. The new workflow has not been manually run or end-to-end validated against live services. Static safety tests were added to enforce manual-only operation, no sender path, opt-in Airtable sync, restrictive local file permissions, private CLI stdout/stderr, and aggregate-only artifact upload. No live Airtable records were read or changed as part of this work, and no deletion or outreach was performed.
+This document records the target design and the first manual-only prototype, including an explicit gated acceptance procedure. The existing scheduled workflow chain is unchanged; its website-audit artifact still contains minimized prospect data. The new workflow has not been manually run or end-to-end validated against live services. Static safety tests were added to enforce manual-only operation, no sender path, opt-in Airtable sync, restrictive local file permissions, private CLI stdout/stderr, and aggregate-only artifact upload. No live Airtable records were read or changed as part of this work, and no deletion or outreach was performed.
