@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: ["main"]
   push:
-    branches: ["phase12/step10-e2e-acceptance"]
+    branches: ["main", "phase12/step10-e2e-acceptance"]
     paths:
       - "src/**"
       - "tests/**"
