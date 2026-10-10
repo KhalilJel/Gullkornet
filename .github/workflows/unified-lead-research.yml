@@ -63,6 +63,14 @@ jobs:
             echo "Missing repository secret GOOGLE_MAPS_API_KEY."
             exit 1
           fi
+          if [ -z "${SEARCH_TERM//[[:space:]]/}" ]; then
+            echo "A non-empty search term is required."
+            exit 1
+          fi
+          if ! [[ "$DAILY_LEAD_LIMIT" =~ ^[0-9]+$ ]] || (( DAILY_LEAD_LIMIT < 1 || DAILY_LEAD_LIMIT > 100 )); then
+            echo "DAILY_LEAD_LIMIT must be an integer from 1 to 100."
+            exit 1
+          fi
           mkdir -p data
           chmod 700 data
           npm run --silent discover:google -- "$SEARCH_TERM" > data/google-candidates.json
