@@ -1,0 +1,195 @@
+name: Gullkornet Limited Lead Research Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      search_term:
+        description: "Business type to research"
+        required: true
+        default: "frisør"
+        type: string
+      daily_lead_limit:
+        description: "Maximum new candidates for this run"
+        required: true
+        default: "5"
+        type: string
+      sync_to_airtable:
+        description: "Persist researched drafts to Airtable for human review"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gullkornet-unified-lead-research
+  cancel-in-progress: false
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore minimal discovery deduplication history
+        uses: actions/cache/restore@v4
+        with:
+          path: data/discovery-history.json
+          key: gullkornet-unified-history-${{ github.run_id }}
+          restore-keys: |
+            gullkornet-unified-history-
+
+      - name: Discover candidates into runner-local storage
+        env:
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          SEARCH_TERM: ${{ inputs.search_term }}
+          DAILY_LEAD_LIMIT: ${{ inputs.daily_lead_limit }}
+          DISCOVERY_HISTORY_PATH: data/discovery-history.json
+          UPDATE_DISCOVERY_HISTORY: "true"
+        run: |
+          set -euo pipefail
+          umask 077
+          if [ -z "${GOOGLE_MAPS_API_KEY:-}" ]; then
+            echo "Missing repository secret GOOGLE_MAPS_API_KEY."
+            exit 1
+          fi
+          if [ -z "${SEARCH_TERM//[[:space:]]/}" ]; then
+            echo "A non-empty search term is required."
+            exit 1
+          fi
+          if ! [[ "$DAILY_LEAD_LIMIT" =~ ^[0-9]+$ ]] || (( DAILY_LEAD_LIMIT < 1 || DAILY_LEAD_LIMIT > 5 )); then
+            echo "DAILY_LEAD_LIMIT must be an integer from 1 to 5."
+            exit 1
+          fi
+          mkdir -p data
+          chmod 700 data
+          if ! npm run --silent discover:google -- "$SEARCH_TERM" > data/google-candidates.json 2> data/discovery.stderr.log; then
+            chmod 600 data/google-candidates.json data/discovery.stderr.log 2>/dev/null || true
+            echo "Candidate discovery failed; private diagnostics were not printed."
+            exit 1
+          fi
+          chmod 600 data/google-candidates.json data/discovery.stderr.log
+          node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+          const rows = JSON.parse(await readFile("data/google-candidates.json", "utf8"));
+          if (!Array.isArray(rows)) throw new Error("Candidate discovery did not return an array.");
+          console.log(JSON.stringify({ stage: "discovery", candidateCount: rows.length }));
+          NODE
+
+      - name: Audit candidate websites in runner-local storage
+        run: |
+          set -euo pipefail
+          umask 077
+          if ! npm run --silent audit:websites -- data/google-candidates.json > data/website-audit.json 2> data/website-audit.stderr.log; then
+            chmod 600 data/website-audit.json data/website-audit.stderr.log 2>/dev/null || true
+            echo "Website audit failed; private diagnostics were not printed."
+            exit 1
+          fi
+          chmod 600 data/website-audit.json data/website-audit.stderr.log
+          node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+          const rows = JSON.parse(await readFile("data/website-audit.json", "utf8"));
+          if (!Array.isArray(rows)) throw new Error("Website audit did not return an array.");
+          console.log(JSON.stringify({
+            stage: "website-audit",
+            total: rows.length,
+            audited: rows.filter((row) => row.status === "AUDITED").length,
+            withoutWebsite: rows.filter((row) => row.status === "NO_WEBSITE").length,
+            errors: rows.filter((row) => ["FETCH_ERROR", "BLOCKED_URL"].includes(row.status)).length
+          }));
+          NODE
+
+      - name: Research public contacts and prepare drafts locally
+        run: |
+          set -euo pipefail
+          umask 077
+          if ! npm run --silent research:contacts -- data/google-candidates.json data/website-audit.json > data/contact-research-drafts.json 2> data/contact-research.stderr.log; then
+            chmod 600 data/contact-research-drafts.json data/contact-research.stderr.log 2>/dev/null || true
+            echo "Contact research failed; private diagnostics were not printed."
+            exit 1
+          fi
+          chmod 600 data/contact-research-drafts.json data/contact-research.stderr.log
+          node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+          const rows = JSON.parse(await readFile("data/contact-research-drafts.json", "utf8"));
+          if (!Array.isArray(rows)) throw new Error("Contact research did not return an array.");
+          console.log(JSON.stringify({
+            stage: "contact-research",
+            total: rows.length,
+            withPublicEmail: rows.filter((row) => Array.isArray(row.emails) && row.emails.length > 0).length,
+            withDraft: rows.filter((row) => typeof row.subject === "string" && typeof row.draftBody === "string").length,
+            requiringReview: rows.filter((row) => row.requiresHumanReview === true).length,
+            emailSent: 0
+          }));
+          NODE
+          echo "No emails were sent. Human review is required."
+
+      - name: Sync researched drafts to Airtable only when explicitly selected
+        if: ${{ inputs.sync_to_airtable }}
+        env:
+          AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
+          GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if [ -z "${AIRTABLE_API_TOKEN:-}" ] || [ -z "${GULLKORNET_AIRTABLE_BASE_ID:-}" ]; then
+            echo "Airtable sync was requested but required credentials/configuration are missing."
+            exit 1
+          fi
+          if ! npm run --silent sync:airtable -- data/contact-research-drafts.json > data/airtable-sync.stdout.log 2> data/airtable-sync.stderr.log; then
+            chmod 600 data/airtable-sync.stdout.log data/airtable-sync.stderr.log 2>/dev/null || true
+            echo "Airtable sync failed; private diagnostics were not printed."
+            exit 1
+          fi
+          chmod 600 data/airtable-sync.stdout.log data/airtable-sync.stderr.log
+          echo "Airtable sync complete. No emails were sent."
+
+      - name: Create aggregate-only run summary
+        run: |
+          set -euo pipefail
+          umask 077
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from "node:fs/promises";
+          const candidates = JSON.parse(await readFile("data/google-candidates.json", "utf8"));
+          const audits = JSON.parse(await readFile("data/website-audit.json", "utf8"));
+          const records = JSON.parse(await readFile("data/contact-research-drafts.json", "utf8"));
+          const summary = {
+            generatedAt: new Date().toISOString(),
+            candidates: candidates.length,
+            websitesAudited: audits.length,
+            recordsWithPublicEmail: records.filter((row) => Array.isArray(row.emails) && row.emails.length > 0).length,
+            recordsWithDraft: records.filter((row) => typeof row.subject === "string" && typeof row.draftBody === "string").length,
+            recordsRequiringHumanReview: records.filter((row) => row.requiresHumanReview === true).length,
+            airtableSyncRequested: process.env.SYNC_TO_AIRTABLE === "true",
+            emailSent: 0
+          };
+          await writeFile("data/unified-lead-research-summary.json", JSON.stringify(summary, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
+          console.log(JSON.stringify(summary));
+          NODE
+        env:
+          SEARCH_TERM: ${{ inputs.search_term }}
+          SYNC_TO_AIRTABLE: ${{ inputs.sync_to_airtable }}
+
+      - name: Upload aggregate-only summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: gullkornet-unified-lead-research-summary
+          path: data/unified-lead-research-summary.json
+          retention-days: 7
+
+      - name: Save minimal discovery history
+        uses: actions/cache/save@v4
+        with:
+          path: data/discovery-history.json
+          key: gullkornet-unified-history-${{ github.run_id }}
