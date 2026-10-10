@@ -29,7 +29,13 @@ This is preferred over a new persistent handoff service because it avoids introd
 
 ### Phase A — inventory and preconditions
 
-- Confirm all current workflow triggers, artifact names, manual-dispatch behavior, timeouts, and downstream consumers.
+- Inventory completed on the PR branch. Current artifact-triggered chain:
+  - `Gullkornet Google Places Discovery` runs on a schedule and manual dispatch; uploads `gullkornet-google-candidates`.
+  - `Gullkornet Website Audit` starts after discovery; downloads candidates and uploads `gullkornet-website-audit`. This artifact is the remaining minimized prospect-data handoff.
+  - `Gullkornet Contact Research and Drafts` and `Gullkornet Digital Presence Research` both consume the website-audit artifact. They now upload aggregate metadata summaries, not raw contact/draft or digital-presence artifacts.
+  - `Gullkornet Daily Outreach` listens for contact-research completion but its entire send job has `if: ${{ false }}`; no steps run. It still references the legacy `gullkornet-contact-research-drafts` artifact, which is no longer produced. Keep this workflow disabled; resolve or retire this stale dependency only as part of a separately reviewed cutover, never by enabling the job.
+  - `Gullkornet Unified Lead Research (Manual)` is a separate `workflow_dispatch`-only prototype. It does not replace the existing scheduled chain and has not been run against live services.
+- The above inventory is documentation only; do not retire triggers or artifacts until the unified workflow passes a separately authorized, non-sending end-to-end test and downstream consumers are rechecked.
 - Confirm the Airtable table/field schema without exposing values or changing live records.
 - Keep the sender workflow hard-disabled. This migration must not enable sending or change send approval gates.
 - Keep all current workflows intact until the replacement passes non-sending acceptance tests.
