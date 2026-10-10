@@ -152,3 +152,17 @@ Do not skip or reorder steps. Each step must pass its own tests and be documente
 - Step 8 is complete and merged via PR #84 (merge commit `d4dba075cdbe6f807411c791ba71f68bad5a746b`). Sales orchestration retries only explicitly transient provider failures (timeout/network, HTTP 408/425/429/5xx), once maximum; permanent failures are not retried and ingest writes are never retried after ambiguous errors. Existing sequential lead processing and `maxLeads` bound remain in place. CI/typecheck/tests, Phase 10 non-sending E2E, Phase 11 readiness, and KeeLead Live Acceptance all passed on final PR head `5e26e72ab38aa2f47b91a926feeefd29f229fd53`. Existing suppression fail-closed behavior and ingest-only boundary remain intact. Step 9 is next.
 - No prospect emails were sent during Phase 12 execution.
 - No DNS/MX or Railway configuration changes were made.
+
+## Step 9 — completion checkpoint (2026-10-09)
+
+**Step 9 implementation: MERGED.** PR #86 was squash-merged after all four required checks passed on final head `2f472af8596dcb48237ce21d51df51630d465b86`; merge commit: `de8e5410038fe5b0866521dd9632dc38628441f7`.
+
+- Added privacy-safe structured start/completion/failure events with a per-run correlation ID, duration, bounded counts, and stable failure categories.
+- Tests verify that serialized events omit prospect contact details, draft content, raw exception text, and secret-like values.
+- Fixed Phase 10 workflow assertions to accept valid JSON whitespace.
+- Added one bounded retry to read-only KeeLead acceptance requests to reduce transient timeout failures.
+- Final checks: `test`, `phase10`, `phase11-readiness`, and `keelead-live-acceptance`: **PASS**.
+- Safety remains unchanged: no real prospect emails, no DNS/MX changes, no Railway configuration/deployment changes, OpenOutSend remains ingest-only, and the scheduled send job remains hard-disabled.
+- Limitation: this step adds run-level structured logs and failure classification; it does not add centralized alerting or a new health endpoint.
+
+**Next locked step: Step 10 — Phase 12 end-to-end dry-run acceptance.** Use controlled inputs where possible, verify the complete discovery-to-review/CRM path, and assert `send_triggered=false` and `emailSent=0`. Do not activate sending.

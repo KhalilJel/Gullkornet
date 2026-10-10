@@ -88,3 +88,16 @@ The existing Railway project is `powerful-patience`. The `cidea-website-intellig
 - [x] Railway service inspected: WIE is a one-shot CLI, not a callable API; no endpoint was guessed.
 - [x] Owner-approved in-repository provider selected; evidence provenance formatter and tests added.
 - [x] Gaps for Phase 12 qualification, evidence and acceptance are documented.
+
+## Observability contract (Phase 12 Step 9)
+
+The sales-engine CLI emits structured start, completion, and failure events from `src/integrations/sales-engine-observability.ts`.
+
+- A per-run correlation ID connects the events; duration and safe aggregate counts are included.
+- Failure categories are stable, bounded labels (including timeout, provider unavailable, configuration, persistence, validation, and unknown). Raw exception strings are not emitted by the failure event.
+- Routine event payloads do not include prospect email addresses, draft bodies, mailbox contents, provider response bodies, or API keys.
+- Completion explicitly reports zero sent email; this is an observability assertion, not permission to send.
+- The test suite serializes events and checks for private prospect data, raw error text, and secret-like values.
+- Operational limitation: the change does not provide centralized alerting, stale-monitor detection, or a new health endpoint. Existing Railway health/log monitoring and reply-monitor behavior are unchanged.
+
+Step 9 was merged in PR #86 at `de8e5410038fe5b0866521dd9632dc38628441f7`; CI, Phase 10 E2E, Phase 11 readiness, and KeeLead live acceptance passed on the final PR head.
