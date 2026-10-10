@@ -75,9 +75,9 @@ try {
   );
   try {
     await markAirtableRecipientSent(airtableRecordId, process.env);
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : "unknown Airtable update error";
-    throw new Error(`Resend accepted email ID ${result.id}, but Airtable state could not be confirmed. Do not retry until reconciled. Detail: ${reason}`);
+  } catch {
+    // Do not echo provider/CRM error details: they may include prospect data.
+    throw new Error(`Resend accepted email ID ${result.id}, but Airtable state could not be confirmed. Do not retry until reconciled.`);
   }
   console.log("Resend accepted one email and Airtable is marked Sent.");
 } catch (error) {
