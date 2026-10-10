@@ -72,7 +72,7 @@ jobs:
               count = 999;
             }
           }
-          appendFileSync(process.env.GITHUB_OUTPUT, `count=${count}\n`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `count=${count}\\n`);
           NODE
 
       - name: Select daily business segments
@@ -84,8 +84,6 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "terms=${REQUESTED_TERM}" >> "$GITHUB_OUTPUT"
           else
-            # Normally search two categories. When the Airtable draft queue is low,
-            # add the next day's categories to replenish stock before it runs out.
             day="$(date -u +%u)"
             case "$day" in
               1) primary="frisør|restaurant"; next="regnskapsfører|tannlege"; later="bilverksted|elektriker" ;;
@@ -146,7 +144,7 @@ jobs:
             for (const file of process.argv.slice(1)) {
               const candidates = JSON.parse(readFileSync(file, "utf8"));
               for (const candidate of candidates) {
-                const website = candidate.websiteUrl ? new URL(candidate.websiteUrl).hostname.toLowerCase().replace(/^www\./, "") : "";
+                const website = candidate.websiteUrl ? new URL(candidate.websiteUrl).hostname.toLowerCase().replace(/^www\\./, "") : "";
                 const key = website || candidate.companyName.trim().toLocaleLowerCase("nb-NO");
                 const current = map.get(key);
                 if (!current || (!current.websiteUrl && candidate.websiteUrl)) map.set(key, candidate);
@@ -159,7 +157,7 @@ jobs:
             const knownNames = new Set(Array.isArray(history.companyNames) ? history.companyNames : []);
             const dailyLimit = Math.max(1, Number.parseInt(process.env.DAILY_LEAD_LIMIT || "100", 10) || 100);
             const fresh = [...map.values()].filter((candidate) => {
-              const website = candidate.websiteUrl ? new URL(candidate.websiteUrl).hostname.toLowerCase().replace(/^www\./, "") : "";
+              const website = candidate.websiteUrl ? new URL(candidate.websiteUrl).hostname.toLowerCase().replace(/^www\\./, "") : "";
               const name = candidate.companyName.trim().toLocaleLowerCase("nb-NO");
               return !(website && knownDomains.has(website)) && !knownNames.has(name);
             }).slice(0, dailyLimit);
@@ -167,7 +165,7 @@ jobs:
             const domains = new Set(knownDomains);
             const names = new Set(knownNames);
             for (const candidate of fresh) {
-              if (candidate.websiteUrl) domains.add(new URL(candidate.websiteUrl).hostname.toLowerCase().replace(/^www\./, ""));
+              if (candidate.websiteUrl) domains.add(new URL(candidate.websiteUrl).hostname.toLowerCase().replace(/^www\\./, ""));
               names.add(candidate.companyName.trim().toLocaleLowerCase("nb-NO"));
             }
             writeFileSync("data/discovery-history.json", JSON.stringify({
@@ -176,17 +174,33 @@ jobs:
             }, null, 2));
             console.error("Discovery complete: " + map.size + " unique candidates across " + (process.argv.length - 1) + " segment files; " + fresh.length + " new candidates after cross-run dedupe and daily cap. No email was sent.");
           ' "${files[@]}"
+
       - name: Save discovery history for future runs
         uses: actions/cache/save@v4
         with:
           path: data/discovery-history.json
           key: gullkornet-discovery-history-${{ github.run_id }}
 
-      - name: Upload candidate results
+      - name: Minimize candidate handoff fields
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from "node:fs/promises";
+          const candidates = JSON.parse(await readFile("data/google-candidates.json", "utf8"));
+          if (!Array.isArray(candidates)) throw new Error("Candidate handoff must be an array.");
+          const minimized = candidates.map((candidate) => ({
+            companyName: candidate.companyName,
+            ...(typeof candidate.websiteUrl === "string" ? { websiteUrl: candidate.websiteUrl } : {}),
+            ...(typeof candidate.city === "string" ? { city: candidate.city } : {}),
+            ...(typeof candidate.industry === "string" ? { industry: candidate.industry } : {}),
+            ...(typeof candidate.sourceUrl === "string" ? { sourceUrl: candidate.sourceUrl } : {})
+          }));
+          await writeFile("data/google-candidates.json", JSON.stringify(minimized, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
+          console.log(`Prepared minimized candidate handoff: ${minimized.length} records; only company name, website, city, industry, and source URL retained.`);
+          NODE
+
+      - name: Upload minimized candidate results
         uses: actions/upload-artifact@v4
         with:
           name: gullkornet-google-candidates
-          path: |
-            data/google-candidates.json
-            data/discovery-history.json
+          path: data/google-candidates.json
           retention-days: 7
