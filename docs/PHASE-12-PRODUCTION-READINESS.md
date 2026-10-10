@@ -30,7 +30,7 @@ This is a read-only production-readiness review. It does not authorize or perfor
 | Rate limits | Single-send policy is capped at 3 per run, 3/hour, and 10/day. Bulk sender remains hard-disabled. This does not authorize the future 50–100/day goal. | Conservative limits present; scaling not approved |
 | Recovery | Provider read retries are bounded; ambiguous ingest/Airtable writes are not blindly retried. Latest Railway deployment is marked rollback-capable. | Recovery controls documented; no rollback exercised |
 | Observability | Structured sales-engine events use correlation IDs, safe counts, stable failure categories, and `emailSent=0`. No centralized alerting or stale-monitor alert is implemented. | Partial; operational alerting is a follow-up |
-| Dependency reproducibility | `package-lock.json` is committed on PR #93 and all ten workflows that install Node dependencies now use `npm ci`. All five required workflows passed on commit `d3f152882b7d863ee1879779042721da67853be5`. | Lockfile and deterministic install implemented on PR branch; verify CI before treating as cleared |
+| Dependency reproducibility | `package-lock.json` is committed on PR #93 and all ten workflows that install Node dependencies now use `npm ci`. All five required workflows passed on commit `c307f6239ea117e8bd41829375bfda666e481952`. | **Verified on PR branch; main remains unchanged until approved merge** |
 | Data retention/privacy | PR #89 merged and changes Phase 10 artifacts to upload only the structured sales-engine log; the workflow still checks that local files were created. PR #93 adds a proposed retention/deletion policy, but it is not approved or implemented. | Artifact redaction merged; retention policy and deletion controls remain outstanding |
 | CLI output | PR #93 (`fix/privacy-safe-cli-preview-2026-10-10`) removes recipient, subject, and draft body from stdout/stderr by default and adds a dry-run-only local preview file with owner-only permissions and no-overwrite behavior. All five required acceptance/check workflows passed on PR head `949a0cd111dc45c464261b8a7c0ba07fc059e8a1` on 2026-10-10: CI, Phase 12 Dry-Run Acceptance, KeeLead Live Acceptance, Phase 10 End to End Testing, and Phase 11 Production Readiness. The PR remains open and unmerged; verify it is merged before treating the fix as present on `main`. | **Fix validated on PR branch; main remains unchanged until approved merge** |
 | CRM retention | Airtable stores prospect/research/review data; no formal retention/deletion schedule is documented in this repo. | **Policy decision required before scaling** |
@@ -38,7 +38,7 @@ This is a read-only production-readiness review. It does not authorize or perfor
 
 ## Required before any live pilot
 
-1. Create and commit a dependency lockfile, then use deterministic dependency installation in CI.
+1. Dependency lockfile and deterministic CI installation are implemented and verified on PR #93; ensure they reach `main` only after owner approval and merge.
 2. Artifact redaction from PR #89 is merged; continue verifying that workflows do not upload raw prospect/draft JSON.
 3. Approve or revise the proposed schedule in `docs/PROSPECT-DATA-RETENTION-POLICY.md`, then implement and verify deletion/retention controls for Airtable, local artifacts, and CI logs.
 4. Merge and verify PR #93 (privacy-safe sender CLI output and explicit local preview path) after owner approval; until merged, treat `main` as still containing the old log behavior.
@@ -62,7 +62,7 @@ Phase 12 is complete for controlled, non-sending dry-run acceptance only. Produc
 
 - PR #93 adds sender CLI log redaction and an explicit `--preview-file <local-path>` dry-run preview. The preview file is created with mode `0600` where supported and refuses to overwrite an existing file. Live-send and preview-file options cannot be combined.
 - Added synthetic coverage for log redaction, local preview contents and permissions, overwrite prevention, and incompatible flags.
-- GitHub Actions verification on PR head `949a0cd111dc45c464261b8a7c0ba07fc059e8a1` completed successfully: CI and the Phase 12 Dry-Run Acceptance, KeeLead Live Acceptance, Phase 10 End to End Testing, and Phase 11 Production Readiness workflows all report `success` (run IDs: `38055472307`, `38055472259`, `38055472271`, `38055472284`, `38055472280`).
+- GitHub Actions verification on PR head `c307f6239ea117e8bd41829375bfda666e481952` completed successfully: CI, Phase 12 Dry-Run Acceptance, KeeLead Live Acceptance, Phase 10 End to End Testing, and Phase 11 Production Readiness all report `success` (run IDs: `38060028861`, `38060028848`, `38060028841`, `38060028835`, `38060028868`).
 - PR #93 remains unmerged pending explicit owner approval. No production email, DNS/MX, Railway configuration, or deployment actions were performed.
 - The package lockfile and `npm ci` workflow changes are on the PR branch and all five required workflows passed on commit `d3f152882b7d863ee1879779042721da67853be5`. Remaining blockers include owner approval and implementation of the proposed prospect/research/draft retention and deletion policy in `docs/PROSPECT-DATA-RETENTION-POLICY.md`. Live sending remains not approved.
 
