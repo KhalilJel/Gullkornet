@@ -41,6 +41,27 @@ jobs:
           run-id: ${{ github.event_name == 'workflow_dispatch' && inputs.audit_run_id || github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Reconstruct minimal candidate input from audit handoff
+        run: |
+          node --input-type=module <<'NODE'
+          import { mkdir, readFile, writeFile } from "node:fs/promises";
+          const audits = JSON.parse(await readFile("data/input/website-audit.json", "utf8"));
+          if (!Array.isArray(audits)) throw new Error("Website audit handoff must be an array.");
+          const candidates = audits.map((row) => ({
+            companyName: row.companyName,
+            ...(typeof row.websiteUrl === "string" ? { websiteUrl: row.websiteUrl } : {}),
+            ...(typeof row.city === "string" ? { city: row.city } : {}),
+            ...(typeof row.industry === "string" ? { industry: row.industry } : {}),
+            ...(typeof row.sourceUrl === "string" ? { sourceUrl: row.sourceUrl } : {})
+          }));
+          if (candidates.some((row) => typeof row.companyName !== "string" || !row.companyName.trim())) {
+            throw new Error("Website audit handoff contains a candidate without a valid company name.");
+          }
+          await mkdir("data/input/source", { recursive: true });
+          await writeFile("data/input/source/google-candidates.json", JSON.stringify(candidates, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
+          console.log(`Reconstructed ${candidates.length} minimized candidate records from the audit handoff.`);
+          NODE
+
       - name: Research public contact emails and prepare drafts
         run: |
           test -f data/input/website-audit.json
