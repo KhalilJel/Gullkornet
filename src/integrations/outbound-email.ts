@@ -201,10 +201,8 @@ export async function sendOneEmail(email: PreparedEmail, apiKey: string, idempot
   });
   const body: unknown = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const detail = typeof body === "object" && body !== null && "message" in body
-      ? String((body as { message: unknown }).message)
-      : `Resend returned HTTP ${response.status}`;
-    throw new Error(`Resend send failed: ${detail}`);
+    // Provider error bodies can echo recipient addresses or message metadata; keep them out of logs.
+    throw new Error(`Resend send failed (HTTP ${response.status}).`);
   }
   if (typeof body !== "object" || body === null || !("id" in body) || typeof (body as { id: unknown }).id !== "string") {
     throw new Error("Resend returned an unexpected success response without an email ID.");
