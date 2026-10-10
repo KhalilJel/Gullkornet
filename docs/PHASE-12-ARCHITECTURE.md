@@ -101,3 +101,10 @@ The sales-engine CLI emits structured start, completion, and failure events from
 - Operational limitation: the change does not provide centralized alerting, stale-monitor detection, or a new health endpoint. Existing Railway health/log monitoring and reply-monitor behavior are unchanged.
 
 Step 9 was merged in PR #86 at `de8e5410038fe5b0866521dd9632dc38628441f7`; CI, Phase 10 E2E, Phase 11 readiness, and KeeLead live acceptance passed on the final PR head.
+
+
+## Synthetic acceptance contract (Phase 12 Step 10)
+
+`.github/workflows/phase12-e2e-acceptance.yml` runs typecheck and the deterministic in-repository test suite without configuring live provider credentials. The tests cover the controlled orchestration path and its suppression, review, persistence-adapter, and ingest-safety boundaries. The workflow also asserts that the scheduled send job remains hard-disabled and that the OpenOutSend adapter remains ingest-only.
+
+The workflow emits only a privacy-safe step summary; it does not upload lead/draft artifacts, contact live providers, send email, or write real prospect records. This is deterministic test acceptance, not proof of live provider availability or authorization for production sending. Phase 10's existing separate acceptance workflow retains its existing bounded provider checks.
