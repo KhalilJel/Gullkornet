@@ -32,3 +32,8 @@ test("raw intermediate data stays in runner-local files with restrictive permiss
   assert.match(workflow, /mode: 0o600/);
   assert.match(workflow, /emailSent: 0/);
 });
+
+test("unified lead research rejects unsafe or accidental discovery limits", () => {
+  assert.match(workflow, /A non-empty search term is required/);
+  assert.match(workflow, /DAILY_LEAD_LIMIT must be an integer from 1 to 100/);
+});
