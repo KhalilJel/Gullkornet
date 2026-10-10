@@ -32,7 +32,7 @@ This is a read-only production-readiness review. It does not authorize or perfor
 | Observability | Structured sales-engine events use correlation IDs, safe counts, stable failure categories, and `emailSent=0`. No centralized alerting or stale-monitor alert is implemented. | Partial; operational alerting is a follow-up |
 | Dependency reproducibility | Repository has no `package-lock.json`; workflows use `npm install` with semver ranges. Typecheck and tests pass, but dependency resolution is not locked. | **Blocker before production pilot** |
 | Data retention/privacy | Phase 10 acceptance was uploading raw review-queue and draft JSON artifacts that may contain prospect email addresses and draft content. PR #89 changes the artifact to upload only the structured sales-engine log; the workflow still checks that local files were created. | Remediation in this PR; must pass CI and merge |
-| CLI output | `src/cli/send-email.ts` prints recipient, subject, and draft body to stdout during its preview path. Do not run that CLI in CI or shared logs with real prospect data until output handling is made explicitly privacy-safe. | **Operational blocker for automated use** |
+| CLI output | PR #93 (`fix/privacy-safe-cli-preview-2026-10-10`) removes recipient, subject, and draft body from stdout/stderr by default and adds a dry-run-only local preview file with owner-only permissions and no-overwrite behavior. All five CI checks passed on PR head `c01e11b4accb92677a8afad4ec7c39a8282f9d43`. The PR remains open and unmerged; verify it is merged before treating the fix as present on `main`. | **Fix validated on PR branch; main remains unchanged until approved merge** |
 | CRM retention | Airtable stores prospect/research/review data; no formal retention/deletion schedule is documented in this repo. | **Policy decision required before scaling** |
 | Live runtime flags | Connector inspection does not reveal current variable values; this review did not read or change them. The last operator-confirmed values are recorded in Phase 11. | Reverify directly in Railway UI before any separately approved live send |
 
@@ -41,7 +41,7 @@ This is a read-only production-readiness review. It does not authorize or perfor
 1. Create and commit a dependency lockfile, then use deterministic dependency installation in CI.
 2. Merge and verify PR #89 so GitHub Actions artifacts no longer include raw prospect/draft JSON.
 3. Define a prospect/research/draft retention and deletion policy for Airtable, local artifacts, and CI logs.
-4. Prevent the sender CLI's full recipient/draft preview from being persisted in shared CI logs; document an approved operator-only preview path.
+4. Merge and verify PR #93 (privacy-safe sender CLI output and explicit local preview path) after owner approval; until merged, treat `main` as still containing the old log behavior.
 5. Directly reverify both Railway safety flags in the Railway UI immediately before any separately authorized pilot; do not expose their values in logs or commits.
 6. For each future single-recipient pilot, verify a fresh, unique idempotency key and exact recipient approval, suppression status, reply status, sender identity, and current rate limits.
 7. Do not enable the scheduled/bulk sender or raise limits without a separate reviewed change and explicit authorization.
@@ -56,3 +56,12 @@ This is a read-only production-readiness review. It does not authorize or perfor
 Step 11 review is complete. PR #89 merged at `871bada745d6dda30ab7f798b5acd032861c89f8` after all five checks passed; Phase 10 artifacts now include only the structured sales-engine log, not raw review-queue or draft JSON. PR #90 merged at `711e4df1ad546dd28167c56884a2d8d884893b2c` and enabled Phase 12 synthetic acceptance on relevant pushes to `main`. Final-main synthetic acceptance, CI tests, and KeeLead acceptance passed on that commit.
 
 Phase 12 is complete for controlled, non-sending dry-run acceptance only. Production sending remains **not approved** until all pre-pilot blockers listed above are addressed and a separate explicit authorization is given.
+
+
+## Follow-up verification — 2026-10-10
+
+- PR #93 adds sender CLI log redaction and an explicit `--preview-file <local-path>` dry-run preview. The preview file is created with mode `0600` where supported and refuses to overwrite an existing file. Live-send and preview-file options cannot be combined.
+- Added synthetic coverage for log redaction, local preview contents and permissions, overwrite prevention, and incompatible flags.
+- GitHub Actions checks on PR head `c01e11b4accb92677a8afad4ec7c39a8282f9d43`: `test`, `phase10`, `phase11-readiness`, `keelead-live-acceptance`, and `Synthetic non-sending acceptance` all completed successfully.
+- PR #93 remains unmerged pending explicit owner approval. No production email, DNS/MX, Railway configuration, or deployment actions were performed.
+- Remaining blockers include the missing `package-lock.json` and deterministic CI installation, plus a documented prospect/research/draft retention and deletion policy. Live sending remains not approved.
