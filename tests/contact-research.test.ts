@@ -89,7 +89,7 @@ test("personalizes hair salon drafts from observed public service text", () => {
     evidence.serviceEvidence
   );
   assert.equal(draft.subject, "Et lite spørsmål til Fellini Frisør");
-  assert.ok(draft.draftBody?.includes("Jeg la merke til at dere fremhever hårbehandlinger på nettsiden."));
+  assert.ok(draft.draftBody?.includes("Jeg la merke til at dere fremhever balayage og keratinbehandlinger på nettsiden."));
   assert.ok(draft.draftBody?.includes("svar «nei takk»"));
 });
 
