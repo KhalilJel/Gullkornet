@@ -65,7 +65,16 @@ jobs:
       - name: Research website and social profile links
         run: |
           test -f data/input/source/google-candidates.json
-          npx tsx src/cli/research-digital-presence.ts data/input/source/google-candidates.json > data/digital-presence-results.json
+          set -euo pipefail
+          umask 077
+          mkdir -p data
+          chmod 700 data
+          if ! npx tsx src/cli/research-digital-presence.ts data/input/source/google-candidates.json > data/digital-presence-results.json 2> data/digital-presence.stderr.log; then
+            chmod 600 data/digital-presence-results.json data/digital-presence.stderr.log 2>/dev/null || true
+            echo "Digital presence research failed; private diagnostics were not printed."
+            exit 1
+          fi
+          chmod 600 data/digital-presence-results.json data/digital-presence.stderr.log
           node --input-type=module <<'NODE'
           import { readFile, writeFile } from "node:fs/promises";
           const rows = JSON.parse(await readFile("data/digital-presence-results.json", "utf8"));
