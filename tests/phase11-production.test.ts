@@ -202,7 +202,7 @@ test("Phase 11 Airtable approval lookup accepts exactly one reviewed record", as
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = new URL(String(input));
     assert.equal(url.hostname, "api.airtable.com");
-    assert.match(url.searchParams.get("filterByFormula") ?? "", /pilot@example\.no/);
+    assert.match(url.searchParams.get("filterByFormula") ?? "", /post@phase11\.no/);
     assert.match(url.searchParams.get("filterByFormula") ?? "", /Do Not Contact.*= 0/);
     return new Response(JSON.stringify({
       records: [{
