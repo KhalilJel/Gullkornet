@@ -11,7 +11,7 @@ Gullkornet is Cidea's internal lead research and qualification engine.
 - **Initial pilot delivery:** Website-focused research only. Broader digital-presence research will be added as evidence sources and qualification rules are implemented.
 - **Pilot target:** Research 50 businesses, identify up to 20 genuinely qualified leads, and use the results to improve targeting
 - **Default daily discovery limit:** 100 new candidates, configurable through the `DAILY_LEAD_LIMIT` repository variable
-- **Safety:** Dry run is enabled by default. Sending is not implemented or enabled.
+- **Safety:** Automated sending is paused by default. The daily sender requires an explicit repository kill switch and only reads human-approved Airtable records.
 
 These are test assumptions, not proven conversion rates. Review lead quality and outreach response before expanding to other industries or all of Norway.
 
@@ -66,7 +66,7 @@ The registry adapter searches a name term in Oslo and selected Akershus municipa
 
 ## Daily lead machine
 
-The Google Places workflow runs on weekday mornings and searches two local-business categories per scheduled run, rotating across hairdressers, restaurants, accounting firms, dentists, auto repair shops, electricians, plumbers, cleaning companies, physiotherapists, and gyms. Candidates are deduplicated within the run and against a cached cross-run discovery history. The website audit and contact-research workflows are triggered from successful upstream runs, producing an outreach-draft artifact without sending email. A manual workflow dispatch still searches one selected category.
+The Google Places workflow runs on weekday mornings and searches two local-business categories per scheduled run, rotating across hairdressers, restaurants, accounting firms, dentists, auto repair shops, electricians, plumbers, cleaning companies, physiotherapists, and gyms. Candidates are deduplicated within the run and against a cached cross-run discovery history. The website audit and contact-research workflows are triggered from successful upstream runs, producing outreach drafts. A separate daily sender checks Airtable for eligible, human-approved personalized drafts and attempts at most one email per day when the live-send kill switch is enabled. A manual workflow dispatch still searches one selected category.
 
 To run a one-off search, open **Actions → Gullkornet Google Places Discovery → Run workflow** and choose a business type. The scheduled workflow requires the repository secret `GOOGLE_MAPS_API_KEY`; ensure Places API billing and quotas are configured. Google Places and website requests may incur costs or be rate-limited.
 
@@ -81,7 +81,7 @@ A separate Airtable base named `Gullkornet Lead Registry` can store one durable 
 The sync updates existing records by normalized website domain or business name and preserves terminal states (`Sent`, `Replied`, `Suppressed`) and the `Do Not Contact` flag. It does not send email. If the credentials are absent, the workflow skips the sync and continues producing artifacts. Do not use SmartSvar's existing CRM base for this integration.
 
 
-This pipeline discovers candidates, audits websites, researches publicly listed contact routes, and drafts interest-first outreach. It deduplicates candidates within a run and uses cached discovery history to avoid previously discovered domains and business names across runs. It cannot guarantee that 100 new candidates will be found every day; actual volume depends on category coverage and public listing availability. The pipeline prepares drafts only; it does not automatically send emails.
+This pipeline discovers candidates, audits websites, researches publicly listed contact routes, and drafts interest-first outreach. It deduplicates candidates within a run and uses cached discovery history to avoid previously discovered domains and business names across runs. It cannot guarantee that 100 new candidates will be found every day; actual volume depends on category coverage and public listing availability. Drafts remain unsent unless the daily sender is enabled and an Airtable record passes all approval, evidence, recipient, reply, and rate-limit checks.
 
 ## Import and research workflow
 
@@ -106,7 +106,7 @@ npm test
 - Trace every lead back to its source.
 - Never contact the same business twice accidentally.
 - Respect do-not-contact requests and applicable privacy and marketing rules.
-- Sending is not implemented or enabled.
+- Automated sending is disabled by default and limited to one approved personalized email per day during the pilot.
 - Do not change DNS or MX records.
 - Do not connect Gullkornet to SmartSvar production state.
 
