@@ -34,6 +34,15 @@ test("suppression list ignores blank lines, comments and case", () => {
   assert.equal(list.has("other@example.no"), true);
 });
 
+test("only role-based shared business inboxes pass the pilot recipient check", async () => {
+  const { isSharedBusinessInbox } = await import("../src/integrations/outbound-email.js");
+  assert.equal(isSharedBusinessInbox("post@salong.no"), true);
+  assert.equal(isSharedBusinessInbox("info@salong.no"), true);
+  assert.equal(isSharedBusinessInbox("owner@salong.no"), false);
+  assert.equal(isSharedBusinessInbox("person@gmail.com"), false);
+  assert.equal(isSharedBusinessInbox("info@gmail.com"), false);
+});
+
 test("live send requires explicit enablement, exact recipient and human review", () => {
   const email = prepareEmail(drafts, "post@example.no");
   assert.throws(() => assertLiveSendAllowed(email, {}), /disabled/);
