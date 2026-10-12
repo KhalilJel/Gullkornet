@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertLiveSendAllowed, parseSuppressionList, prepareEmail, sendOneEmail, type OutreachDraft } from "../src/integrations/outbound-email.js";
+import { assertLiveSendAllowed, assertRateLimits, parseSuppressionList, prepareEmail, sendOneEmail, type OutreachDraft } from "../src/integrations/outbound-email.js";
 
 const drafts: OutreachDraft[] = [{
   companyName: "Example AS",
@@ -26,6 +26,17 @@ test("prepares one draft using the selected sender", () => {
 test("refuses to send if recipient has no unique matching draft", () => {
   assert.throws(() => prepareEmail(drafts, "missing@example.no"), /found 0/);
   assert.throws(() => prepareEmail([...drafts, ...drafts], "post@example.no"), /found 2/);
+});
+
+test("enforces the configured daily pilot limit", () => {
+  assert.throws(
+    () => assertRateLimits({ lastHour: 0, lastDay: 1 }, { GULLKORNET_DAILY_SEND_LIMIT: "1", MAX_EMAILS_PER_RUN: "1" }),
+    /Daily production rate limit reached/
+  );
+  assert.throws(
+    () => assertRateLimits({ lastHour: 0, lastDay: 0 }, { GULLKORNET_DAILY_SEND_LIMIT: "0", MAX_EMAILS_PER_RUN: "1" }),
+    /must be between 1 and 10/
+  );
 });
 
 test("suppression list ignores blank lines, comments and case", () => {
