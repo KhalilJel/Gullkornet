@@ -20,7 +20,7 @@ test("unified lead research uploads only the aggregate summary", () => {
   )?.[0];
   assert.ok(uploadStep, "aggregate summary upload step must exist");
   assert.match(uploadStep, /path: data\/unified-lead-research-summary\.json/);
-  assert.match(uploadStep, /retention-days: 7/);
+  assert.match(uploadStep, /retention-days: 90/);
   assert.doesNotMatch(uploadStep, /google-candidates|website-audit|contact-research-drafts|lead-review-queue/);
 });
 
