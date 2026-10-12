@@ -84,8 +84,12 @@ export function assertRateLimits(
   if (recent.lastHour >= maxHour) {
     throw new Error(`Hourly production rate limit reached (${maxHour}/hour).`);
   }
-  if (recent.lastDay >= maxDay) {
-    throw new Error(`Daily production rate limit reached (${maxDay}/day).`);
+  const configuredDay = Number(env.GULLKORNET_DAILY_SEND_LIMIT ?? String(maxDay));
+  if (!Number.isInteger(configuredDay) || configuredDay < 1 || configuredDay > maxDay) {
+    throw new Error(`GULLKORNET_DAILY_SEND_LIMIT must be between 1 and ${maxDay} during Phase 11.`);
+  }
+  if (recent.lastDay >= configuredDay) {
+    throw new Error(`Daily production rate limit reached (${configuredDay}/day).`);
   }
   // Validate configuration eagerly. A single-recipient entry point is 1/run;
   // bulk sender remains hard-disabled until a separate accepted batch runner exists.
