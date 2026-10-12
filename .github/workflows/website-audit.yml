@@ -52,4 +52,4 @@ jobs:
         with:
           name: gullkornet-website-audit
           path: data/website-audit.json
-          retention-days: 7
+          retention-days: 90
