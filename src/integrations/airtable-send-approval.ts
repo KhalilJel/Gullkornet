@@ -103,8 +103,8 @@ function escapeFormulaString(value: string): string {
 
 export async function fetchAirtableRecipientApproval(
   recipient: string,
-  env: NodeJS.ProcessEnv = process.env,
-  expected: ApprovedDraft
+  expected: ApprovedDraft,
+  env: NodeJS.ProcessEnv = process.env
 ): Promise<string> {
   const { apiToken, baseId, tableName } = airtableConfig(env);
 
