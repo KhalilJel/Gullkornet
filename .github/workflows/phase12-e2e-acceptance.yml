@@ -46,7 +46,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -F 'GULLKORNET_ENABLE_LIVE_SEND: ${{ secrets.GULLKORNET_ENABLE_LIVE_SEND }}' .github/workflows/daily-outreach.yml
+          grep -F 'GULLKORNET_ENABLE_LIVE_SEND' .github/workflows/daily-outreach.yml
           grep -F "if: env.GULLKORNET_ENABLE_LIVE_SEND != 'true'" .github/workflows/daily-outreach.yml
           grep -F "if: env.GULLKORNET_ENABLE_LIVE_SEND == 'true'" .github/workflows/daily-outreach.yml
           grep -F 'GULLKORNET_DAILY_SEND_LIMIT: "1"' .github/workflows/daily-outreach.yml
