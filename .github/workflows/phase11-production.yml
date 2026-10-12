@@ -42,7 +42,7 @@ jobs:
       - name: Verify production sender is Cidea
         run: |
           set -euo pipefail
-          grep -q 'jelassi@cideamarketing.com' src/integrations/outbound-email.ts
+          grep -q 'hello@cideamarketing.com' src/integrations/outbound-email.ts
           echo "Cidea production sender: PASS"
 
       - name: Verify no production enablement is committed
