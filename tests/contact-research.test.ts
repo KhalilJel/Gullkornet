@@ -79,6 +79,20 @@ test("falls back to a general opener when no supported service cue is found", ()
   assert.ok(result.draftBody?.includes("Jeg kom over nettsiden deres og ville gjerne dele en kort idé."));
 });
 
+test("personalizes hair salon drafts from observed public service text", () => {
+  const evidence = extractEvidence('<main><p>Hos oss får du balayage, keratinbehandling og klipp i rolige omgivelser for alle anledninger.</p></main>');
+  assert.equal(evidence.serviceEvidence, "Hos oss får du balayage, keratinbehandling og klipp i rolige omgivelser for alle anledninger.");
+  const draft = createPersonalizedDraft(
+    { companyName: "Fellini Frisør", websiteUrl: "https://example.no" },
+    "Fellini Frisør",
+    undefined,
+    evidence.serviceEvidence
+  );
+  assert.equal(draft.subject, "Et lite spørsmål til Fellini Frisør");
+  assert.ok(draft.draftBody?.includes("Jeg la merke til at dere fremhever hårbehandlinger på nettsiden."));
+  assert.ok(draft.draftBody?.includes("svar «nei takk»"));
+});
+
 test("extracts relevant service evidence while ignoring navigation noise", () => {
   const result = extractEvidence('<html><body><nav>Hjem Kontakt Finn oss 66 96 53 00</nav><main><p>Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo.</p></main><footer>Personvern Cookies</footer></body></html>');
   assert.equal(result.serviceEvidence, "Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo.");
