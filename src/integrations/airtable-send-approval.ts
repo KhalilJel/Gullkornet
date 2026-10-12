@@ -12,6 +12,49 @@ export type AirtableSendApproval = {
 };
 
 export type ApprovedDraft = { subject: string; text: string };
+type AirtableQueueResponse = { records: AirtableSendApproval[]; offset?: string };
+
+const API_ROOT = "https://api.airtable.com/v0";
+
+function airtableConfig(env: NodeJS.ProcessEnv) {
+  const apiToken = env.AIRTABLE_API_TOKEN?.trim();
+  const baseId = env.GULLKORNET_AIRTABLE_BASE_ID?.trim();
+  const tableName = env.GULLKORNET_AIRTABLE_TABLE?.trim() || "Leads";
+  if (!apiToken || !baseId || !/^app[A-Za-z0-9]{14}$/.test(baseId)) {
+    throw new Error("Airtable token and valid base ID are required to load approved outreach. Refusing to send.");
+  }
+  return { apiToken, baseId, tableName };
+}
+
+export async function fetchApprovedOutreachQueue(
+  env: NodeJS.ProcessEnv = process.env
+): Promise<AirtableSendApproval[]> {
+  const { apiToken, baseId, tableName } = airtableConfig(env);
+  const records: AirtableSendApproval[] = [];
+  let offset: string | undefined;
+  for (let page = 0; page < 20; page += 1) {
+    const url = new URL(API_ROOT + "/" + baseId + "/" + encodeURIComponent(tableName));
+    url.searchParams.set("pageSize", "100");
+    url.searchParams.set("filterByFormula", 'AND({Lead Status} = "Approved", {Review Status} = "Ready for outreach", {Do Not Contact} = 0)');
+    for (const field of ["Email", "Lead Status", "Review Status", "Do Not Contact", "Outreach Subject", "Outreach Draft", "Verified Observation"]) {
+      url.searchParams.append("fields[]", field);
+    }
+    if (offset) url.searchParams.set("offset", offset);
+    const response = await fetch(url.toString(), {
+      headers: { Authorization: "Bearer " + apiToken, Accept: "application/json" },
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!response.ok) throw new Error(`Airtable approved queue check failed (HTTP ${response.status}). Refusing to send.`);
+    const payload: unknown = await response.json().catch(() => null);
+    if (typeof payload !== "object" || payload === null || !("records" in payload) || !Array.isArray((payload as { records: unknown }).records)) {
+      throw new Error("Airtable returned an invalid approved queue. Refusing to send.");
+    }
+    records.push(...(payload as AirtableQueueResponse).records);
+    offset = typeof (payload as AirtableQueueResponse).offset === "string" ? (payload as AirtableQueueResponse).offset : undefined;
+    if (!offset) return records;
+  }
+  throw new Error("Airtable approved queue exceeded the safe pagination limit. Refusing to send.");
+}
 
 function normalizeEmail(value: unknown): string {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
@@ -63,12 +106,7 @@ export async function fetchAirtableRecipientApproval(
   env: NodeJS.ProcessEnv = process.env,
   expected: ApprovedDraft
 ): Promise<string> {
-  const apiToken = env.AIRTABLE_API_TOKEN?.trim();
-  const baseId = env.GULLKORNET_AIRTABLE_BASE_ID?.trim();
-  const tableName = env.GULLKORNET_AIRTABLE_TABLE?.trim() || "Leads";
-  if (!apiToken || !baseId || !/^app[A-Za-z0-9]{14}$/.test(baseId)) {
-    throw new Error("Airtable token and valid base ID are required to verify recipient approval. Refusing to send.");
-  }
+  const { apiToken, baseId, tableName } = airtableConfig(env);
 
   const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`);
   url.searchParams.set("filterByFormula", `AND({Email} = "${escapeFormulaString(recipient.trim().toLowerCase())}", {Do Not Contact} = 0)`);
