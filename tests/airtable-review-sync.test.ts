@@ -104,6 +104,41 @@ test("repeated sync upserts the same business instead of creating a duplicate", 
   assert.equal(store.length, 1);
 });
 
+test("refreshed research invalidates a previous AI approval and draft", async () => {
+  let patchBody: { records: Array<{ fields: Record<string, unknown> }> } | undefined;
+  await syncAirtableReviewRecords([item({ draftBody: "Refreshed draft" })], {
+    ...options,
+    fetchImpl: async (_input, init) => {
+      if (init?.method === "GET") return jsonResponse({ records: [{
+        id: "rec-existing",
+        fields: {
+          "Duplicate Key": "example.no",
+          "Lead Status": "Draft Ready",
+          "AI Decision": "APPROVE",
+          "AI Confidence": 0.97,
+          "AI Evidence": "Old evidence",
+          "AI Evidence URL": "https://example.no/old",
+          "AI Draft Subject": "Old subject",
+          "AI Draft Body": "Old body"
+        }
+      }] });
+      if (init?.method === "PATCH") {
+        patchBody = JSON.parse(String(init.body));
+        return jsonResponse({ records: patchBody?.records.map((record) => ({ id: "rec-existing", fields: record.fields })) });
+      }
+      throw new Error("Unexpected method");
+    }
+  });
+
+  const fields = patchBody?.records[0]?.fields;
+  assert.equal(fields?.["AI Decision"], "NEEDS_REVIEW");
+  assert.equal(fields?.["AI Confidence"], 0);
+  assert.equal(fields?.["AI Evidence"], null);
+  assert.equal(fields?.["AI Evidence URL"], null);
+  assert.equal(fields?.["AI Draft Subject"], null);
+  assert.equal(fields?.["AI Draft Body"], null);
+});
+
 test("preserves sent, replied, suppressed, and do-not-contact states and outreach history", async () => {
   const existing = [
     { id: "sent", fields: { "Duplicate Key": "sent.no", "Lead Status": "Sent", Email: "old@sent.no", "Outreach Subject": "Old sent subject", "Outreach Draft": "Old sent draft", "Research Notes": "sent history" } },

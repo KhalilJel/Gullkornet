@@ -27,16 +27,25 @@ export type GooglePlacesDiscoveryOptions = {
   fetchImpl?: typeof fetch;
 };
 
-const DEFAULT_CITIES = [
+export const NORWAY_SEARCH_MARKETS = [
   "Oslo",
-  "Bærum",
-  "Asker",
   "Lillestrøm",
-  "Nordre Follo",
-  "Ullensaker",
-  "Lørenskog",
-  "Nittedal"
+  "Sarpsborg",
+  "Drammen",
+  "Hamar",
+  "Tønsberg",
+  "Skien",
+  "Kristiansand",
+  "Stavanger",
+  "Bergen",
+  "Ålesund",
+  "Trondheim",
+  "Bodø",
+  "Tromsø",
+  "Alta"
 ];
+
+const DEFAULT_CITIES = NORWAY_SEARCH_MARKETS;
 
 function isNorwegianPlace(place: GooglePlace, formattedAddress: string): boolean {
   const country = place.addressComponents?.find((component) => component.types?.includes("country"));

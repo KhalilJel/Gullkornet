@@ -23,8 +23,8 @@ import {
 function draftFromRecord(record: AirtableSendApproval): { email: string; subject: string; text: string } | undefined {
   const fields = record.fields;
   const email = typeof fields.Email === "string" ? fields.Email.trim().toLowerCase() : "";
-  const subject = typeof fields["Outreach Subject"] === "string" ? fields["Outreach Subject"].trim() : "";
-  const text = typeof fields["Outreach Draft"] === "string" ? fields["Outreach Draft"].trim() : "";
+  const subject = typeof fields["AI Draft Subject"] === "string" ? fields["AI Draft Subject"].trim() : "";
+  const text = typeof fields["AI Draft Body"] === "string" ? fields["AI Draft Body"].trim() : "";
   if (!email || !subject || !text || !isSharedBusinessInbox(email)) return undefined;
   try {
     assertAirtableRecipientApproved([record], email, { subject, text });

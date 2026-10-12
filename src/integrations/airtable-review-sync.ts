@@ -153,6 +153,16 @@ function fieldsFor(
       : item.personalizationEvidence;
     put("Personalization Evidence", evidenceSummary);
     put("Research Notes", item.notes?.join("\n"));
+
+    // Any refreshed research invalidates the previous AI decision and draft.
+    // The Airtable AI automation watches these source fields and will reassess.
+    fields["AI Decision"] = "NEEDS_REVIEW";
+    fields["AI Confidence"] = 0;
+    fields["AI Evidence"] = null;
+    fields["AI Evidence URL"] = null;
+    fields["AI Decision Reason"] = "Awaiting a fresh automated AI assessment after research refresh.";
+    fields["AI Draft Subject"] = null;
+    fields["AI Draft Body"] = null;
   }
 
   // A sync must never uncheck a suppression flag.

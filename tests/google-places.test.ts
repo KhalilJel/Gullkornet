@@ -1,6 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { discoverGooglePlacesCandidates } from "../src/integrations/google-places.js";
+import { discoverGooglePlacesCandidates, NORWAY_SEARCH_MARKETS } from "../src/integrations/google-places.js";
+
+test("default discovery markets span Norway beyond the Oslo area", () => {
+  assert.equal(NORWAY_SEARCH_MARKETS.length, 15);
+  for (const market of ["Oslo", "Bergen", "Trondheim", "Stavanger", "Bodø", "Tromsø", "Alta"]) {
+    assert.ok(NORWAY_SEARCH_MARKETS.includes(market));
+  }
+  assert.ok(NORWAY_SEARCH_MARKETS.some((market) => ["Bodø", "Tromsø", "Alta"].includes(market)));
+});
 
 test("discovers candidates from Google Places and deduplicates by website domain", async () => {
   const requests: Array<{ url: string; body: string; fieldMask: string | null }> = [];
