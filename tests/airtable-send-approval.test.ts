@@ -29,9 +29,9 @@ test("requires a unique, approved, human-verified matching Airtable draft", () =
 });
 
 test("refuses outreach drafts without an opt-out instruction", () => {
-  const noOptOut = { ...approved, fields: { ...approved.fields, "Outreach Draft": "Hei! Vi tilbyr nettsider." } };
+  const noOptOut = { ...approved, fields: { ...approved.fields, "Outreach Draft": "Hei! Jeg la merke til frisørtjenester på nettsiden." } };
   assert.throws(
-    () => assertAirtableRecipientApproved([noOptOut], "post@salong.no", { ...expected, text: "Hei! Vi tilbyr nettsider." }),
+    () => assertAirtableRecipientApproved([noOptOut], "post@salong.no", { ...expected, text: "Hei! Jeg la merke til frisørtjenester på nettsiden." }),
     /opt-out instruction/
   );
 });
