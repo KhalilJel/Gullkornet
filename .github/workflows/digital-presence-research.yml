@@ -58,7 +58,7 @@ jobs:
             throw new Error("Website audit handoff contains a candidate without a valid company name.");
           }
           await mkdir("data/input/source", { recursive: true });
-          await writeFile("data/input/source/google-candidates.json", JSON.stringify(candidates, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
+          await writeFile("data/input/source/google-candidates.json", JSON.stringify(candidates, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
           console.log(`Reconstructed ${candidates.length} minimized candidate records from the audit handoff.`);
           NODE
 
@@ -80,7 +80,7 @@ jobs:
             errors: count("FETCH_ERROR") + count("BLOCKED_URL"),
             emailSent: 0
           };
-          await writeFile("data/digital-presence-summary.json", JSON.stringify(summary, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
+          await writeFile("data/digital-presence-summary.json", JSON.stringify(summary, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
           console.log(JSON.stringify(summary, null, 2));
           console.log("No emails were sent. Missing links are not proof of absent websites or social accounts.");
           NODE
@@ -90,4 +90,4 @@ jobs:
         with:
           name: gullkornet-digital-presence-summary
           path: data/digital-presence-summary.json
-          retention-days: 7
+          retention-days: 90
