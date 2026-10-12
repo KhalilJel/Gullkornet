@@ -262,13 +262,6 @@ export function createPersonalizedDraft(
     [/skatt|tax/i, "skatterådgivning"],
     [/tannlege|tannbehandling|dental/i, "tannbehandling"],
     [/fysioterapi|fysioterapeut|physiotherapy/i, "fysioterapi"],
-    [/frisør|frisørsalong|hair salon/i, "frisørtjenester"],
-    [/elektriker|elektroinstallasjon|electrical installation/i, "elektrikertjenester"],
-    [/rørlegger|rørleggertjenester|plumbing/i, "rørleggertjenester"],
-    [/bilverksted|bilreparasjon|auto repair/i, "bilservice"],
-    [/renhold|rengjøring|cleaning services/i, "renhold"],
-    [/restaurant|spisested|servering/i, "servering"],
-    [/treningssenter|personlig trener|fitness center|gym/i, "trening"],
     [/balayage/i, "balayage"],
     [/keratin(?:behandling)?/i, "keratinbehandlinger"],
     [/brudeoppsett/i, "brudeoppsett"],
@@ -277,6 +270,12 @@ export function createPersonalizedDraft(
     [/barberhåndverk|barber|barbershop/i, "barberhåndverk"],
     [/skjegg/i, "skjeggstell"],
     [/hudpleie|ansiktsbehandling/i, "hudpleie"],
+    [/elektriker|elektroinstallasjon|electrical installation/i, "elektrikertjenester"],
+    [/rørlegger|rørleggertjenester|plumbing/i, "rørleggertjenester"],
+    [/bilverksted|bilreparasjon|auto repair/i, "bilservice"],
+    [/renhold|rengjøring|cleaning services/i, "renhold"],
+    [/restaurant|spisested|servering/i, "servering"],
+    [/treningssenter|personlig trener|fitness center|gym/i, "trening"],
     [/frisør|frisørsalong|hair salon/i, "frisørtjenester"]
   ];
   const observedServices = serviceVocabulary
