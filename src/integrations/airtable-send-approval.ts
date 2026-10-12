@@ -87,6 +87,10 @@ export function assertAirtableRecipientApproved(
   if (fields["Outreach Subject"] !== expected.subject || fields["Outreach Draft"] !== expected.text) {
     throw new Error("The approved Airtable subject and draft must exactly match the message to be sent.");
   }
+  if (!/\\b(?:jeg la merke til|jeg så at|jeg så på|jeg la merke til at)\\b/i.test(expected.text) ||
+      /Vi kom over bedriften deres|Jeg kom over nettsiden deres/i.test(expected.text)) {
+    throw new Error("Only a source-grounded personalized draft is eligible for outreach.");
+  }
   if (!/(?:nei takk|ikke ønsker flere|stoppe henvendelser)/i.test(expected.text)) {
     throw new Error("The draft must include a clear opt-out instruction before sending.");
   }
