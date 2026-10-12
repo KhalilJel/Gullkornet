@@ -13,11 +13,11 @@ test("extractPublicEmails finds only publicly visible mailto and text addresses"
   assert.ok(emails.every((item) => item.sourceUrl === "https://example.no/kontakt"));
 });
 
-test("creates an interest-first draft without requiring a concrete website finding", () => {
+test("creates a fallback draft without inventing website observations", () => {
   const result = createPersonalizedDraft({ companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" });
   assert.equal(result.subject, "Dette la vi merke til hos dere");
-  assert.ok(result.draftBody?.includes("Vi kom over bedriften deres og la merke til noen interessante ting vi gjerne ville dele med dere."));
-  assert.ok(result.draftBody?.includes("Vi har et par konkrete ideer vi gjerne vil vise dere, og tenkte derfor å høre om det kunne være interessant for dere å ta en titt."));
+  assert.ok(result.draftBody?.includes("Jeg kom over nettsiden deres og ville gjerne dele en kort idé."));
+  assert.ok(result.draftBody?.includes("svar «nei takk»"));
   assert.ok(result.draftBody?.includes("Mvh Jelassi"));
 });
 
@@ -56,16 +56,17 @@ test("does not quote generic headings or long service evidence in outreach", () 
   assert.ok(!result.draftBody!.includes("atilaa - Hjem"));
 });
 
-test("uses only supported observed service cues in the draft opener", () => {
+test("uses observed service cues in the personalized draft opener", () => {
   const result = createPersonalizedDraft(
     { companyName: "Eksempel Regnskap AS", websiteUrl: "https://example.no" },
     "Eksempel Regnskap",
     "Regnskap for små bedrifter",
     "Vi tilbyr regnskap, lønn og årsoppgjør for små bedrifter i Oslo."
   );
-  assert.ok(result.draftBody?.includes("Vi har et par konkrete ideer vi gjerne vil vise dere, og tenkte derfor å høre om det kunne være interessant for dere å ta en titt."));
-  assert.ok(result.personalizationEvidence?.includes("approved general Cidea outreach template"));
-  assert.equal(result.subject, "Dette la vi merke til hos dere");
+  assert.ok(result.draftBody?.includes("Jeg la merke til at dere fremhever regnskap og lønn på nettsiden."));
+  assert.ok(result.draftBody?.includes("svar «nei takk»"));
+  assert.ok(result.personalizationEvidence?.includes("source-grounded service cues"));
+  assert.equal(result.subject, "Et lite spørsmål til Eksempel Regnskap AS");
 });
 
 test("falls back to a general opener when no supported service cue is found", () => {
@@ -75,7 +76,7 @@ test("falls back to a general opener when no supported service cue is found", ()
     "Vi hjelper kundene våre",
     "Vi tilbyr fleksible løsninger tilpasset kundene."
   );
-  assert.ok(result.draftBody?.includes("Vi kom over bedriften deres og la merke til noen interessante ting vi gjerne ville dele med dere."));
+  assert.ok(result.draftBody?.includes("Jeg kom over nettsiden deres og ville gjerne dele en kort idé."));
 });
 
 test("extracts relevant service evidence while ignoring navigation noise", () => {
