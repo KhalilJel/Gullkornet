@@ -84,8 +84,12 @@ export function assertRateLimits(
   if (recent.lastHour >= maxHour) {
     throw new Error(`Hourly production rate limit reached (${maxHour}/hour).`);
   }
-  if (recent.lastDay >= maxDay) {
-    throw new Error(`Daily production rate limit reached (${maxDay}/day).`);
+  const configuredDay = Number(env.GULLKORNET_DAILY_SEND_LIMIT ?? String(maxDay));
+  if (!Number.isInteger(configuredDay) || configuredDay < 1 || configuredDay > maxDay) {
+    throw new Error(`GULLKORNET_DAILY_SEND_LIMIT must be between 1 and ${maxDay} during Phase 11.`);
+  }
+  if (recent.lastDay >= configuredDay) {
+    throw new Error(`Daily production rate limit reached (${configuredDay}/day).`);
   }
   // Validate configuration eagerly. A single-recipient entry point is 1/run;
   // bulk sender remains hard-disabled until a separate accepted batch runner exists.
@@ -167,12 +171,37 @@ export function parseSuppressionList(contents: string): Set<string> {
     .filter((line) => line.length > 0 && !line.startsWith("#")));
 }
 
+const SHARED_BUSINESS_MAILBOXES = new Set([
+  "post", "info", "kontakt", "contact", "hei", "hello", "mail", "firmapost",
+  "kundeservice", "service", "support", "resepsjon", "booking", "timebestilling",
+  "salg", "sales", "office", "administrasjon", "administration"
+]);
+const PERSONAL_EMAIL_DOMAINS = new Set([
+  "gmail.com", "googlemail.com", "yahoo.com", "yahoo.no", "outlook.com",
+  "hotmail.com", "live.com", "icloud.com", "me.com", "aol.com", "proton.me",
+  "protonmail.com"
+]);
+
+export function isSharedBusinessInbox(address: string): boolean {
+  const normalized = address.trim().toLowerCase();
+  const at = normalized.lastIndexOf("@");
+  if (at <= 0 || at === normalized.length - 1) return false;
+  const localPart = normalized.slice(0, at);
+  const domain = normalized.slice(at + 1);
+  return SHARED_BUSINESS_MAILBOXES.has(localPart) &&
+    !PERSONAL_EMAIL_DOMAINS.has(domain) &&
+    domain.includes(".");
+}
+
 export function assertLiveSendAllowed(
   email: PreparedEmail,
   env: NodeJS.ProcessEnv = process.env,
   suppressedEmails: Set<string> = new Set()
 ): void {
   assertProductionKillSwitchEnabled(env);
+  if (!isSharedBusinessInbox(email.to)) {
+    throw new Error("Only verified shared business inboxes are eligible for this outreach pilot.");
+  }
   if (env.GULLKORNET_APPROVED_RECIPIENT?.trim().toLowerCase() !== email.to) {
     throw new Error("Recipient does not exactly match GULLKORNET_APPROVED_RECIPIENT.");
   }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertLiveSendAllowed, parseSuppressionList, prepareEmail, sendOneEmail, type OutreachDraft } from "../src/integrations/outbound-email.js";
+import { assertLiveSendAllowed, assertRateLimits, parseSuppressionList, prepareEmail, sendOneEmail, type OutreachDraft } from "../src/integrations/outbound-email.js";
 
 const drafts: OutreachDraft[] = [{
   companyName: "Example AS",
@@ -28,10 +28,30 @@ test("refuses to send if recipient has no unique matching draft", () => {
   assert.throws(() => prepareEmail([...drafts, ...drafts], "post@example.no"), /found 2/);
 });
 
+test("enforces the configured daily pilot limit", () => {
+  assert.throws(
+    () => assertRateLimits({ lastHour: 0, lastDay: 1 }, { GULLKORNET_DAILY_SEND_LIMIT: "1", MAX_EMAILS_PER_RUN: "1" }),
+    /Daily production rate limit reached/
+  );
+  assert.throws(
+    () => assertRateLimits({ lastHour: 0, lastDay: 0 }, { GULLKORNET_DAILY_SEND_LIMIT: "0", MAX_EMAILS_PER_RUN: "1" }),
+    /must be between 1 and 10/
+  );
+});
+
 test("suppression list ignores blank lines, comments and case", () => {
   const list = parseSuppressionList("# opt-outs\nPOST@example.no\n\nother@example.no ");
   assert.equal(list.has("post@example.no"), true);
   assert.equal(list.has("other@example.no"), true);
+});
+
+test("only role-based shared business inboxes pass the pilot recipient check", async () => {
+  const { isSharedBusinessInbox } = await import("../src/integrations/outbound-email.js");
+  assert.equal(isSharedBusinessInbox("post@salong.no"), true);
+  assert.equal(isSharedBusinessInbox("info@salong.no"), true);
+  assert.equal(isSharedBusinessInbox("owner@salong.no"), false);
+  assert.equal(isSharedBusinessInbox("person@gmail.com"), false);
+  assert.equal(isSharedBusinessInbox("info@gmail.com"), false);
 });
 
 test("live send requires explicit enablement, exact recipient and human review", () => {

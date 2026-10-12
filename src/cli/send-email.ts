@@ -62,7 +62,7 @@ try {
     throw new Error("Required data/suppressed-emails.txt is missing. Create it before any live send; one email per line, # for comments.");
   }
   const suppressedEmails = parseSuppressionList(suppressionContents);
-  const airtableRecordId = await fetchAirtableRecipientApproval(email.to, process.env);
+  const airtableRecordId = await fetchAirtableRecipientApproval(email.to, { subject: email.subject, text: email.text }, process.env);
   await assertRecipientHasNotReplied(email.to, process.env);
   assertLiveSendAllowed(email, process.env, suppressedEmails);
   const ledger = await fetchRecentSendLedger(process.env.RESEND_API_KEY!.trim());

@@ -42,15 +42,17 @@ jobs:
       - name: Run deterministic end-to-end and safety tests
         run: npm test
 
-      - name: Assert production sending remains disabled
+      - name: Assert production sending remains behind the default-off kill switch
         shell: bash
         run: |
           set -euo pipefail
-          grep -F 'if: $' .github/workflows/daily-outreach.yml
-          grep -F '{{ false }}' .github/workflows/daily-outreach.yml
+          grep -F 'GULLKORNET_ENABLE_LIVE_SEND' .github/workflows/daily-outreach.yml
+          grep -F "if: env.GULLKORNET_ENABLE_LIVE_SEND != 'true'" .github/workflows/daily-outreach.yml
+          grep -F "if: env.GULLKORNET_ENABLE_LIVE_SEND == 'true'" .github/workflows/daily-outreach.yml
+          grep -F 'GULLKORNET_DAILY_SEND_LIMIT: "1"' .github/workflows/daily-outreach.yml
           grep -F 'send_triggered' src/integrations/openoutsend-ingest.ts
           grep -F 'ingest_only' src/integrations/openoutsend-ingest.ts
-          echo "Sending workflow hard-disabled; OpenOutSend contract remains ingest-only."
+          echo "Sending workflow is default-off behind the explicit kill switch and capped at one daily email; OpenOutSend contract remains ingest-only."
 
       - name: Write privacy-safe acceptance summary
         if: always()
@@ -61,6 +63,6 @@ jobs:
             echo
             echo "- No live KeeLead, Airtable, OpenOutSend, or email provider credentials are configured by this workflow."
             echo "- Deterministic tests exercise discovery-to-review orchestration, suppression, qualification/review gates, deduplication, persistence adapters, and ingest safety."
-            echo "- Production sending workflow is checked for its hard-disabled guard."
+            echo "- Production sending workflow is checked for its default-off kill switch and one-email daily cap."
             echo "- This workflow does not send email or persist real prospect records."
           } >> "$GITHUB_STEP_SUMMARY"

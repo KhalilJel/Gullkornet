@@ -205,7 +205,7 @@ export function extractEvidence(html: string): { headline?: string; serviceEvide
   const headline = getTagText(html, "h1");
   const text = stripHtml(html);
   const sentenceCandidates = text.split(/[.!?]\s+/).map((s) => s.trim()).filter((s) => s.length >= 35 && s.length <= 220);
-  const serviceTerms = /regnskap|regnskapsfør|bokfør|lønn|årsoppgjør|økonomirådgivning|rådgivning|skatt|mva|accounting|bookkeeping/i;
+  const serviceTerms = /regnskap|regnskapsfør|bokfør|lønn|årsoppgjør|økonomirådgivning|rådgivning|skatt|mva|accounting|bookkeeping|frisør|frisørsalong|hair salon|tannlege|tannbehandling|dental|fysioterapi|fysioterapeut|physiotherapy|elektriker|elektroinstallasjon|electrical installation|rørlegger|rørleggertjenester|plumbing|bilverksted|bilreparasjon|auto repair|renhold|rengjøring|cleaning services|restaurant|spisested|servering|treningssenter|personlig trener|fitness center|gym|barber|barbershop|barberhåndverk|balayage|keratin|brudeoppsett|hårklipp|hårfarge|haircut|hair coloring|hudpleie|ansiktsbehandling/i;
   const serviceEvidence = sentenceCandidates.find((s) => serviceTerms.test(s) && isUsefulServiceEvidence(s))
     ?? (() => {
       const metaDescription = html.match(/<meta\b[^>]*name\s*=\s*["']?description\b[^>]*>/i)?.[0];
@@ -225,7 +225,7 @@ function normalizeEvidence(value: string): string {
 
 function isUsefulServiceEvidence(value?: string): value is string {
   if (!value || value.trim().length < 35) return false;
-  const serviceTerms = /regnskap|regnskapsfør|bokfør|lønn|årsoppgjør|økonomirådgivning|rådgivning|skatt|mva|accounting|bookkeeping/i;
+  const serviceTerms = /regnskap|regnskapsfør|bokfør|lønn|årsoppgjør|økonomirådgivning|rådgivning|skatt|mva|accounting|bookkeeping|frisør|frisørsalong|hair salon|tannlege|tannbehandling|dental|fysioterapi|fysioterapeut|physiotherapy|elektriker|elektroinstallasjon|electrical installation|rørlegger|rørleggertjenester|plumbing|bilverksted|bilreparasjon|auto repair|renhold|rengjøring|cleaning services|restaurant|spisested|servering|treningssenter|personlig trener|fitness center|gym|barber|barbershop|barberhåndverk|balayage|keratin|brudeoppsett|hårklipp|hårfarge|haircut|hair coloring|hudpleie|ansiktsbehandling/i;
   if (!serviceTerms.test(value)) return false;
   const navigationTerms = value.match(/\b(hjem|søk|kontakt oss|kontakt|om oss|tjenester|meny|personvern|cookies|logg inn|skip to content|hopp rett til innholdet|hopp til innholdet|finn oss|åpningstider|nyttige linker|ansatte)\b/gi) ?? [];
   const phoneNumbers = value.match(/(?:\+?\d[\d\s().-]{7,}\d)/g) ?? [];
@@ -262,13 +262,21 @@ export function createPersonalizedDraft(
     [/skatt|tax/i, "skatterådgivning"],
     [/tannlege|tannbehandling|dental/i, "tannbehandling"],
     [/fysioterapi|fysioterapeut|physiotherapy/i, "fysioterapi"],
-    [/frisør|frisørsalong|hair salon/i, "frisørtjenester"],
+    [/balayage/i, "balayage"],
+    [/keratin(?:behandling)?/i, "keratinbehandlinger"],
+    [/brudeoppsett/i, "brudeoppsett"],
+    [/hårklipp|haircut/i, "hårklipp"],
+    [/hårfarge|hair coloring/i, "hårfarging"],
+    [/barberhåndverk|barber|barbershop/i, "barberhåndverk"],
+    [/skjegg/i, "skjeggstell"],
+    [/hudpleie|ansiktsbehandling/i, "hudpleie"],
     [/elektriker|elektroinstallasjon|electrical installation/i, "elektrikertjenester"],
     [/rørlegger|rørleggertjenester|plumbing/i, "rørleggertjenester"],
     [/bilverksted|bilreparasjon|auto repair/i, "bilservice"],
     [/renhold|rengjøring|cleaning services/i, "renhold"],
     [/restaurant|spisested|servering/i, "servering"],
-    [/treningssenter|personlig trener|fitness center|gym/i, "trening"]
+    [/treningssenter|personlig trener|fitness center|gym/i, "trening"],
+    [/frisør|frisørsalong|hair salon/i, "frisørtjenester"]
   ];
   const observedServices = serviceVocabulary
     .filter(([pattern]) => pattern.test(evidenceText))
@@ -296,17 +304,21 @@ export function createPersonalizedDraft(
     observedFacts.length ? "Observations (internal only): " + observedFacts.join(" | ") : "No specific page observation extracted; generic template only"
   ].filter((item): item is string => Boolean(item));
 
-  const subject = "Dette la vi merke til hos dere";
-  // Keep the approved interest-first template consistent. Website-derived observations
-  // are recorded for the reviewer and are not inserted into the email body.
+  const subject = observedServices.length
+    ? "Et lite spørsmål til " + candidate.companyName.trim()
+    : "Dette la vi merke til hos dere";
+  // Put only service cues extracted from the public site into the email. Keep
+  // audit flags and unverified opportunities internal to the review record.
   const draftBody = [
     "Hei!",
     "",
-    "Vi kom over bedriften deres og la merke til noen interessante ting vi gjerne ville dele med dere.",
+    observedServices.length
+      ? "Jeg la merke til at dere fremhever " + observedServices.join(" og ") + " på nettsiden."
+      : "Jeg kom over nettsiden deres og ville gjerne dele en kort idé.",
     "",
-    "Vi i Cidea jobber med nettsider og digital synlighet for bedrifter, og ser ofte muligheter som kan være verdt å utforske.",
+    "Cidea hjelper bedrifter med nettsider, branding og digital markedsføring. Kunne det vært interessant om jeg sendte en kort idé til hvordan dere kan synliggjøre tilbudet deres enda tydeligere på nett?",
     "",
-    "Vi har et par konkrete ideer vi gjerne vil vise dere, og tenkte derfor å høre om det kunne være interessant for dere å ta en titt.",
+    "Hvis slike henvendelser ikke er ønsket, svar «nei takk», så registrerer vi det.",
     "",
     "Mvh Jelassi"
   ].join("\n");
@@ -314,7 +326,9 @@ export function createPersonalizedDraft(
   return {
     subject,
     draftBody,
-    personalizationEvidence: "Uses the approved general Cidea outreach template; website observations remain internal and are not asserted in the email. " + sourceDetails.join("; "),
+    personalizationEvidence: (observedServices.length
+      ? "Uses source-grounded service cues in the message; website observations are not presented as a verified problem. "
+      : "No supported service cue was extracted; fallback draft still requires human review. ") + sourceDetails.join("; "),
     notes
   };
 }

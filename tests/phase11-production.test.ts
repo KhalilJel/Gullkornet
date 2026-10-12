@@ -5,21 +5,21 @@ import { assertAirtableRecipientApproved, fetchAirtableRecipientApproval, markAi
 
 const draft: OutreachDraft[] = [{
   companyName: "Phase 11 Pilot AS",
-  emails: [{ email: "pilot@example.no" }],
+  emails: [{ email: "post@phase11.no" }],
   subject: "Dette la vi merke til hos dere",
   draftBody: "Hei!\n\nDette er en kontrollert Phase 11 pilotmelding.\n\nMvh Jelassi"
 }];
 
 const baseEnv = {
   GULLKORNET_ENABLE_LIVE_SEND: "true",
-  GULLKORNET_APPROVED_RECIPIENT: "pilot@example.no",
+  GULLKORNET_APPROVED_RECIPIENT: "post@phase11.no",
   GULLKORNET_RECIPIENT_REVIEWED: "true",
   GULLKORNET_SEND_IDEMPOTENCY_KEY: "phase11-pilot-idempotency",
   RESEND_API_KEY: "test"
 };
 
 test("Phase 11 pilot requires every production gate", () => {
-  const email = prepareEmail(draft, "pilot@example.no");
+  const email = prepareEmail(draft, "post@phase11.no");
   assert.doesNotThrow(() => assertLiveSendAllowed(email, baseEnv, new Set()));
   for (const [key, value] of [
     ["GULLKORNET_ENABLE_LIVE_SEND", "false"],
@@ -33,12 +33,12 @@ test("Phase 11 pilot requires every production gate", () => {
 });
 
 test("Phase 11 pilot cannot send a suppressed recipient", () => {
-  const email = prepareEmail(draft, "pilot@example.no");
-  assert.throws(() => assertLiveSendAllowed(email, baseEnv, new Set(["pilot@example.no"])), /suppression list/);
+  const email = prepareEmail(draft, "post@phase11.no");
+  assert.throws(() => assertLiveSendAllowed(email, baseEnv, new Set(["post@phase11.no"])), /suppression list/);
 });
 
 test("Phase 11 pilot cannot change sender", () => {
-  const email = prepareEmail(draft, "pilot@example.no", "attacker@example.no");
+  const email = prepareEmail(draft, "post@phase11.no", "attacker@example.no");
   assert.throws(() => assertLiveSendAllowed(email, baseEnv), /Sender must remain/);
 });
 
@@ -127,51 +127,56 @@ test("Phase 11 blocks a recipient already present in the recent Resend send ledg
   const now = Date.parse("2026-10-09T12:00:00Z");
   const recent = [{
     created_at: "2026-10-09T11:45:00Z",
-    to: ["Pilot@Example.no"]
+    to: ["Post@Phase11.no"]
   }];
   assert.throws(
-    () => assertRecipientNotAlreadySent(recent, "pilot@example.no", now),
+    () => assertRecipientNotAlreadySent(recent, "post@phase11.no", now),
     /already appears in Resend send history/
   );
   assert.doesNotThrow(() => assertRecipientNotAlreadySent(recent, "other@example.no", now));
   assert.doesNotThrow(() => assertRecipientNotAlreadySent([{
     created_at: "2026-10-08T10:00:00Z",
-    to: ["pilot@example.no"]
-  }], "pilot@example.no", now));
+    to: ["post@phase11.no"]
+  }], "post@phase11.no", now));
   assert.throws(
-    () => assertRecipientNotAlreadySent([{ created_at: "not-a-date", to: [] }], "pilot@example.no", now),
+    () => assertRecipientNotAlreadySent([{ created_at: "not-a-date", to: [] }], "post@phase11.no", now),
     /invalid timestamp/
   );
 });
 
 
+const approvedDraft = { subject: "Et lite spørsmål til Pilot AS", text: "Hei! Jeg la merke til at dere tilbyr frisørtjenester. Har dere tid til en kort prat? Svar «nei takk» hvis dette ikke er ønsket." };
+
 const approvedAirtableRecord: AirtableSendApproval = {
   id: "rec123",
   fields: {
-    Email: "pilot@example.no",
+    Email: "post@phase11.no",
     "Lead Status": "Approved",
     "Review Status": "Ready for outreach",
-    "Do Not Contact": false
+    "Do Not Contact": false,
+    "Outreach Subject": approvedDraft.subject,
+    "Outreach Draft": approvedDraft.text,
+    "Verified Observation": "Nettsiden fremhever frisørtjenester."
   }
 };
 
 test("Phase 11 requires exactly one approved Airtable record and returns its exact ID", () => {
-  assert.equal(assertAirtableRecipientApproved([approvedAirtableRecord], "PILOT@example.no"), "rec123");
+  assert.equal(assertAirtableRecipientApproved([approvedAirtableRecord], "POST@PHASE11.NO", approvedDraft), "rec123");
   const unrelated: AirtableSendApproval = {
     id: "recOther",
     fields: { Email: "other@example.no", "Lead Status": "New", "Review Status": "Needs review" }
   };
-  assert.equal(assertAirtableRecipientApproved([unrelated, approvedAirtableRecord], "pilot@example.no"), "rec123");
-  assert.throws(() => assertAirtableRecipientApproved([], "pilot@example.no"), /exactly one record/);
-  assert.throws(() => assertAirtableRecipientApproved([approvedAirtableRecord, approvedAirtableRecord], "pilot@example.no"), /exactly one record/);
-  assert.throws(() => assertAirtableRecipientApproved([{ ...approvedAirtableRecord, id: "bad" }], "pilot@example.no"), /valid record ID/);
+  assert.equal(assertAirtableRecipientApproved([unrelated, approvedAirtableRecord], "post@phase11.no", approvedDraft), "rec123");
+  assert.throws(() => assertAirtableRecipientApproved([], "post@phase11.no", approvedDraft), /exactly one record/);
+  assert.throws(() => assertAirtableRecipientApproved([approvedAirtableRecord, approvedAirtableRecord], "post@phase11.no", approvedDraft), /exactly one record/);
+  assert.throws(() => assertAirtableRecipientApproved([{ ...approvedAirtableRecord, id: "bad" }], "post@phase11.no", approvedDraft), /valid record ID/);
 });
 
 test("Phase 11 blocks Airtable suppression, sent, and unreviewed records", () => {
-  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Do Not Contact":true}}], "pilot@example.no"), /Do Not Contact/);
-  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Do Not Contact":undefined}}], "pilot@example.no"), /cannot be verified false/);
-  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Lead Status":"Sent"}}], "pilot@example.no"), /Lead Status must be Approved/);
-  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Review Status":"Needs review"}}], "pilot@example.no"), /Review Status must be Ready for outreach/);
+  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Do Not Contact":true}}], "post@phase11.no", approvedDraft), /Do Not Contact/);
+  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Do Not Contact":undefined}}], "post@phase11.no", approvedDraft), /cannot be verified false/);
+  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Lead Status":"Sent"}}], "post@phase11.no", approvedDraft), /Lead Status must be Approved/);
+  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Review Status":"Needs review"}}], "post@phase11.no", approvedDraft), /Review Status must be Ready for outreach/);
 });
 
 test("Phase 11 Airtable approval check fails closed on provider failure", async () => {
@@ -179,7 +184,7 @@ test("Phase 11 Airtable approval check fails closed on provider failure", async 
   globalThis.fetch = (async () => new Response("unavailable", { status: 503 })) as typeof fetch;
   try {
     await assert.rejects(
-      fetchAirtableRecipientApproval("pilot@example.no", {
+      fetchAirtableRecipientApproval("post@phase11.no", approvedDraft, {
         AIRTABLE_API_TOKEN: "test",
         GULLKORNET_AIRTABLE_BASE_ID: "appXe2XtbbhripqFq",
         GULLKORNET_AIRTABLE_TABLE: "Leads"
@@ -197,22 +202,25 @@ test("Phase 11 Airtable approval lookup accepts exactly one reviewed record", as
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = new URL(String(input));
     assert.equal(url.hostname, "api.airtable.com");
-    assert.match(url.searchParams.get("filterByFormula") ?? "", /pilot@example\.no/);
+    assert.match(url.searchParams.get("filterByFormula") ?? "", /post@phase11\.no/);
     assert.match(url.searchParams.get("filterByFormula") ?? "", /Do Not Contact.*= 0/);
     return new Response(JSON.stringify({
       records: [{
         id: "rec123",
         fields: {
-          Email: "pilot@example.no",
+          Email: "post@phase11.no",
           "Lead Status": "Approved",
           "Review Status": "Ready for outreach",
-          "Do Not Contact": false
+          "Do Not Contact": false,
+          "Outreach Subject": approvedDraft.subject,
+          "Outreach Draft": approvedDraft.text,
+          "Verified Observation": "Nettsiden fremhever frisørtjenester."
         }
       }]
     }), { status: 200, headers: { "Content-Type": "application/json" } });
   }) as typeof fetch;
   try {
-    assert.equal(await fetchAirtableRecipientApproval("pilot@example.no", {
+    assert.equal(await fetchAirtableRecipientApproval("post@phase11.no", approvedDraft, {
       AIRTABLE_API_TOKEN: "test",
       GULLKORNET_AIRTABLE_BASE_ID: "appXe2XtbbhripqFq",
       GULLKORNET_AIRTABLE_TABLE: "Leads"

@@ -1,14 +1,12 @@
 name: Gullkornet Daily Outreach
 
 on:
-  workflow_run:
-    workflows: ["Gullkornet Contact Research and Drafts"]
-    types: [completed]
-    branches: [main]
-  workflow_dispatch:
+  # One daily queue check. The kill switch keeps this a no-op until production
+  # sending is explicitly enabled in repository secrets.
+  schedule:
+    - cron: "30 7 * * *"
 
 permissions:
-  actions: read
   contents: read
 
 concurrency:
@@ -16,12 +14,20 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # HARD PAUSED for Phase 11: the legacy batch CLI is also hard-disabled in source.
-  # Do not change this condition until global rate limits, reply suppression, and human approval pass acceptance.
   send:
-    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      GULLKORNET_ENABLE_LIVE_SEND: ${{ secrets.GULLKORNET_ENABLE_LIVE_SEND }}
+      GULLKORNET_DAILY_SEND_LIMIT: "1"
+      MAX_EMAILS_PER_RUN: "1"
+      AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
+      GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
+      GULLKORNET_AIRTABLE_TABLE: ${{ vars.GULLKORNET_AIRTABLE_TABLE || 'Leads' }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      OPENOUTREACH_REPLY_STATUS_URL: ${{ vars.OPENOUTREACH_REPLY_STATUS_URL }}
+      OPENOUTREACH_INGEST_TOKEN: ${{ secrets.OPENOUTREACH_INGEST_TOKEN }}
+      OUTREACH_FROM_EMAIL: "jelassi@cideamarketing.com"
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -31,25 +37,13 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install dependencies
+      - name: Install locked dependencies
         run: npm ci
 
-      - name: Download researched drafts
-        if: ${{ github.event_name == 'workflow_run' }}
-        uses: actions/download-artifact@v4
-        with:
-          name: gullkornet-contact-research-drafts
-          path: data
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Keep live sending paused until the kill switch is enabled
+        if: env.GULLKORNET_ENABLE_LIVE_SEND != 'true'
+        run: echo "Daily outreach check skipped; live sending kill switch is off."
 
-      - name: Legacy batch sender (hard-disabled during Phase 11)
-        env:
-          GULLKORNET_ENABLE_LIVE_SEND: ${{ secrets.GULLKORNET_ENABLE_LIVE_SEND }}
-          GULLKORNET_DAILY_SEND_LIMIT: "1"
-          AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
-          GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
-          GULLKORNET_AIRTABLE_TABLE: ${{ vars.GULLKORNET_AIRTABLE_TABLE || 'Leads' }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          OUTREACH_FROM_EMAIL: "jelassi@cideamarketing.com"
-        run: npm run --silent send:daily -- data/contact-research-drafts.json
+      - name: Send one approved personalized outreach email
+        if: env.GULLKORNET_ENABLE_LIVE_SEND == 'true'
+        run: npm run --silent send:daily
