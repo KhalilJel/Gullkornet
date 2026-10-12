@@ -269,9 +269,15 @@ export function createPersonalizedDraft(
     [/renhold|rengjøring|cleaning services/i, "renhold"],
     [/restaurant|spisested|servering/i, "servering"],
     [/treningssenter|personlig trener|fitness center|gym/i, "trening"],
-    [/barber|barbershop|barberhåndverk|skjegg/i, "barbertjenester"],
-    [/balayage|keratin|brudeoppsett|hårklipp|hårfarge|haircut|hair coloring/i, "hårbehandlinger"],
-    [/hudpleie|ansiktsbehandling/i, "hudpleie"]
+    [/balayage/i, "balayage"],
+    [/keratin(?:behandling)?/i, "keratinbehandlinger"],
+    [/brudeoppsett/i, "brudeoppsett"],
+    [/hårklipp|haircut/i, "hårklipp"],
+    [/hårfarge|hair coloring/i, "hårfarging"],
+    [/barberhåndverk|barber|barbershop/i, "barberhåndverk"],
+    [/skjegg/i, "skjeggstell"],
+    [/hudpleie|ansiktsbehandling/i, "hudpleie"],
+    [/frisør|frisørsalong|hair salon/i, "frisørtjenester"]
   ];
   const observedServices = serviceVocabulary
     .filter(([pattern]) => pattern.test(evidenceText))
@@ -321,7 +327,9 @@ export function createPersonalizedDraft(
   return {
     subject,
     draftBody,
-    personalizationEvidence: "Uses source-grounded service cues in the message; website observations are not presented as a verified problem. " + sourceDetails.join("; "),
+    personalizationEvidence: (observedServices.length
+      ? "Uses source-grounded service cues in the message; website observations are not presented as a verified problem. "
+      : "No supported service cue was extracted; fallback draft still requires human review. ") + sourceDetails.join("; "),
     notes
   };
 }
