@@ -31,7 +31,7 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Download candidate artifact
         uses: actions/download-artifact@v4
@@ -44,14 +44,21 @@ jobs:
       - name: Audit public business websites
         run: |
           test -f data/source/google-candidates.json
-          npm run --silent audit:websites -- data/source/google-candidates.json > data/website-audit.json
+          set -euo pipefail
+          umask 077
+          mkdir -p data
+          chmod 700 data
+          if ! npm run --silent audit:websites -- data/source/google-candidates.json > data/website-audit.json 2> data/website-audit.stderr.log; then
+            chmod 600 data/website-audit.json data/website-audit.stderr.log 2>/dev/null || true
+            echo "Website audit failed; private diagnostics were not printed."
+            exit 1
+          fi
+          chmod 600 data/website-audit.json data/website-audit.stderr.log
           echo "Website audit output created. Signals are automated and require manual review."
 
-      - name: Upload website audit and candidate inputs
+      - name: Upload single website audit handoff
         uses: actions/upload-artifact@v4
         with:
           name: gullkornet-website-audit
-          path: |
-            data/website-audit.json
-            data/source/google-candidates.json
-          retention-days: 30
+          path: data/website-audit.json
+          retention-days: 90

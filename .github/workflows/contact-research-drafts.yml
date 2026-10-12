@@ -31,7 +31,7 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Download website audit and candidate inputs
         uses: actions/download-artifact@v4
@@ -41,12 +41,46 @@ jobs:
           run-id: ${{ github.event_name == 'workflow_dispatch' && inputs.audit_run_id || github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Reconstruct minimal candidate input from audit handoff
+        run: |
+          node --input-type=module <<'NODE'
+          import { mkdir, readFile, writeFile } from "node:fs/promises";
+          const audits = JSON.parse(await readFile("data/input/website-audit.json", "utf8"));
+          if (!Array.isArray(audits)) throw new Error("Website audit handoff must be an array.");
+          const candidates = audits.map((row) => ({
+            companyName: row.companyName,
+            ...(typeof row.websiteUrl === "string" ? { websiteUrl: row.websiteUrl } : {}),
+            ...(typeof row.city === "string" ? { city: row.city } : {}),
+            ...(typeof row.industry === "string" ? { industry: row.industry } : {}),
+            ...(typeof row.sourceUrl === "string" ? { sourceUrl: row.sourceUrl } : {})
+          }));
+          if (candidates.some((row) => typeof row.companyName !== "string" || !row.companyName.trim())) {
+            throw new Error("Website audit handoff contains a candidate without a valid company name.");
+          }
+          await mkdir("data/input/source", { recursive: true });
+          await writeFile("data/input/source/google-candidates.json", JSON.stringify(candidates, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
+          console.log(`Reconstructed ${candidates.length} minimized candidate records from the audit handoff.`);
+          NODE
+
       - name: Research public contact emails and prepare drafts
         run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p data
+          chmod 700 data
           test -f data/input/website-audit.json
           test -f data/input/source/google-candidates.json
-          npm run --silent research:contacts -- data/input/source/google-candidates.json data/input/website-audit.json > data/contact-research-drafts.json
-          npm run --silent review-queue -- data/contact-research-drafts.json data/lead-review-queue.md
+          if ! npm run --silent research:contacts -- data/input/source/google-candidates.json data/input/website-audit.json > data/contact-research-drafts.json 2> data/contact-research.stderr.log; then
+            chmod 600 data/contact-research-drafts.json data/contact-research.stderr.log 2>/dev/null || true
+            echo "Contact research failed; private diagnostics were not printed."
+            exit 1
+          fi
+          if ! npm run --silent review-queue -- data/contact-research-drafts.json data/lead-review-queue.md 2>> data/contact-research.stderr.log; then
+            chmod 600 data/contact-research.stderr.log 2>/dev/null || true
+            echo "Review queue generation failed; private diagnostics were not printed."
+            exit 1
+          fi
+          chmod 600 data/contact-research-drafts.json data/contact-research.stderr.log data/lead-review-queue.md
           echo "Contact research and review queue complete. No emails were sent."
 
       - name: Sync leads to persistent Airtable registry when configured
@@ -54,17 +88,39 @@ jobs:
           AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
           GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
         run: |
+          set -euo pipefail
+          umask 077
           if [ -z "$AIRTABLE_API_TOKEN" ] || [ -z "$GULLKORNET_AIRTABLE_BASE_ID" ]; then
-            echo "Airtable sync skipped: configure AIRTABLE_API_TOKEN secret and GULLKORNET_AIRTABLE_BASE_ID variable."
+            echo "Airtable sync skipped: required credentials/configuration are missing."
             exit 0
           fi
-          npm run --silent sync:airtable -- data/contact-research-drafts.json
+          if ! npm run --silent sync:airtable -- data/contact-research-drafts.json > data/airtable-sync.stdout.log 2> data/airtable-sync.stderr.log; then
+            chmod 600 data/airtable-sync.stdout.log data/airtable-sync.stderr.log 2>/dev/null || true
+            echo "Airtable sync failed; private diagnostics were not printed."
+            exit 1
+          fi
+          chmod 600 data/airtable-sync.stdout.log data/airtable-sync.stderr.log
+          echo "Airtable sync complete. No emails were sent."
 
-      - name: Upload contact research and draft artifact
+      - name: Create metadata-only research summary
+        run: |
+          node --input-type=module -e '
+            import { readFile, writeFile } from "node:fs/promises";
+            const records = JSON.parse(await readFile("data/contact-research-drafts.json", "utf8"));
+            const summary = {
+              generatedAt: new Date().toISOString(),
+              totalRecords: records.length,
+              recordsWithPublicEmail: records.filter((record) => Array.isArray(record.emails) && record.emails.length > 0).length,
+              recordsWithDraft: records.filter((record) => typeof record.subject === "string" && typeof record.draftBody === "string").length,
+              recordsNeedingReview: records.filter((record) => record.researchStatus === "REVIEW_REQUIRED").length,
+              emailSent: 0
+            };
+            await writeFile("data/contact-research-summary.json", JSON.stringify(summary, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
+          '
+
+      - name: Upload metadata-only research summary
         uses: actions/upload-artifact@v4
         with:
-          name: gullkornet-contact-research-drafts
-          path: |
-            data/contact-research-drafts.json
-            data/lead-review-queue.md
-          retention-days: 30
+          name: gullkornet-contact-research-summary
+          path: data/contact-research-summary.json
+          retention-days: 90

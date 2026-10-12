@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertLiveSendAllowed, parseSuppressionList, prepareEmail, type OutreachDraft } from "../src/integrations/outbound-email.js";
+import { assertLiveSendAllowed, parseSuppressionList, prepareEmail, sendOneEmail, type OutreachDraft } from "../src/integrations/outbound-email.js";
 
 const drafts: OutreachDraft[] = [{
   companyName: "Example AS",
@@ -50,4 +50,25 @@ test("live send fails closed for suppressed recipients and missing idempotency k
 test("allows live send checks only when all gates pass and recipient is not suppressed", () => {
   const email = prepareEmail(drafts, "post@example.no");
   assert.doesNotThrow(() => assertLiveSendAllowed(email, approvedEnv, new Set()));
+});
+
+test("Resend error response details are not propagated into logs", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(
+    JSON.stringify({ message: "Invalid recipient post@example.no and subject: private subject" }),
+    { status: 400, headers: { "Content-Type": "application/json" } }
+  );
+  try {
+    await assert.rejects(
+      sendOneEmail(prepareEmail(drafts, "post@example.no"), "test", "test-idempotency-key"),
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.match(error.message, /HTTP 400/);
+        assert.doesNotMatch(error.message, /post@example\.no|private subject/);
+        return true;
+      }
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
