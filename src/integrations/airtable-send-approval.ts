@@ -5,8 +5,13 @@ export type AirtableSendApproval = {
     "Lead Status"?: unknown;
     "Review Status"?: unknown;
     "Do Not Contact"?: unknown;
+    "Outreach Subject"?: unknown;
+    "Outreach Draft"?: unknown;
+    "Verified Observation"?: unknown;
   };
 };
+
+export type ApprovedDraft = { subject: string; text: string };
 
 function normalizeEmail(value: unknown): string {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
@@ -14,7 +19,8 @@ function normalizeEmail(value: unknown): string {
 
 export function assertAirtableRecipientApproved(
   records: AirtableSendApproval[],
-  recipient: string
+  recipient: string,
+  expected: ApprovedDraft
 ): string {
   const normalized = normalizeEmail(recipient);
   const matches = records.filter(record => normalizeEmail(record.fields.Email) === normalized);
@@ -31,6 +37,16 @@ export function assertAirtableRecipientApproved(
   if (fields["Review Status"] !== "Ready for outreach") {
     throw new Error("Airtable Review Status must be Ready for outreach before sending.");
   }
+  const verifiedObservation = fields["Verified Observation"];
+  if (typeof verifiedObservation !== "string" || !verifiedObservation.trim()) {
+    throw new Error("A human-verified website observation is required before sending.");
+  }
+  if (fields["Outreach Subject"] !== expected.subject || fields["Outreach Draft"] !== expected.text) {
+    throw new Error("The approved Airtable subject and draft must exactly match the message to be sent.");
+  }
+  if (!/(?:nei takk|ikke ønsker flere|stoppe henvendelser)/i.test(expected.text)) {
+    throw new Error("The draft must include a clear opt-out instruction before sending.");
+  }
   const recordId = matches[0].id;
   if (typeof recordId !== "string" || !/^rec[A-Za-z0-9]+$/.test(recordId)) {
     throw new Error("Airtable approval record has no valid record ID. Refusing to send.");
@@ -44,7 +60,8 @@ function escapeFormulaString(value: string): string {
 
 export async function fetchAirtableRecipientApproval(
   recipient: string,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  expected: ApprovedDraft
 ): Promise<string> {
   const apiToken = env.AIRTABLE_API_TOKEN?.trim();
   const baseId = env.GULLKORNET_AIRTABLE_BASE_ID?.trim();
@@ -56,7 +73,7 @@ export async function fetchAirtableRecipientApproval(
   const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`);
   url.searchParams.set("filterByFormula", `AND({Email} = "${escapeFormulaString(recipient.trim().toLowerCase())}", {Do Not Contact} = 0)`);
   url.searchParams.set("pageSize", "100");
-  for (const field of ["Email", "Lead Status", "Review Status", "Do Not Contact"]) {
+  for (const field of ["Email", "Lead Status", "Review Status", "Do Not Contact", "Outreach Subject", "Outreach Draft", "Verified Observation"]) {
     url.searchParams.append("fields[]", field);
   }
 
@@ -77,7 +94,7 @@ export async function fetchAirtableRecipientApproval(
   if ("offset" in payload && typeof (payload as { offset?: unknown }).offset === "string") {
     throw new Error("Airtable approval lookup was paginated. Refusing to send until duplicates are reconciled.");
   }
-  return assertAirtableRecipientApproved(records, recipient);
+  return assertAirtableRecipientApproved(records, recipient, expected);
 }
 
 export async function markAirtableRecipientSent(
