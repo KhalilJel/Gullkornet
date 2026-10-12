@@ -127,7 +127,7 @@ test("Phase 11 blocks a recipient already present in the recent Resend send ledg
   const now = Date.parse("2026-10-09T12:00:00Z");
   const recent = [{
     created_at: "2026-10-09T11:45:00Z",
-    to: ["Pilot@Example.no"]
+    to: ["Post@Phase11.no"]
   }];
   assert.throws(
     () => assertRecipientNotAlreadySent(recent, "post@phase11.no", now),
@@ -161,7 +161,7 @@ const approvedAirtableRecord: AirtableSendApproval = {
 };
 
 test("Phase 11 requires exactly one approved Airtable record and returns its exact ID", () => {
-  assert.equal(assertAirtableRecipientApproved([approvedAirtableRecord], "PILOT@example.no", approvedDraft), "rec123");
+  assert.equal(assertAirtableRecipientApproved([approvedAirtableRecord], "POST@PHASE11.NO", approvedDraft), "rec123");
   const unrelated: AirtableSendApproval = {
     id: "recOther",
     fields: { Email: "other@example.no", "Lead Status": "New", "Review Status": "Needs review" }
