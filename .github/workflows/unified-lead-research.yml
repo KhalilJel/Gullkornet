@@ -186,7 +186,7 @@ jobs:
         with:
           name: gullkornet-unified-lead-research-summary
           path: data/unified-lead-research-summary.json
-          retention-days: 7
+          retention-days: 90
 
       - name: Save minimal discovery history
         uses: actions/cache/save@v4
