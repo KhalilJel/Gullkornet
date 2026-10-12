@@ -27,7 +27,7 @@ jobs:
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       OPENOUTREACH_REPLY_STATUS_URL: ${{ vars.OPENOUTREACH_REPLY_STATUS_URL }}
       OPENOUTREACH_INGEST_TOKEN: ${{ secrets.OPENOUTREACH_INGEST_TOKEN }}
-      OUTREACH_FROM_EMAIL: "jelassi@cideamarketing.com"
+      OUTREACH_FROM_EMAIL: "hello@cideamarketing.com"
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
