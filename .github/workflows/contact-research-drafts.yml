@@ -102,4 +102,4 @@ jobs:
         with:
           name: gullkornet-contact-research-summary
           path: data/contact-research-summary.json
-          retention-days: 7
+          retention-days: 90
