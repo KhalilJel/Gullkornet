@@ -205,7 +205,7 @@ export function extractEvidence(html: string): { headline?: string; serviceEvide
   const headline = getTagText(html, "h1");
   const text = stripHtml(html);
   const sentenceCandidates = text.split(/[.!?]\s+/).map((s) => s.trim()).filter((s) => s.length >= 35 && s.length <= 220);
-  const serviceTerms = /regnskap|regnskapsfør|bokfør|lønn|årsoppgjør|økonomirådgivning|rådgivning|skatt|mva|accounting|bookkeeping|frisør|frisørsalong|hair salon|tannlege|tannbehandling|dental|fysioterapi|fysioterapeut|physiotherapy|elektriker|elektroinstallasjon|electrical installation|rørlegger|rørleggertjenester|plumbing|bilverksted|bilreparasjon|auto repair|renhold|rengjøring|cleaning services|restaurant|spisested|servering|treningssenter|personlig trener|fitness center|gym/i;
+  const serviceTerms = /regnskap|regnskapsfør|bokfør|lønn|årsoppgjør|økonomirådgivning|rådgivning|skatt|mva|accounting|bookkeeping|frisør|frisørsalong|hair salon|tannlege|tannbehandling|dental|fysioterapi|fysioterapeut|physiotherapy|elektriker|elektroinstallasjon|electrical installation|rørlegger|rørleggertjenester|plumbing|bilverksted|bilreparasjon|auto repair|renhold|rengjøring|cleaning services|restaurant|spisested|servering|treningssenter|personlig trener|fitness center|gym|barber|barbershop|barberhåndverk|balayage|keratin|brudeoppsett|hårklipp|hårfarge|haircut|hair coloring|hudpleie|ansiktsbehandling/i;
   const serviceEvidence = sentenceCandidates.find((s) => serviceTerms.test(s) && isUsefulServiceEvidence(s))
     ?? (() => {
       const metaDescription = html.match(/<meta\b[^>]*name\s*=\s*["']?description\b[^>]*>/i)?.[0];
@@ -225,7 +225,7 @@ function normalizeEvidence(value: string): string {
 
 function isUsefulServiceEvidence(value?: string): value is string {
   if (!value || value.trim().length < 35) return false;
-  const serviceTerms = /regnskap|regnskapsfør|bokfør|lønn|årsoppgjør|økonomirådgivning|rådgivning|skatt|mva|accounting|bookkeeping|frisør|frisørsalong|hair salon|tannlege|tannbehandling|dental|fysioterapi|fysioterapeut|physiotherapy|elektriker|elektroinstallasjon|electrical installation|rørlegger|rørleggertjenester|plumbing|bilverksted|bilreparasjon|auto repair|renhold|rengjøring|cleaning services|restaurant|spisested|servering|treningssenter|personlig trener|fitness center|gym/i;
+  const serviceTerms = /regnskap|regnskapsfør|bokfør|lønn|årsoppgjør|økonomirådgivning|rådgivning|skatt|mva|accounting|bookkeeping|frisør|frisørsalong|hair salon|tannlege|tannbehandling|dental|fysioterapi|fysioterapeut|physiotherapy|elektriker|elektroinstallasjon|electrical installation|rørlegger|rørleggertjenester|plumbing|bilverksted|bilreparasjon|auto repair|renhold|rengjøring|cleaning services|restaurant|spisested|servering|treningssenter|personlig trener|fitness center|gym|barber|barbershop|barberhåndverk|balayage|keratin|brudeoppsett|hårklipp|hårfarge|haircut|hair coloring|hudpleie|ansiktsbehandling/i;
   if (!serviceTerms.test(value)) return false;
   const navigationTerms = value.match(/\b(hjem|søk|kontakt oss|kontakt|om oss|tjenester|meny|personvern|cookies|logg inn|skip to content|hopp rett til innholdet|hopp til innholdet|finn oss|åpningstider|nyttige linker|ansatte)\b/gi) ?? [];
   const phoneNumbers = value.match(/(?:\+?\d[\d\s().-]{7,}\d)/g) ?? [];
@@ -268,7 +268,10 @@ export function createPersonalizedDraft(
     [/bilverksted|bilreparasjon|auto repair/i, "bilservice"],
     [/renhold|rengjøring|cleaning services/i, "renhold"],
     [/restaurant|spisested|servering/i, "servering"],
-    [/treningssenter|personlig trener|fitness center|gym/i, "trening"]
+    [/treningssenter|personlig trener|fitness center|gym/i, "trening"],
+    [/barber|barbershop|barberhåndverk|skjegg/i, "barbertjenester"],
+    [/balayage|keratin|brudeoppsett|hårklipp|hårfarge|haircut|hair coloring/i, "hårbehandlinger"],
+    [/hudpleie|ansiktsbehandling/i, "hudpleie"]
   ];
   const observedServices = serviceVocabulary
     .filter(([pattern]) => pattern.test(evidenceText))
