@@ -68,7 +68,7 @@ jobs:
               } while (offset);
               console.log(`Current Draft Ready queue: ${count}`);
             } catch (error) {
-              console.log(`Airtable queue check failed; using normal discovery schedule: ${error instanceof Error ? error.message : "unknown error"}`);
+              console.log("Airtable queue check failed; using normal discovery schedule. Details withheld from logs.");
               count = 999;
             }
           }
@@ -124,7 +124,9 @@ jobs:
             echo "Missing repository secret GOOGLE_MAPS_API_KEY."
             exit 1
           fi
+          umask 077
           mkdir -p data
+          chmod 700 data
           if [ ! -s data/discovery-history.json ]; then
             printf '{"domains":[],"companyNames":[]}' > data/discovery-history.json
           fi
@@ -134,11 +136,16 @@ jobs:
           for term in "${TERMS[@]}"; do
             slug=$(printf '%s' "$term" | tr -cd '[:alnum:]')
             file="data/candidates-${index}-${slug}.json"
-            npm run --silent discover:google -- "$term" > "$file"
+            if ! npm run --silent discover:google -- "$term" > "$file" 2>> data/discovery.stderr.log; then
+              chmod 600 data/discovery.stderr.log 2>/dev/null || true
+              echo "Google Places discovery failed; private diagnostics were not printed."
+              exit 1
+            fi
+            chmod 600 "$file"
             files+=("$file")
             index=$((index + 1))
           done
-          node --input-type=module -e '
+          if ! node --input-type=module -e '
             import { readFileSync, writeFileSync, existsSync } from "node:fs";
             const map = new Map();
             for (const file of process.argv.slice(1)) {
@@ -173,7 +180,12 @@ jobs:
               companyNames: [...names]
             }, null, 2));
             console.error("Discovery complete: " + map.size + " unique candidates across " + (process.argv.length - 1) + " segment files; " + fresh.length + " new candidates after cross-run dedupe and daily cap. No email was sent.");
-          ' "${files[@]}"
+          ' "${files[@]}" 2>> data/discovery.stderr.log; then
+            chmod 600 data/discovery.stderr.log 2>/dev/null || true
+            echo "Candidate processing failed; private diagnostics were not printed."
+            exit 1
+          fi
+          chmod 600 data/discovery.stderr.log data/google-candidates.json data/discovery-history.json
 
       - name: Save discovery history for future runs
         uses: actions/cache/save@v4
