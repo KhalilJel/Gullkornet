@@ -7,7 +7,7 @@ export type OutreachDraft = {
 
 export type PreparedEmail = { from: string; to: string; subject: string; text: string };
 
-export const DEFAULT_SENDER = "jelassi@cideamarketing.com";
+export const DEFAULT_SENDER = "hello@cideamarketing.com";
 
 // Phase 11 shared policy for all future live-send entry points.
 export const PHASE11_RATE_LIMITS = Object.freeze({
