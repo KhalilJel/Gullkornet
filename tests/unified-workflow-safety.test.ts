@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
@@ -38,13 +39,51 @@ test("unified lead research rejects unsafe or accidental discovery limits", () =
   assert.match(workflow, /DAILY_LEAD_LIMIT must be an integer from 1 to 100/);
 });
 
-test("paging and Draft-Ready-only creation come only from repository variables (unset = off)", () => {
-  assert.match(workflow, /GULLKORNET_PLACES_MAX_PAGES: \$\{\{ vars\.GULLKORNET_PLACES_MAX_PAGES \}\}/);
-  assert.match(workflow, /GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY: \$\{\{ vars\.GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY \}\}/);
-  // Never hard-coded on, and the per-run limit stays at 100.
+test("manual inputs for paging and Draft-Ready-only creation default to off; the scheduler path keeps the variables", () => {
+  const dispatch = workflow.match(/workflow_dispatch:\n    inputs:([\s\S]*?)\n  workflow_call:/)?.[1] ?? "";
+  assert.match(dispatch, /places_max_pages:[\s\S]*?default: "1"[\s\S]*?type: choice[\s\S]*?options: \["1", "2", "3"\]/);
+  assert.match(dispatch, /create_only_draft_ready:[\s\S]*?default: false[\s\S]*?type: boolean/);
+  assert.match(dispatch, /sync_to_airtable:[\s\S]*?default: false/);
+  // Manual-only: the reusable (scheduler) interface does not gain these inputs.
+  const call = workflow.match(/workflow_call:\n    inputs:([\s\S]*?)\n    secrets:/)?.[1] ?? "";
+  assert.doesNotMatch(call, /places_max_pages|create_only_draft_ready/);
+  assert.match(workflow, /PLACES_MAX_PAGES_VAR: \$\{\{ vars\.GULLKORNET_PLACES_MAX_PAGES \}\}/);
+  assert.match(workflow, /CREATE_ONLY_DRAFT_READY_VAR: \$\{\{ vars\.GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY \}\}/);
+  // Never hard-coded on; neither input can turn on the Airtable sync step or live send.
   assert.doesNotMatch(workflow, /GULLKORNET_PLACES_MAX_PAGES: ["']?[23]/);
   assert.doesNotMatch(workflow, /GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY: ["']?true/);
+  assert.match(workflow, /if: \$\{\{ inputs\.sync_to_airtable \}\}/);
+  assert.doesNotMatch(workflow, /GULLKORNET_ENABLE_LIVE_SEND/);
   assert.match(workflow, /DAILY_LEAD_LIMIT < 1 \|\| DAILY_LEAD_LIMIT > 100/);
+});
+
+// Runs the real selection/validation shell from the workflow with a stubbed environment.
+function runSelection(snippet: string, env: Record<string, string>, varName: string): { status: number | null; value: string } {
+  const result = spawnSync("bash", ["-c", `set -euo pipefail\n${snippet}\necho "VALUE=\${${varName}:-}"`], { env: { PATH: process.env.PATH ?? "", ...env }, encoding: "utf8" });
+  return { status: result.status, value: /VALUE=(.*)/.exec(result.stdout ?? "")?.[1] ?? "" };
+}
+const hasBash = spawnSync("bash", ["-c", "true"]).status === 0;
+
+test("places_max_pages: input wins and is validated; without input the variable is used", { skip: !hasBash && "bash not available" }, () => {
+  const snippet = workflow.match(/( {10}if \[ -n "\$\{PLACES_MAX_PAGES_INPUT:-\}" \]; then[\s\S]*?\n {10}fi\n)/)?.[1] ?? "";
+  assert.ok(snippet, "selection block must exist");
+  assert.deepEqual(runSelection(snippet, { PLACES_MAX_PAGES_INPUT: "2", PLACES_MAX_PAGES_VAR: "3" }, "GULLKORNET_PLACES_MAX_PAGES"), { status: 0, value: "2" });
+  assert.deepEqual(runSelection(snippet, { PLACES_MAX_PAGES_INPUT: "", PLACES_MAX_PAGES_VAR: "" }, "GULLKORNET_PLACES_MAX_PAGES"), { status: 0, value: "" });
+  assert.deepEqual(runSelection(snippet, { PLACES_MAX_PAGES_VAR: "3" }, "GULLKORNET_PLACES_MAX_PAGES"), { status: 0, value: "3" });
+  for (const bad of ["0", "4", "10", "2; echo x", "abc"]) {
+    assert.equal(runSelection(snippet, { PLACES_MAX_PAGES_INPUT: bad }, "GULLKORNET_PLACES_MAX_PAGES").status, 1, bad);
+  }
+});
+
+test("create_only_draft_ready: input wins and is validated; without input the variable is used", { skip: !hasBash && "bash not available" }, () => {
+  const snippet = workflow.match(/( *case "\$\{CREATE_ONLY_DRAFT_READY_INPUT:-\}" in[\s\S]*?\n *esac\n)/)?.[1] ?? "";
+  assert.ok(snippet, "selection block must exist");
+  const name = "GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY";
+  assert.deepEqual(runSelection(snippet, { CREATE_ONLY_DRAFT_READY_INPUT: "true", CREATE_ONLY_DRAFT_READY_VAR: "" }, name), { status: 0, value: "true" });
+  assert.deepEqual(runSelection(snippet, { CREATE_ONLY_DRAFT_READY_INPUT: "false", CREATE_ONLY_DRAFT_READY_VAR: "true" }, name), { status: 0, value: "false" });
+  assert.deepEqual(runSelection(snippet, { CREATE_ONLY_DRAFT_READY_VAR: "true" }, name), { status: 0, value: "true" });
+  assert.deepEqual(runSelection(snippet, {}, name), { status: 0, value: "" });
+  assert.equal(runSelection(snippet, { CREATE_ONLY_DRAFT_READY_INPUT: "yes" }, name).status, 1);
 });
 
 test("run log reports discovery and sync as counts only", () => {
