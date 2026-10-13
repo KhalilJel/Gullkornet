@@ -75,6 +75,8 @@ jobs:
           DAILY_LEAD_LIMIT: ${{ inputs.daily_lead_limit }}
           DISCOVERY_HISTORY_PATH: data/discovery-history.json
           UPDATE_DISCOVERY_HISTORY: "true"
+          # Opt-in, unset by default (= 1 page): 2-3 Google Places pages per city, each a billed request.
+          GULLKORNET_PLACES_MAX_PAGES: ${{ vars.GULLKORNET_PLACES_MAX_PAGES }}
         run: |
           set -euo pipefail
           umask 077
@@ -158,6 +160,8 @@ jobs:
         env:
           AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
           GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
+          # Opt-in, unset by default (= create every researched row): "true" creates only Draft Ready rows.
+          GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY: ${{ vars.GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY }}
         run: |
           set -euo pipefail
           umask 077

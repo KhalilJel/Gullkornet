@@ -16,7 +16,8 @@ async function main(): Promise<void> {
   const result = await syncAirtableReviewRecords(parsed as ResearchRecord[], {
     apiToken,
     baseId,
-    tableName
+    tableName,
+    createOnlyDraftReady: process.env.GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY?.trim() === "true"
   });
 
   // Do not log mailbox contents, draft bodies, email addresses, or credentials.

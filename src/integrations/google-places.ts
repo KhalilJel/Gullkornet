@@ -19,6 +19,7 @@ type GooglePlace = {
 
 type GooglePlacesResponse = {
   places?: GooglePlace[];
+  nextPageToken?: string;
 };
 
 export type GooglePlacesDiscoveryOptions = {
@@ -26,6 +27,9 @@ export type GooglePlacesDiscoveryOptions = {
   cities?: string[];
   searchTerm?: string;
   maxResultsPerCity?: number;
+  /** Pages of up to 20 results per city query (1-3; Google returns at most 60 per query). Default 1.
+   * Every page is a separate billed Text Search request. */
+  maxPagesPerCity?: number;
   fetchImpl?: typeof fetch;
 };
 
@@ -108,50 +112,59 @@ export async function discoverGooglePlacesCandidates(
   const cities = options.cities ?? DEFAULT_CITIES;
   const searchTerm = options.searchTerm?.trim() || "regnskapsfører";
   const maxResultsPerCity = Math.min(Math.max(options.maxResultsPerCity ?? 20, 1), 20);
+  const maxPagesPerCity = Math.min(Math.max(Math.floor(options.maxPagesPerCity ?? 1) || 1, 1), 3);
   const fetchImpl = options.fetchImpl ?? fetch;
   const candidates = new Map<string, GooglePlacesCandidate>();
+  const fieldMask = "places.displayName,places.websiteUri,places.formattedAddress,places.googleMapsUri,places.primaryTypeDisplayName,places.addressComponents"
+    + (maxPagesPerCity > 1 ? ",nextPageToken" : "");
 
   for (const city of cities) {
-    const response = await fetchImpl("https://places.googleapis.com/v1/places:searchText", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": "places.displayName,places.websiteUri,places.formattedAddress,places.googleMapsUri,places.primaryTypeDisplayName,places.addressComponents"
-      },
-      body: JSON.stringify({
-        textQuery: `${searchTerm} in ${city}, Norway`,
-        languageCode: "no",
-        regionCode: "NO",
-        pageSize: maxResultsPerCity
-      }),
-      signal: AbortSignal.timeout(10000)
-    });
+    let pageToken: string | undefined;
+    for (let page = 0; page < maxPagesPerCity; page += 1) {
+      const response = await fetchImpl("https://places.googleapis.com/v1/places:searchText", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "X-Goog-Api-Key": apiKey,
+          "X-Goog-FieldMask": fieldMask
+        },
+        body: JSON.stringify({
+          textQuery: `${searchTerm} in ${city}, Norway`,
+          languageCode: "no",
+          regionCode: "NO",
+          pageSize: maxResultsPerCity,
+          ...(pageToken ? { pageToken } : {})
+        }),
+        signal: AbortSignal.timeout(10000)
+      });
 
-    if (!response.ok) {
-      throw new Error(`GOOGLE_PLACES_REQUEST_FAILED status=${response.status} city=${city}`);
-    }
+      if (!response.ok) {
+        throw new Error(`GOOGLE_PLACES_REQUEST_FAILED status=${response.status} city=${city}`);
+      }
 
-    const payload = await response.json() as GooglePlacesResponse;
-    for (const place of payload.places ?? []) {
-      const companyName = place.displayName?.text?.trim();
-      if (!companyName) continue;
-      // Text Search can return similarly named businesses outside the requested country.
-      // regionCode=NO may cause Google to omit the country suffix from formattedAddress,
-      // so prefer the explicit country address component and only use the suffix as fallback.
-      const formattedAddress = place.formattedAddress?.trim();
-      if (!formattedAddress || !isNorwegianPlace(place, formattedAddress)) continue;
-      const websiteUrl = normalizeWebsite(place.websiteUri);
-      const key = websiteUrl ? new URL(websiteUrl).hostname.toLowerCase().replace(/^www\./, "") : companyName.toLocaleLowerCase("nb-NO");
-      const candidate: GooglePlacesCandidate = {
-        companyName,
-        websiteUrl,
-        city,
-        industry: place.primaryTypeDisplayName?.text || searchTerm,
-        sourceUrl: place.googleMapsUri
-      };
-      const existing = candidates.get(key);
-      if (!existing || (!existing.websiteUrl && candidate.websiteUrl)) candidates.set(key, candidate);
+      const payload = await response.json() as GooglePlacesResponse;
+      pageToken = typeof payload.nextPageToken === "string" && payload.nextPageToken ? payload.nextPageToken : undefined;
+      for (const place of payload.places ?? []) {
+        const companyName = place.displayName?.text?.trim();
+        if (!companyName) continue;
+        // Text Search can return similarly named businesses outside the requested country.
+        // regionCode=NO may cause Google to omit the country suffix from formattedAddress,
+        // so prefer the explicit country address component and only use the suffix as fallback.
+        const formattedAddress = place.formattedAddress?.trim();
+        if (!formattedAddress || !isNorwegianPlace(place, formattedAddress)) continue;
+        const websiteUrl = normalizeWebsite(place.websiteUri);
+        const key = websiteUrl ? new URL(websiteUrl).hostname.toLowerCase().replace(/^www\./, "") : companyName.toLocaleLowerCase("nb-NO");
+        const candidate: GooglePlacesCandidate = {
+          companyName,
+          websiteUrl,
+          city,
+          industry: place.primaryTypeDisplayName?.text || searchTerm,
+          sourceUrl: place.googleMapsUri
+        };
+        const existing = candidates.get(key);
+        if (!existing || (!existing.websiteUrl && candidate.websiteUrl)) candidates.set(key, candidate);
+      }
+      if (!pageToken) break;
     }
   }
 

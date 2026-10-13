@@ -79,6 +79,45 @@ test("discovers candidates from Google Places and deduplicates by website domain
   assert.equal(results.find((item) => item.companyName === "Eksempel Regnskap AS")?.websiteUrl, "https://www.example.no/");
 });
 
+// ---- Opt-in pagination: one page by default, at most 3 billed requests per city ----
+
+function pagedFetch(pagesAvailable: number, log: Array<{ pageToken?: string; fieldMask: string | null; textQuery: string }>): typeof fetch {
+  return async (_input, init) => {
+    const body = JSON.parse(String(init?.body));
+    log.push({ pageToken: body.pageToken, fieldMask: new Headers(init?.headers).get("X-Goog-FieldMask"), textQuery: body.textQuery });
+    const page = body.pageToken ? Number(String(body.pageToken).replace("tok", "")) : 1;
+    return new Response(JSON.stringify({
+      places: [{ displayName: { text: `Salong ${page}` }, websiteUri: `https://salong${page}.no/`, formattedAddress: "Oslo, Norway" }],
+      ...(page < pagesAvailable ? { nextPageToken: `tok${page + 1}` } : {})
+    }), { status: 200 });
+  };
+}
+
+test("pagination is off by default: one request per city and no nextPageToken in the field mask", async () => {
+  const log: Array<{ pageToken?: string; fieldMask: string | null; textQuery: string }> = [];
+  const results = await discoverGooglePlacesCandidates({ apiKey: "k", cities: ["Oslo"], fetchImpl: pagedFetch(3, log) });
+  assert.equal(log.length, 1);
+  assert.equal(log[0].fieldMask?.includes("nextPageToken"), false);
+  assert.deepEqual(results.map((c) => c.companyName), ["Salong 1"]);
+});
+
+test("opt-in pagination follows nextPageToken with the same query, up to the page limit", async () => {
+  const log: Array<{ pageToken?: string; fieldMask: string | null; textQuery: string }> = [];
+  const results = await discoverGooglePlacesCandidates({ apiKey: "k", cities: ["Oslo"], maxPagesPerCity: 2, fetchImpl: pagedFetch(3, log) });
+  assert.deepEqual(log.map((r) => r.pageToken), [undefined, "tok2"]);
+  assert.ok(log.every((r) => r.textQuery === log[0].textQuery && r.fieldMask?.includes("nextPageToken")));
+  assert.deepEqual(results.map((c) => c.companyName), ["Salong 1", "Salong 2"]);
+});
+
+test("pagination stops when Google returns no token, and is capped at 3 pages", async () => {
+  const short: Array<{ pageToken?: string; fieldMask: string | null; textQuery: string }> = [];
+  await discoverGooglePlacesCandidates({ apiKey: "k", cities: ["Oslo"], maxPagesPerCity: 3, fetchImpl: pagedFetch(1, short) });
+  assert.equal(short.length, 1);
+  const capped: Array<{ pageToken?: string; fieldMask: string | null; textQuery: string }> = [];
+  await discoverGooglePlacesCandidates({ apiKey: "k", cities: ["Oslo", "Bergen"], maxPagesPerCity: 10, fetchImpl: pagedFetch(9, capped) });
+  assert.equal(capped.length, 6); // 2 cities x max 3 pages
+});
+
 test("requires a Google Maps Platform API key", async () => {
   await assert.rejects(
     () => discoverGooglePlacesCandidates({ apiKey: " " }),

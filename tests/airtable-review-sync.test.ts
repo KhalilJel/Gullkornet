@@ -290,6 +290,57 @@ test("a sync writes Needs Review for a named address and Draft Ready for a share
   assert.equal(status.get("Shared Co"), "Draft Ready");
 });
 
+// ---- Opt-in: create only Draft Ready rows (Airtable record capacity) ----
+
+async function syncCapture(records: ResearchRecord[], existing: Array<{ id: string; fields: Record<string, unknown> }>, createOnlyDraftReady?: boolean) {
+  const posted: Array<Record<string, unknown>> = [];
+  const patched: Array<{ id: string; fields: Record<string, unknown> }> = [];
+  const result = await syncAirtableReviewRecords(records, {
+    ...options,
+    createOnlyDraftReady,
+    fetchImpl: async (_input, init) => {
+      if (init?.method === "GET") return jsonResponse({ records: existing });
+      const body = JSON.parse(String(init?.body));
+      if (init?.method === "POST") posted.push(...body.records.map((r: { fields: Record<string, unknown> }) => r.fields));
+      if (init?.method === "PATCH") patched.push(...body.records);
+      return jsonResponse({ records: body.records.map((r: object, i: number) => ({ id: "rec-" + i, ...r })) });
+    }
+  });
+  return { result, posted, patched };
+}
+
+const pilotMix = (): ResearchRecord[] => [
+  item({ ...ready("post@salong.no"), companyName: "Ready Co" }),
+  item({ ...ready("pia@annen.no"), companyName: "Named Co", websiteUrl: "https://annen.no/" }),
+  item({ companyName: "No Mail Co", websiteUrl: "https://nomail.no/", emails: [], notes: [] }),
+  item({ companyName: "No Site Co", websiteUrl: undefined, emails: [], notes: [], researchStatus: "NO_WEBSITE" })
+];
+
+test("default sync still creates every researched business", async () => {
+  const { result, posted } = await syncCapture(pilotMix(), []);
+  assert.equal(posted.length, 4);
+  assert.equal(result.notCreated, 0);
+});
+
+test("createOnlyDraftReady creates only Draft Ready businesses and reports the rest as notCreated", async () => {
+  const { result, posted } = await syncCapture(pilotMix(), [], true);
+  assert.deepEqual(posted.map((f) => [f.Company, f["Lead Status"]]), [["Ready Co", "Draft Ready"]]);
+  assert.equal(result.notCreated, 3);
+});
+
+test("createOnlyDraftReady never skips updates: existing, DNC and protected rows are refreshed as before", async () => {
+  const existing = [
+    { id: "recNamed", fields: { "Duplicate Key": "annen.no", "Lead Status": "Draft Ready", Email: "pia@annen.no" } },
+    { id: "recDnc", fields: { "Duplicate Key": "nomail.no", "Lead Status": "Do Not Contact", "Do Not Contact": true } }
+  ];
+  const { patched, posted } = await syncCapture(pilotMix(), existing, true);
+  const byId = new Map(patched.map((r) => [r.id, r.fields]));
+  assert.equal(byId.get("recNamed")?.["Lead Status"], "Needs Review"); // a named address is downgraded, not left Draft Ready
+  assert.equal(byId.get("recDnc")?.["Lead Status"], "Do Not Contact");
+  assert.equal(byId.get("recDnc")?.["Do Not Contact"], true);
+  assert.deepEqual(posted.map((f) => f.Company), ["Ready Co"]);
+});
+
 test("matches legacy CRM rows without a Duplicate Key using the website domain", async () => {
   let postCount = 0;
   let patchCount = 0;
