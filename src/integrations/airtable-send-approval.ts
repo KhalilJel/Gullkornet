@@ -8,6 +8,7 @@ export type AirtableSendApproval = {
     Website?: unknown;
     "Contact Source URL"?: unknown;
     "Personalization Evidence"?: unknown;
+    "Research Notes"?: unknown;
     "Lead Status"?: unknown;
     "Do Not Contact"?: unknown;
     "AI Decision"?: unknown;
@@ -45,7 +46,7 @@ export async function fetchApprovedOutreachQueue(
     const url = new URL(API_ROOT + "/" + baseId + "/" + encodeURIComponent(tableName));
     url.searchParams.set("pageSize", "100");
     url.searchParams.set("filterByFormula", 'AND({Lead Status} = "Draft Ready", {AI Decision} = "APPROVE", {AI Confidence} >= 0.9, {Do Not Contact} = 0)');
-    for (const field of ["Email", "Website", "Contact Source URL", "Personalization Evidence", "Lead Status", "Do Not Contact", "AI Decision", "AI Confidence", "AI Evidence", "AI Evidence URL", "AI Decision Reason", "AI Draft Subject", "AI Draft Body"]) {
+    for (const field of ["Email", "Website", "Contact Source URL", "Personalization Evidence", "Research Notes", "Lead Status", "Do Not Contact", "AI Decision", "AI Confidence", "AI Evidence", "AI Evidence URL", "AI Decision Reason", "AI Draft Subject", "AI Draft Body"]) {
       url.searchParams.append("fields[]", field);
     }
     if (offset) url.searchParams.set("offset", offset);
@@ -123,6 +124,10 @@ export function assertAirtableRecipientApproved(
   if (fields["AI Draft Subject"] !== expected.subject || fields["AI Draft Body"] !== expected.text) {
     throw new Error("The AI-approved Airtable subject and draft must exactly match the message to be sent.");
   }
+  // A strategic account needs deeper research and must not receive ordinary automated outreach.
+  if (typeof fields["Research Notes"] === "string" && fields["Research Notes"].includes("[GK-ROUTE:STRATEGIC_ACCOUNT]")) {
+    throw new Error("Strategic accounts are not eligible for automated outreach. Refusing to send.");
+  }
   const evidence = fields["AI Evidence"];
   const evidenceUrl = typeof fields["AI Evidence URL"] === "string" ? fields["AI Evidence URL"] : "";
   const personalEvidence = typeof fields["Personalization Evidence"] === "string" ? fields["Personalization Evidence"] : "";
@@ -181,7 +186,7 @@ export async function fetchAirtableRecipientApproval(
   const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`);
   url.searchParams.set("filterByFormula", approvalLookupFormula(recipient));
   url.searchParams.set("pageSize", "100");
-  for (const field of ["Email", "Website", "Contact Source URL", "Personalization Evidence", "Lead Status", "Do Not Contact", "AI Decision", "AI Confidence", "AI Evidence", "AI Evidence URL", "AI Decision Reason", "AI Draft Subject", "AI Draft Body"]) {
+  for (const field of ["Email", "Website", "Contact Source URL", "Personalization Evidence", "Research Notes", "Lead Status", "Do Not Contact", "AI Decision", "AI Confidence", "AI Evidence", "AI Evidence URL", "AI Decision Reason", "AI Draft Subject", "AI Draft Body"]) {
     url.searchParams.append("fields[]", field);
   }
 

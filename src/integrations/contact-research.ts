@@ -1,3 +1,15 @@
+import type { ProviderAttempt } from "../domain/research-evidence.js";
+import type { RoutingAssessment } from "../domain/cidea-routing.js";
+import { readBodyBounded } from "./bounded-read.js";
+import { buildRoutingForCompany, type ResearchProvenance } from "./company-dossier.js";
+import {
+  DEFAULT_ROUTER_POLICY,
+  escalateResearch,
+  type BuiltinOutcome,
+  type ResearchProviders,
+  type RouterPolicy,
+  type RouterState
+} from "./research-router.js";
 import { isSafePublicUrl, type GoogleCandidate, type WebsiteAudit } from "./website-audit.js";
 
 export type PublicEmail = {
@@ -24,6 +36,16 @@ export type ContactResearchDraft = {
   requiresHumanReview: true;
   notes: string[];
   researchedAt: string;
+  /** Auditable Cidea routing for this company; also summarised in `notes` for Airtable. */
+  routing?: RoutingAssessment;
+  providerAttempts?: ProviderAttempt[];
+};
+
+/** Optional escalation providers. Without them the research behaves exactly as before. */
+export type ResearchDeps = {
+  providers: ResearchProviders;
+  state: RouterState;
+  policy?: RouterPolicy;
 };
 
 const MAX_HTML_BYTES = 384 * 1024;
@@ -55,30 +77,10 @@ function stripHtml(value: string): string {
     .replace(/<[^>]+>/g, " "));
 }
 
+const BODY_READ_DEADLINE_MS = 15_000;
+
 async function readHtml(response: Response): Promise<string> {
-  if (!response.body) return "";
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  try {
-    while (total < MAX_HTML_BYTES) {
-      const { done, value } = await reader.read();
-      if (done || !value) break;
-      const chunk = value.byteLength > MAX_HTML_BYTES - total ? value.slice(0, MAX_HTML_BYTES - total) : value;
-      chunks.push(chunk);
-      total += chunk.byteLength;
-      if (chunk.byteLength < value.byteLength) break;
-    }
-  } finally {
-    await reader.cancel().catch(() => undefined);
-  }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(bytes);
+  return readBodyBounded(response, MAX_HTML_BYTES, BODY_READ_DEADLINE_MS);
 }
 
 async function fetchHtml(rawUrl: string): Promise<{ html: string; finalUrl: string; status: number }> {
@@ -333,7 +335,30 @@ export function createPersonalizedDraft(
   };
 }
 
-export async function researchContactAndDraft(candidate: GoogleCandidate, audit?: WebsiteAudit): Promise<ContactResearchDraft> {
+type ResearchContext = { provenance: ResearchProvenance };
+
+export async function researchContactAndDraft(
+  candidate: GoogleCandidate,
+  audit?: WebsiteAudit,
+  deps?: ResearchDeps
+): Promise<ContactResearchDraft> {
+  const context: ResearchContext = { provenance: { attempts: [], builtinReadable: false } };
+  const result = await researchContactAndDraftCore(candidate, audit, deps, context);
+  try {
+    const { assessment, notes } = buildRoutingForCompany(candidate, audit, context.provenance);
+    return { ...result, notes: [...result.notes, ...notes], routing: assessment, providerAttempts: context.provenance.attempts };
+  } catch {
+    // Routing is advisory. A failure here must never lose the research result.
+    return result;
+  }
+}
+
+async function researchContactAndDraftCore(
+  candidate: GoogleCandidate,
+  audit: WebsiteAudit | undefined,
+  deps: ResearchDeps | undefined,
+  context: ResearchContext
+): Promise<ContactResearchDraft> {
   const researchedAt = new Date().toISOString();
   const base = {
     companyName: candidate.companyName,
@@ -352,15 +377,57 @@ export async function researchContactAndDraft(candidate: GoogleCandidate, audit?
   }
 
   try {
-    const homepage = await fetchHtml(candidate.websiteUrl);
-    if (homepage.status >= 400 || !homepage.html) {
-      return { ...base, researchStatus: "FETCH_ERROR", notes: ["Homepage did not return readable HTML.", "No email address was guessed."] };
+    let fetched: { html: string; finalUrl: string; status: number } | undefined;
+    let fetchFailure: string | undefined;
+    try {
+      fetched = await fetchHtml(candidate.websiteUrl);
+    } catch (error) {
+      if (error instanceof Error && error.message === "BLOCKED_URL") throw error;
+      fetchFailure = error instanceof Error ? error.message : "FETCH_FAILED";
+    }
+    const readable = Boolean(fetched && fetched.status < 400 && fetched.html);
+    const minText = (deps?.policy ?? DEFAULT_ROUTER_POLICY).minTextLength;
+    const textLength = readable ? stripHtml(fetched!.html).length : 0;
+    context.provenance.builtinReadable = readable;
+
+    // Escalate only when the free built-in fetch did not produce enough readable content.
+    let scraped: { markdown: string; url: string; title?: string } | undefined;
+    if (deps && (!readable || textLength < minText)) {
+      const builtin: BuiltinOutcome = {
+        ok: readable, textLength, httpStatus: fetched?.status,
+        reason: fetchFailure ?? (readable ? undefined : "NO_READABLE_HTML")
+      };
+      const escalation = await escalateResearch({ url: candidate.websiteUrl, builtin }, deps.providers, deps.state, deps.policy);
+      context.provenance.attempts.push(...escalation.attempts);
+      if (escalation.page?.markdown) {
+        scraped = { markdown: escalation.page.markdown, url: escalation.page.url, title: escalation.page.title };
+        context.provenance.scrapedPage = escalation.page;
+        const ok = escalation.attempts.find((attempt) => attempt.outcome === "ok");
+        if (ok && (ok.provider === "firecrawl" || ok.provider === "jev-ultrafast" || ok.provider === "browser-use")) {
+          context.provenance.scrapedBy = ok.provider;
+        }
+      }
     }
 
-    const title = getTitle(homepage.html) ?? audit?.title;
+    if (!readable && !scraped) {
+      return { ...base, researchStatus: "FETCH_ERROR", notes: ["Homepage did not return readable HTML.", "No email address was guessed."] };
+    }
+    // Scraped markdown is plain text, so the same extractors apply to it; it is never fetched again.
+    const homepage = readable
+      ? fetched!
+      : { html: scraped!.markdown, finalUrl: scraped!.url, status: 200 };
+
+    const title = getTitle(homepage.html) ?? scraped?.title ?? audit?.title;
     const evidence = extractEvidence(homepage.html);
     const emails = extractPublicEmails(homepage.html, homepage.finalUrl);
-    const contactUrls = getContactLinks(homepage.html, homepage.finalUrl);
+    if (readable && scraped) {
+      // Thin built-in page: add what the scrape found without replacing the verified page.
+      const extra = extractEvidence(scraped.markdown);
+      evidence.headline ??= extra.headline;
+      evidence.serviceEvidence ??= extra.serviceEvidence;
+      emails.push(...extractPublicEmails(scraped.markdown, scraped.url));
+    }
+    const contactUrls = readable ? getContactLinks(homepage.html, homepage.finalUrl) : [];
     let contactPageUrl: string | undefined;
     for (const url of contactUrls) {
       try {
@@ -441,7 +508,8 @@ export async function researchContactAndDraft(candidate: GoogleCandidate, audit?
 export async function researchContactsAndDrafts(
   candidates: GoogleCandidate[],
   audits: WebsiteAudit[] = [],
-  concurrency = 3
+  concurrency = 3,
+  deps?: ResearchDeps
 ): Promise<ContactResearchDraft[]> {
   const auditByWebsite = new Map(audits.filter((item) => item.websiteUrl).map((item) => [item.websiteUrl!, item]));
   const results: ContactResearchDraft[] = new Array(candidates.length);
@@ -452,7 +520,7 @@ export async function researchContactsAndDrafts(
       const index = nextIndex++;
       if (index >= candidates.length) return;
       const candidate = candidates[index]!;
-      results[index] = await researchContactAndDraft(candidate, candidate.websiteUrl ? auditByWebsite.get(candidate.websiteUrl) : undefined);
+      results[index] = await researchContactAndDraft(candidate, candidate.websiteUrl ? auditByWebsite.get(candidate.websiteUrl) : undefined, deps);
     }
   }));
   return results;

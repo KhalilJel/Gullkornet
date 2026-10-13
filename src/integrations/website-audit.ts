@@ -1,4 +1,5 @@
 import { lookup } from "node:dns/promises";
+import { readBodyBounded } from "./bounded-read.js";
 import { isIP } from "node:net";
 
 export type GoogleCandidate = {
@@ -141,31 +142,10 @@ export function extractWebsiteSignals(html: string): Pick<WebsiteAudit,
   };
 }
 
+const BODY_READ_DEADLINE_MS = 12_000;
+
 async function readLimitedBody(response: Response): Promise<string> {
-  if (!response.body) return "";
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  try {
-    while (total < MAX_HTML_BYTES) {
-      const { done, value } = await reader.read();
-      if (done || !value) break;
-      const remaining = MAX_HTML_BYTES - total;
-      const chunk = value.byteLength > remaining ? value.slice(0, remaining) : value;
-      chunks.push(chunk);
-      total += chunk.byteLength;
-      if (chunk.byteLength < value.byteLength) break;
-    }
-  } finally {
-    await reader.cancel().catch(() => undefined);
-  }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  return readBodyBounded(response, MAX_HTML_BYTES, BODY_READ_DEADLINE_MS);
 }
 
 async function fetchPublicPage(startUrl: string): Promise<{ response: Response; finalUrl: string }> {

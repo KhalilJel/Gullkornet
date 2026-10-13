@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { researchContactsAndDrafts } from "../integrations/contact-research.js";
+import { buildResearchDeps } from "../integrations/research-deps.js";
 import type { GoogleCandidate, WebsiteAudit } from "../integrations/website-audit.js";
 
 const candidatesPath = process.argv[2] ?? "data/google-candidates.json";
@@ -28,7 +29,9 @@ try {
   });
 
   const audits = auditData as WebsiteAudit[];
-  const results = await researchContactsAndDrafts(candidates, audits, 3);
+  const { deps, notices } = buildResearchDeps();
+  for (const notice of notices) console.error(`[research] ${notice}`);
+  const results = await researchContactsAndDrafts(candidates, audits, 3, deps);
   console.log(JSON.stringify(results, null, 2));
   const withEmail = results.filter((item) => item.emails.length > 0).length;
   const withDraft = results.filter((item) => Boolean(item.draftBody && item.subject)).length;

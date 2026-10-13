@@ -25,7 +25,7 @@ Implementation:
 
 The adapter returns a small provider-neutral shape and does not expose Firecrawl response objects to the domain layer.
 
-The existing `website-audit.ts` remains unchanged in Phase 3. Firecrawl is not yet wired into the production lead pipeline; that belongs to the later integration phase.
+Firecrawl is now wired into the contact research step as an optional fallback through `src/integrations/research-router.ts`: it is tried only when the built-in fetch returned no readable content, only while `FIRECRAWL_MAX_PER_RUN` allows, and only when `FIRECRAWL_API_KEY` is configured. The key is not currently configured in GitHub, so the fallback is inert until the owner adds the `FIRECRAWL_API_KEY` secret. It is not verified in operation.
 
 ## Security boundary
 
