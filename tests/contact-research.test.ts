@@ -137,6 +137,40 @@ test("a noisy first match no longer hides a clean later sentence on the same pag
   assert.equal(extractEvidence(html).serviceEvidence, "Hos Bibbis Frisør får du klipp, farge og styling i rolige omgivelser.");
 });
 
+test("accepts concrete service prose that uses 'tjenester', 'kontakt' or 'ansatte' once, in lowercase", () => {
+  for (const line of [
+    "Cao Salong i Skien tilbyr tjenester innen hår og makeup", // observed in pilot run 38409346860
+    "Vi tilbyr tjenester innen hårklipp, farge og balayage for hele familien",
+    "Ta gjerne kontakt for brudeoppsett og makeup til bryllup og fest",
+    "Våre ansatte er utdannede frisører med lang erfaring i klipp og farge"
+  ]) {
+    assert.equal(extractEvidence(`<main><p>${line}.</p></main>`).serviceEvidence, `${line}.`, line);
+  }
+});
+
+test("still rejects navigation labels and booking noise around service words", () => {
+  for (const line of [
+    "Hjem Tjenester Kontakt Frisørsalong i sentrum med lang erfaring", // strong menu word
+    "Tjenester Priser Galleri Frisør i Bergen sentrum og omegn", // capitalised menu label
+    "Frisør i Oslo sentrum tjenester kontakt og mer om salongen vår", // two menu words
+    "Frisørsalong i Bergen sentrum Bestill time og se våre tjenester", // booking button
+    "Frisør og makeup i Skien Om oss Kontakt oss Personvern" // strong menu words
+  ]) {
+    assert.equal(extractEvidence(`<main><p>${line}.</p></main>`).serviceEvidence, undefined, line);
+  }
+});
+
+test("a makeup cue is described as makeup in the draft, never as another service", () => {
+  const draft = createPersonalizedDraft(
+    { companyName: "Cao Salong", websiteUrl: "https://example.no" },
+    "Cao Salong",
+    undefined,
+    "Cao Salong i Skien tilbyr tjenester innen hår og makeup."
+  );
+  assert.ok(draft.draftBody?.includes("makeup"), draft.draftBody);
+  assert.ok(!draft.draftBody?.includes("hudpleie"), draft.draftBody);
+});
+
 test("decodes URL-encoded whitespace and characters in public mailto addresses", () => {
   const html = '<a href="mailto:%20fay.skogstad%40adamogeva.no">Send e-post</a>';
   const emails = extractPublicEmails(html, "https://example.no/kontakt");
