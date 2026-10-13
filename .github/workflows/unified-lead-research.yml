@@ -18,6 +18,17 @@ on:
         required: true
         default: false
         type: boolean
+      places_max_pages:
+        description: "Google Places pages per city for this run only (each page is a billed request)"
+        required: true
+        default: "1"
+        type: choice
+        options: ["1", "2", "3"]
+      create_only_draft_ready:
+        description: "When syncing, create new Airtable rows only for Draft Ready businesses (this run only)"
+        required: true
+        default: false
+        type: boolean
   # Callable only by the gated scheduler workflow (scheduled-lead-pipeline.yml). This workflow
   # has no schedule, push or pull_request trigger of its own.
   workflow_call:
@@ -76,11 +87,22 @@ jobs:
           DISCOVERY_HISTORY_PATH: data/discovery-history.json
           UPDATE_DISCOVERY_HISTORY: "true"
           # Opt-in, unset by default (= 1 page): 2-3 Google Places pages per city, each a billed request.
-          GULLKORNET_PLACES_MAX_PAGES: ${{ vars.GULLKORNET_PLACES_MAX_PAGES }}
+          # A manual run uses its own input; a call from the scheduler has no input and uses the variable.
+          PLACES_MAX_PAGES_INPUT: ${{ inputs.places_max_pages }}
+          PLACES_MAX_PAGES_VAR: ${{ vars.GULLKORNET_PLACES_MAX_PAGES }}
           DISCOVERY_STATS_PATH: data/discovery-stats.json
         run: |
           set -euo pipefail
           umask 077
+          if [ -n "${PLACES_MAX_PAGES_INPUT:-}" ]; then
+            if ! [[ "$PLACES_MAX_PAGES_INPUT" =~ ^[1-3]$ ]]; then
+              echo "places_max_pages must be 1, 2 or 3."
+              exit 1
+            fi
+            export GULLKORNET_PLACES_MAX_PAGES="$PLACES_MAX_PAGES_INPUT"
+          else
+            export GULLKORNET_PLACES_MAX_PAGES="${PLACES_MAX_PAGES_VAR:-}"
+          fi
           if [ -z "${GOOGLE_MAPS_API_KEY:-}" ]; then
             echo "Missing repository secret GOOGLE_MAPS_API_KEY."
             exit 1
@@ -170,10 +192,17 @@ jobs:
           AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
           GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
           # Opt-in, unset by default (= create every researched row): "true" creates only Draft Ready rows.
-          GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY: ${{ vars.GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY }}
+          # A manual run uses its own input; a call from the scheduler has no input and uses the variable.
+          CREATE_ONLY_DRAFT_READY_INPUT: ${{ inputs.create_only_draft_ready }}
+          CREATE_ONLY_DRAFT_READY_VAR: ${{ vars.GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY }}
         run: |
           set -euo pipefail
           umask 077
+          case "${CREATE_ONLY_DRAFT_READY_INPUT:-}" in
+            true|false) export GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY="$CREATE_ONLY_DRAFT_READY_INPUT" ;;
+            "") export GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY="${CREATE_ONLY_DRAFT_READY_VAR:-}" ;;
+            *) echo "create_only_draft_ready must be true or false."; exit 1 ;;
+          esac
           if [ -z "${AIRTABLE_API_TOKEN:-}" ] || [ -z "${GULLKORNET_AIRTABLE_BASE_ID:-}" ]; then
             echo "Airtable sync was requested but required credentials/configuration are missing."
             exit 1
