@@ -223,7 +223,8 @@ jobs:
             created: result.created,
             updated: result.updated,
             skipped: result.skipped,
-            notCreated: result.notCreated
+            notCreated: result.notCreated,
+            duplicateEmail: Number(result.duplicateEmail) || 0
           }));
           NODE
           echo "Airtable sync complete. No emails were sent."

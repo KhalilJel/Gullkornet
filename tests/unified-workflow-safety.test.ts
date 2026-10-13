@@ -92,8 +92,12 @@ test("run log reports discovery and sync as counts only", () => {
   assert.match(discovery, /placesRequests: stats\.placesRequests/);
   const sync = workflow.match(/- name: Sync researched drafts[\s\S]*?(?=\n      - name:)/)?.[0] ?? "";
   const printed = sync.match(/console\.log\(JSON\.stringify\(\{([\s\S]*?)\}\)\)/)?.[1] ?? "";
-  for (const field of ["created", "updated", "skipped", "notCreated", "createOnlyDraftReady"]) assert.match(printed, new RegExp(`${field}:`));
-  assert.doesNotMatch(printed, /baseId|tableName|records|Email|Company|draftBody|subject|emails/);
+  for (const field of ["created", "updated", "skipped", "notCreated", "createOnlyDraftReady", "duplicateEmail"]) assert.match(printed, new RegExp(`${field}:`));
+  // duplicateEmail is forced to a plain number, so nothing but a count can reach the log.
+  assert.match(printed, /duplicateEmail: Number\(result\.duplicateEmail\) \|\| 0/);
+  // Exactly these keys and nothing else.
+  assert.deepEqual([...printed.matchAll(/^\s*(\w+):/gm)].map((m) => m[1]), ["stage", "createOnlyDraftReady", "created", "updated", "skipped", "notCreated", "duplicateEmail"]);
+  assert.doesNotMatch(printed, /baseId|tableName|records|\bEmail\b|Company|draftBody|subject|\bemails\b/);
   assert.match(sync, /sync:airtable -- data\/contact-research-drafts\.json > data\/airtable-sync\.stdout\.log/);
 });
 
