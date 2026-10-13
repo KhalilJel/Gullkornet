@@ -6,6 +6,27 @@ Status (2026-10-13): recommendation only. The automation "Gullkornet AI Outreach
 
 The assessment is advisory. The sender decides deterministically in code (`tests/send-gates.test.ts`, one test per case) and refuses on: Do Not Contact; any status other than `Draft Ready`; `AI Decision` other than `APPROVE`; confidence below 0.90 or non-numeric; missing or mismatching AI evidence; missing evidence URL or one on another site; contact source or e-mail domain not matching the official website; personal (freemail) or named-person addresses; draft without opt-out; `STRATEGIC_ACCOUNT`; another contacted/replied/suppressed record at the same business domain; an earlier reply (reply-status service); a send in the last 24 h to the same address; the 09:00-15:00 Europe/Oslo weekday window; five-minute spacing; 12/hour; 100/day; one per run. A record that fails a per-record rule is skipped and the next one is tried; an Airtable or reply-service outage stops the run (never read as "allowed"). Preview without any send path: `npm run send:preview` (read-only counts).
 
+## Evidence mapping fix (2026-10-13, after the first Run test)
+
+**What happened.** The first Run test on `Antoniette frisør` returned `APPROVE` / 0.90 with the evidence "Forsiden har ingen meta-beskrivelse.". That sentence exists only in `Research Notes` (a `FAKTA` line from the routing rules). The sender requires the AI evidence verbatim inside `Personalization Evidence`, which holds only the observed page text (Sidetittel, Overskrift, Tjenestetekst). So the sender would have refused the row even though the AI approved it. The live prompt (read on 2026-10-13) passed `Research Notes` to the model next to the evidence field and said "exact evidence text ... from the supplied facts", which let the model pick the notes line; it also did not say that a neutral technical observation is not a problem, so the draft said the site "does not have a meta description".
+
+**Chosen fix (least risk, nothing weakened).** `Personalization Evidence` stays the single evidence channel and `Research Notes` stays internal context. No sender gate, DNC, duplicate, reply, reservation or limit changed, and no neutral technical signal is copied into the evidence field. The new prompt in `docs/airtable-ai-assessment-prompt.txt`:
+
+- allows evidence only from `Public-site evidence` (the `Personalization Evidence` field) and forbids taking anything from `Research Notes`, including `FAKTA`/`SLUTNING` lines;
+- requires one contiguous excerpt copied character for character (no paraphrase, translation or ellipsis);
+- treats missing meta description, title, viewport or contact path as neutral context: never a customer-facing claim, never described as a problem, never the sole basis for `APPROVE`;
+- keeps the opt-out sentence «svar nei takk», the 0.90 threshold, the no-meeting rule and `NEEDS_REVIEW` for anything uncertain.
+
+If the model still picks text that is not in `Personalization Evidence`, the sender refuses the row (fail-safe, proven in `tests/ai-assessment-chain.test.ts`). Tests also prove the field mapping, that an APPROVE with notes-only, paraphrased or shortened evidence is refused, that verbatim evidence is accepted, and that the prompt file contains each rule.
+
+**Applying it (owner action, not done).** In the automation's "Generate structured data" step replace the prompt text with `docs/airtable-ai-assessment-prompt.txt` and re-insert the field chips where the `{Field}` placeholders are. The output schema (decision, confidence, evidence, evidenceUrl, reason, subject, body) is unchanged.
+
+**Verification order after review and merge (each step separately approved).**
+1. Update the prompt in the unpublished automation.
+2. One more "Run test" on the `Antoniette frisør` row only (writes the 7 AI fields again). Expect evidence copied from `Personalization Evidence` (for example the Tjenestetekst sentence) and a neutral draft; `NEEDS_REVIEW` is also an acceptable, safe outcome if the model finds no relevant service cue.
+3. `npm run send:preview`: confirm the row is accepted or refused for the right reason.
+4. Only then consider publishing the "matches conditions" automation, then research-only scheduling, then Airtable sync, then a separate go-live decision. Live send stays off until the last approval.
+
 ## Recommended trigger
 
 Use **"When a record matches conditions"** instead of "When record updated", with conditions:
