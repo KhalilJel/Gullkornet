@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { syncAirtableReviewRecords, type ResearchRecord } from "../src/integrations/airtable-review-sync.js";
 
+// Every test in this file uses an injected mock fetch, so no real Airtable write can happen.
+// The production write guard blocks pull_request CI runs, so neutralise the CI event for this process only.
+delete process.env.GITHUB_EVENT_NAME;
+delete process.env.GULLKORNET_AIRTABLE_WRITES;
+
 const options = {
   apiToken: "test-token",
   baseId: "app-test",
