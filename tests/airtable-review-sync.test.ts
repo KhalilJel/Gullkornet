@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { syncAirtableReviewRecords, type ResearchRecord } from "../src/integrations/airtable-review-sync.js";
+import { getStatus, syncAirtableReviewRecords, type ResearchRecord } from "../src/integrations/airtable-review-sync.js";
 
 // Every test in this file uses an injected mock fetch, so no real Airtable write can happen.
 // The production write guard blocks pull_request CI runs, so neutralise the CI event for this process only.
@@ -236,6 +236,58 @@ test("fails before network access when Airtable credentials are missing", async 
     /AIRTABLE_SYNC_NOT_CONFIGURED/
   );
   assert.equal(called, false);
+});
+
+// ---- Draft Ready only for a shared business inbox (pilot run 38409346860: a named address became Draft Ready) ----
+
+const ready = (email: string): Partial<ResearchRecord> => ({
+  websiteUrl: "https://www.salong.no/", notes: [], emails: [{ email, sourceUrl: "https://www.salong.no/kontakt" }]
+});
+
+test("a shared business inbox with a draft is Draft Ready", () => {
+  for (const email of ["post@salong.no", "kontakt@salong.no", "info@salong.no", "booking@salong.no"]) {
+    assert.equal(getStatus(item(ready(email))), "Draft Ready", email);
+  }
+});
+
+test("a named or personal address with a draft is Needs Review, never Draft Ready", () => {
+  for (const email of ["pia@salong.no", "kari.nordmann@salong.no", "post@gmail.com", "salong@hotmail.com"]) {
+    assert.equal(getStatus(item(ready(email))), "Needs Review", email);
+  }
+});
+
+test("a refresh without a new address still checks the stored address", () => {
+  const existing = (email: string) => ({ id: "rec-existing", fields: { "Lead Status": "Draft Ready", Email: email } });
+  assert.equal(getStatus(item({ ...ready("post@salong.no"), emails: [] }), existing("pia@salong.no")), "Needs Review");
+  assert.equal(getStatus(item({ ...ready("post@salong.no"), emails: [] }), existing("post@salong.no")), "Draft Ready");
+});
+
+test("protected, DNC and manual-review rules still take precedence over the inbox check", () => {
+  const withStatus = (status: string, dnc = false) => ({ id: "rec-existing", fields: { "Lead Status": status, "Do Not Contact": dnc } });
+  assert.equal(getStatus(item(ready("post@salong.no")), withStatus("Draft Ready", true)), "Suppressed");
+  assert.equal(getStatus(item(ready("pia@salong.no")), withStatus("Do Not Contact", true)), "Do Not Contact");
+  assert.equal(getStatus(item(ready("pia@salong.no")), withStatus("Sent")), "Sent");
+  assert.equal(getStatus(item(ready("pia@salong.no")), withStatus("Replied")), "Replied");
+  assert.equal(getStatus(item({ ...ready("post@salong.no"), notes: ["MANUAL REVIEW: redirect"] })), "Needs Review");
+});
+
+test("a sync writes Needs Review for a named address and Draft Ready for a shared inbox", async () => {
+  let created: Array<{ fields: Record<string, unknown> }> = [];
+  await syncAirtableReviewRecords([
+    item({ ...ready("pia@salong.no"), companyName: "Named Co" }),
+    item({ ...ready("post@annen.no"), companyName: "Shared Co", websiteUrl: "https://annen.no/" })
+  ], {
+    ...options,
+    fetchImpl: async (_input, init) => {
+      if (init?.method === "GET") return jsonResponse({ records: [] });
+      const body = JSON.parse(String(init?.body));
+      created = body.records;
+      return jsonResponse({ records: body.records.map((record: object, index: number) => ({ id: "new-" + index, ...record })) });
+    }
+  });
+  const status = new Map(created.map((record) => [record.fields.Company, record.fields["Lead Status"]]));
+  assert.equal(status.get("Named Co"), "Needs Review");
+  assert.equal(status.get("Shared Co"), "Draft Ready");
 });
 
 test("matches legacy CRM rows without a Duplicate Key using the website domain", async () => {

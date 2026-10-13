@@ -1,4 +1,5 @@
 import { assertAirtableWritesAllowed } from "../domain/airtable-write-guard.js";
+import { isSharedBusinessInbox } from "./outbound-email.js";
 export type EmailSource = { email: string; sourceUrl: string; sourceType?: string };
 
 export type ResearchRecord = {
@@ -108,6 +109,10 @@ export function getStatus(item: ResearchRecord, existing?: AirtableRecord): stri
     && Boolean((existing.fields["Outreach Subject"] as string).trim())
     && typeof existing?.fields["Outreach Draft"] === "string"
     && Boolean((existing.fields["Outreach Draft"] as string).trim());
+
+  // A named or personal address needs a human, never Draft Ready (same rule as the sender's final gate).
+  const email = hasCurrentEmail ? item.emails![0].email : hasExistingEmail ? String(existing!.fields["Email"]) : "";
+  if (email && !isSharedBusinessInbox(email)) return "Needs Review";
 
   // Preserve existing data when a later run finds less information.
   if ((hasCurrentEmail || hasExistingEmail) && (hasCurrentDraft || hasExistingDraft)) return "Draft Ready";
