@@ -1,6 +1,34 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { discoverGooglePlacesCandidates, NORWAY_SEARCH_MARKETS } from "../src/integrations/google-places.js";
+import { discoverGooglePlacesCandidates, NORWAY_SEARCH_MARKETS, selectFreshCandidates, type GooglePlacesCandidate } from "../src/integrations/google-places.js";
+
+const place = (companyName: string, websiteUrl?: string): GooglePlacesCandidate => ({ companyName, websiteUrl, city: "Oslo", industry: "frisør" });
+const noHistory = { domains: [], companyNames: [] };
+
+test("the daily limit is filled with candidates that have a website first", () => {
+  // Alphabetical input as discovery returns it; in pilot run 38409346860, 4 of 25 capped slots had no website.
+  const selected = selectFreshCandidates(
+    [place("A/S Uten Nett"), place("Aura", "https://aura.no/"), place("B Uten Nett"), place("Bech", "https://bech.no/"), place("Chess", "https://chess.no/")],
+    noHistory,
+    3
+  );
+  assert.deepEqual(selected.map((c) => c.companyName), ["Aura", "Bech", "Chess"]);
+});
+
+test("candidates without a website only fill slots left over, in their original order", () => {
+  const selected = selectFreshCandidates([place("A Uten"), place("Aura", "https://aura.no/"), place("B Uten")], noHistory, 5);
+  assert.deepEqual(selected.map((c) => c.companyName), ["Aura", "A Uten", "B Uten"]);
+});
+
+test("cross-run dedupe still drops known domains and names before the limit is applied", () => {
+  const selected = selectFreshCandidates(
+    [place("Aura", "https://www.aura.no/x"), place("Bech", "https://bech.no/"), place("Chess", "https://chess.no/"), place("Kjent Navn")],
+    { domains: ["aura.no"], companyNames: ["  chess "] },
+    10
+  );
+  assert.deepEqual(selected.map((c) => c.companyName), ["Bech", "Kjent Navn"]);
+  assert.equal(selectFreshCandidates([place("Bech", "https://bech.no/")], noHistory, 0).length, 0);
+});
 
 test("default discovery markets span Norway beyond the Oslo area", () => {
   assert.equal(NORWAY_SEARCH_MARKETS.length, 15);

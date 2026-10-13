@@ -1,3 +1,5 @@
+import { normalizeDomain } from "../domain/dedupe.js";
+
 export type GooglePlacesCandidate = {
   companyName: string;
   websiteUrl?: string;
@@ -67,6 +69,27 @@ function normalizeWebsite(value?: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Drops candidates already seen in earlier runs and fills the daily limit with candidates that have
+ * a website first. Outreach needs a shared inbox on the business's own domain, which a candidate
+ * without a website can never have (pilot run 38409346860: 4 of 25 capped slots had no website).
+ * Candidates without a website only fill slots left over. Order is otherwise unchanged.
+ */
+export function selectFreshCandidates(
+  candidates: GooglePlacesCandidate[],
+  history: { domains: string[]; companyNames: string[] },
+  limit: number
+): GooglePlacesCandidate[] {
+  const knownDomains = new Set(history.domains.map((value) => value.toLowerCase()));
+  const knownNames = new Set(history.companyNames.map((value) => value.trim().toLocaleLowerCase("nb-NO")));
+  const fresh = candidates.filter((candidate) => {
+    const domain = normalizeDomain(candidate.websiteUrl);
+    const name = candidate.companyName.trim().toLocaleLowerCase("nb-NO");
+    return !(domain && knownDomains.has(domain)) && !knownNames.has(name);
+  });
+  return [...fresh.filter((c) => c.websiteUrl), ...fresh.filter((c) => !c.websiteUrl)].slice(0, limit);
 }
 
 /**
