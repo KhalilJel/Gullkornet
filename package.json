@@ -18,6 +18,7 @@
     "sync:airtable": "tsx src/cli/sync-airtable-leads.ts",
     "send:daily": "tsx src/cli/send-daily-outreach.ts",
     "sales-engine": "tsx src/cli/run-sales-engine.ts",
+    "send:preview": "tsx src/cli/preview-send-queue.ts",
     "smoke:agents": "tsx src/cli/agent-smoke.ts",
     "gateway:serve": "tsx src/cli/agent-gateway-server.ts"
   },

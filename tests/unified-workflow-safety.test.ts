@@ -68,3 +68,17 @@ test("aggregate run summary contains counts and control metadata only", () => {
 test("every workflow shell stage uses a restrictive umask", () => {
   assert.equal((workflow.match(/umask 077/g) ?? []).length, 5);
 });
+
+test("scheduled lead pipeline is inert without its variable and cannot send", async () => {
+  const scheduled = (await readFile(new URL("../.github/workflows/scheduled-lead-pipeline.yml", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+  assert.match(scheduled, /GULLKORNET_ENABLE_SCHEDULED_PIPELINE/);
+  assert.match(scheduled, /if: \$\{\{ needs\.plan\.outputs\.enabled == 'true' \}\}/);
+  assert.match(scheduled, /sync_to_airtable: \$\{\{ vars\.GULLKORNET_SCHEDULED_AIRTABLE_SYNC == 'true' \}\}/);
+  assert.match(scheduled, /uses: \.\/\.github\/workflows\/unified-lead-research\.yml/);
+  assert.doesNotMatch(scheduled, /RESEND|GULLKORNET_ENABLE_LIVE_SEND|send:(email|daily)|OPENOUTREACH/);
+  assert.doesNotMatch(scheduled, /^  (push|pull_request):/m);
+  assert.doesNotMatch(scheduled, /secrets: inherit/);
+  assert.deepEqual([...new Set([...scheduled.matchAll(/secrets\.([A-Z_]+)/g)].map((m) => m[1]))].sort(), ["AIRTABLE_API_TOKEN", "GOOGLE_MAPS_API_KEY"]);
+  // The called workflow itself must never gain its own schedule.
+  assert.doesNotMatch(workflow, /^  (schedule|push|pull_request):/m);
+});

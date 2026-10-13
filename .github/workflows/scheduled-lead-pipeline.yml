@@ -1,0 +1,53 @@
+name: Gullkornet Scheduled Lead Pipeline (gated)
+
+# Weekday morning run of the verified Unified Lead Research pipeline, so research is ready before
+# the 09:00-15:00 Europe/Oslo send window. It is INERT until the repository variable
+# GULLKORNET_ENABLE_SCHEDULED_PIPELINE is set to "true". Even then it writes to Airtable only if
+# GULLKORNET_SCHEDULED_AIRTABLE_SYNC is also "true"; otherwise it is a research-only run.
+# It holds no sending credentials and never starts the sender or any Airtable automation.
+on:
+  schedule:
+    - cron: "15 5 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      enabled: ${{ steps.gate.outputs.enabled }}
+      term: ${{ steps.gate.outputs.term }}
+    steps:
+      - id: gate
+        env:
+          ENABLED: ${{ vars.GULLKORNET_ENABLE_SCHEDULED_PIPELINE }}
+        run: |
+          if [ "$ENABLED" != "true" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Scheduled pipeline is disabled (GULLKORNET_ENABLE_SCHEDULED_PIPELINE is not true). Nothing to do."
+            exit 0
+          fi
+          case "$(date -u +%u)" in
+            1) term="frisør" ;;
+            2) term="regnskapsfører" ;;
+            3) term="bilverksted" ;;
+            4) term="rørlegger" ;;
+            *) term="fysioterapeut" ;;
+          esac
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+          echo "term=$term" >> "$GITHUB_OUTPUT"
+
+  research:
+    needs: plan
+    if: ${{ needs.plan.outputs.enabled == 'true' }}
+    uses: ./.github/workflows/unified-lead-research.yml
+    with:
+      search_term: ${{ needs.plan.outputs.term }}
+      daily_lead_limit: ${{ vars.GULLKORNET_SCHEDULED_LEAD_LIMIT || '50' }}
+      sync_to_airtable: ${{ vars.GULLKORNET_SCHEDULED_AIRTABLE_SYNC == 'true' }}
+    secrets:
+      GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+      AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}

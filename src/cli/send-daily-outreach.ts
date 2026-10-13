@@ -2,10 +2,9 @@ import { createHash } from "node:crypto";
 import {
   fetchApprovedOutreachQueue,
   fetchAirtableRecipientApproval,
-  markAirtableRecipientSent,
-  assertAirtableRecipientApproved,
-  type AirtableSendApproval
+  markAirtableRecipientSent
 } from "../integrations/airtable-send-approval.js";
+import { selectEligibleDraft } from "../integrations/send-selection.js";
 import { assertRecipientHasNotReplied } from "../integrations/reply-status.js";
 import { assertMinimumSpacing, assertWithinSendWindow, isWithinSendWindow, SendDeferredError } from "../integrations/send-schedule.js";
 import {
@@ -15,25 +14,10 @@ import {
   assertRecipientNotAlreadySent,
   countRecentSends,
   fetchRecentSendLedger,
-  isSharedBusinessInbox,
   prepareEmail,
   sendOneEmail,
   type OutreachDraft
 } from "../integrations/outbound-email.js";
-
-function draftFromRecord(record: AirtableSendApproval): { email: string; subject: string; text: string } | undefined {
-  const fields = record.fields;
-  const email = typeof fields.Email === "string" ? fields.Email.trim().toLowerCase() : "";
-  const subject = typeof fields["AI Draft Subject"] === "string" ? fields["AI Draft Subject"].trim() : "";
-  const text = typeof fields["AI Draft Body"] === "string" ? fields["AI Draft Body"].trim() : "";
-  if (!email || !subject || !text || !isSharedBusinessInbox(email)) return undefined;
-  try {
-    assertAirtableRecipientApproved([record], email, { subject, text });
-    return { email, subject, text };
-  } catch {
-    return undefined;
-  }
-}
 
 async function main(): Promise<void> {
   // A missing or false kill switch prevents any provider or CRM calls.
@@ -56,25 +40,11 @@ async function main(): Promise<void> {
     throw error;
   }
   const queue = await fetchApprovedOutreachQueue(process.env);
-  let selected: { record: AirtableSendApproval; email: string; subject: string; text: string } | undefined;
-
-  for (const record of queue) {
-    const draft = draftFromRecord(record);
-    if (!draft) continue;
-    const recordId = await fetchAirtableRecipientApproval(
-      draft.email,
-      { subject: draft.subject, text: draft.text },
-      process.env
-    );
-    try {
-      await assertRecipientHasNotReplied(draft.email, process.env);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("Recipient has replied")) continue;
-      throw error;
-    }
-    selected = { record: { ...record, id: recordId }, ...draft };
-    break;
-  }
+  const { selected, scanned, skipped } = await selectEligibleDraft(queue, {
+    lookupApproval: (address, draft) => fetchAirtableRecipientApproval(address, draft, process.env),
+    assertNotReplied: (address) => assertRecipientHasNotReplied(address, process.env)
+  });
+  console.log(`Queue scanned: ${scanned}; skipped (not eligible/refused/replied): ${skipped.not_eligible}/${skipped.refused}/${skipped.replied}.`);
 
   if (!selected) {
     console.log("No AI-approved, evidence-backed business-inbox draft is eligible right now.");

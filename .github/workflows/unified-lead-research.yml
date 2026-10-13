@@ -18,6 +18,24 @@ on:
         required: true
         default: false
         type: boolean
+  # Callable only by the gated scheduler workflow (scheduled-lead-pipeline.yml). This workflow
+  # has no schedule, push or pull_request trigger of its own.
+  workflow_call:
+    inputs:
+      search_term:
+        required: true
+        type: string
+      daily_lead_limit:
+        required: true
+        type: string
+      sync_to_airtable:
+        required: true
+        type: boolean
+    secrets:
+      GOOGLE_MAPS_API_KEY:
+        required: true
+      AIRTABLE_API_TOKEN:
+        required: false
 
 permissions:
   contents: read

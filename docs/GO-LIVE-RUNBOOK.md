@@ -4,6 +4,22 @@ Status (2026-10-13): written from the repository and GitHub state. Nothing below
 
 Pipeline that goes live: Google Places discovery -> built-in website fetch -> evidence-based research -> Airtable (review fields) -> Airtable AI assessment -> sender (`Gullkornet Daily Outreach`) with all gates. Operating rules are unchanged (`docs/AUTONOMOUS-AI-OUTREACH.md`): sender `hello@cideamarketing.com`, weekdays 09:00-15:00 Europe/Oslo, >= 5 min apart, 1 per run, 12/hour, hard cap 100 per Oslo day (window allows 72; target 50 when the qualified queue supports it), one first message per company, no automatic follow-ups, DNC / duplicate / reply / reservation / evidence / `STRATEGIC_ACCOUNT` gates stay.
 
+## Current status and order after PR #101 (supersedes the numbered list below where they differ)
+
+Done and verified: PR #100 merged (`2dd87ac`); `openoutreach` deployed from `main` with the send lock verified; reply-status checks passed (`replied:false`, `replied:true`, 401 on `/v1/leads`); Unified Lead Research run `38382730837` (research only) and run `38383510756` (one approved Airtable write of 10 rows; read-back: 10 unique keys, no Sent/Replied, DNC unticked, 1 `Draft Ready`, 2 `Needs Review`, 7 `No Public Email`).
+
+Remaining order, each step needing Khalil's approval:
+
+1. Merge PR #101 (after review).
+2. Airtable "Run test" on the single existing `Draft Ready` row, trigger not yet published (`docs/AIRTABLE-AI-ASSESSMENT.md`).
+3. Publish AI Assessment with the "matches conditions" trigger; confirm it fires on one newly created test row.
+4. Scheduled pipeline, research only: set `GULLKORNET_ENABLE_SCHEDULED_PIPELINE=true` (leave `GULLKORNET_SCHEDULED_AIRTABLE_SYNC` unset) and read the aggregate summaries for several days.
+5. Scheduled pipeline with Airtable sync: set `GULLKORNET_SCHEDULED_AIRTABLE_SYNC=true`.
+6. `npm run send:preview` locally. The sender itself cannot be dry-run without sending (it exits at the kill switch by design), so the preview, which runs the same selection and gates, is the dry run; also confirm Daily Outreach logs "kill switch is off".
+7. Separate go-live approval: `GULLKORNET_ENABLE_LIVE_SEND=true`.
+
+Not documented yet: 50 qualified first e-mails per day. The only sample gave 1 `Draft Ready` of 10 candidates; reaching 50/day at that yield needs about 500 candidates per day against a 100 per run cap. Measure the yield in step 4 and 5 before relying on the target. Limits are never lowered to reach it.
+
 ## Order of actions
 
 1. **YOU: merge PR #100** (it contains #98 and #99; they add nothing of their own and can be closed afterwards). CI on `main` must go green.
@@ -14,9 +30,15 @@ Pipeline that goes live: Google Places discovery -> built-in website fetch -> ev
    - Second run: same limits, `sync_to_airtable` **true**. This is the first production Airtable write; it only creates/updates research and review fields and resets any old AI approval.
    - The log prints `[research] Firecrawl fallback: OFF ...` and `Browser escalation: OFF ...` when those are not configured. That is expected and not an error.
 5. **Verify Airtable rules on the synced rows** (before any assessment): `Do Not Contact` exists as a checkbox on Leads; a row with it ticked, a second row on the same business domain, and an address that has replied are all refused by the sender's approval check (covered by `tests/airtable-send-approval.test.ts`; confirm on real rows with a read-only look at the review queue, not by sending).
-6. **YOU: turn on the Airtable automation "Gullkornet AI Outreach Assessment" last**, after steps 4-5 look right. Check a handful of `AI Decision` / `AI Confidence` (>= 0.90 to be eligible) / `AI Evidence URL` values by hand. Older Oslo records need a fresh assessment.
+6. **YOU: AI Assessment, last.** Follow `docs/AIRTABLE-AI-ASSESSMENT.md`: switch the trigger to "When a record matches conditions" (the current update trigger does not fire for rows the sync creates), Run test on the single `Draft Ready` row, check it with `npm run send:preview`, then publish. Sending is decided by the code gates, not by the AI (`tests/send-gates.test.ts`).
 7. **Dry check of the sender with the switch still off:** the next scheduled `Gullkornet Daily Outreach` run must show "live sending kill switch is off". Confirm `OPENOUTREACH_REPLY_STATUS_URL` (variable) and `OPENOUTREACH_REPLY_STATUS_TOKEN` (secret) exist; without them the sender fails closed.
 8. **The one go-live action (YOU): set the repository secret `GULLKORNET_ENABLE_LIVE_SEND` to `true`.** The next weekday run inside 09:00-15:00 Oslo sends at most one e-mail. Watch the first run in the Actions log and Airtable status. Rollback: set it back to anything other than `true`.
+
+## Scheduling (what exists today)
+
+- **Google Places Discovery** runs on its own schedule (twice daily, 06:30 and 12:30 UTC) and chains into Website Audit. The next link, `Contact Research and Drafts`, is disabled, so scheduled discovery does **not** reach Airtable. Only the manual `Unified Lead Research (Manual)` path is verified end to end.
+- **`Gullkornet Scheduled Lead Pipeline (gated)`** (new, inert after merge) runs Unified Lead Research on weekdays at 05:15 UTC, one category per weekday, limit `GULLKORNET_SCHEDULED_LEAD_LIMIT` (default 50). It does nothing unless the repository variable `GULLKORNET_ENABLE_SCHEDULED_PIPELINE` is `true`, and writes to Airtable only if `GULLKORNET_SCHEDULED_AIRTABLE_SYNC` is also `true`. Enable in two stages: first research-only, then sync. If you enable it, keep `Google Places Discovery` + `Website Audit` from competing for the same leads (they use separate dedupe caches), or disable the older chain deliberately.
+- **Throughput reality:** run `38383510756` yielded 1 `Draft Ready` of 10 candidates (2 `Needs Review`, 7 `No Public Email`). At that yield the 50 eligible first emails per day target needs roughly 500 candidates per day, but one run is capped at 100. Measure the yield over several runs before expecting 50/day; the gates are not lowered to reach the target.
 
 ## Optional agents: not part of first go-live
 
