@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const workflowUrl = new URL("../.github/workflows/unified-lead-research.yml", import.meta.url);
-const workflow = await readFile(workflowUrl, "utf8");
+const workflow = (await readFile(workflowUrl, "utf8")).replace(/\r\n/g, "\n");
 
 test("unified lead research is manual-only and cannot activate a sender", () => {
   assert.match(workflow, /^on:\n  workflow_dispatch:/m);

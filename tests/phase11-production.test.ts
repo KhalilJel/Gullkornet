@@ -57,12 +57,15 @@ test("Phase 11 kill switch fails closed unless explicitly enabled", () => {
   assert.doesNotThrow(() => assertProductionKillSwitchEnabled({ GULLKORNET_ENABLE_LIVE_SEND: "true" }));
 });
 
-test("Phase 11 rate caps are locked to 3 per run, 3 per hour, 10 per day", () => {
-  assert.deepEqual(PHASE11_RATE_LIMITS, { maxPerRun: 3, maxPerHour: 3, maxPerDay: 10 });
-  assert.doesNotThrow(() => assertRateLimits({ lastHour: 2, lastDay: 9 }, { MAX_EMAILS_PER_RUN: "3" }));
-  assert.throws(() => assertRateLimits({ lastHour: 3, lastDay: 3 }, { MAX_EMAILS_PER_RUN: "3" }), /Hourly production rate limit/);
-  assert.throws(() => assertRateLimits({ lastHour: 0, lastDay: 10 }, { MAX_EMAILS_PER_RUN: "3" }), /Daily production rate limit/);
-  assert.throws(() => assertRateLimits({ lastHour: 0, lastDay: 0 }, { MAX_EMAILS_PER_RUN: "4" }), /MAX_EMAILS_PER_RUN/);
+test("rate caps are locked to 1 per run, 12 per hour, 100 per Oslo day", () => {
+  assert.deepEqual(PHASE11_RATE_LIMITS, { maxPerRun: 1, maxPerHour: 12, maxPerDay: 100 });
+  assert.doesNotThrow(() => assertRateLimits({ lastHour: 11, lastDay: 99, today: 99 }, { MAX_EMAILS_PER_RUN: "1" }));
+  assert.throws(() => assertRateLimits({ lastHour: 12, lastDay: 12, today: 12 }, { MAX_EMAILS_PER_RUN: "1" }), /Hourly production rate limit/);
+  assert.throws(() => assertRateLimits({ lastHour: 0, lastDay: 0, today: 100 }, { MAX_EMAILS_PER_RUN: "1" }), /Daily production rate limit/);
+  // The ceiling follows the Oslo calendar day, not a rolling 24 hours.
+  assert.doesNotThrow(() => assertRateLimits({ lastHour: 0, lastDay: 100, today: 3 }, { MAX_EMAILS_PER_RUN: "1" }));
+  assert.throws(() => assertRateLimits({ lastHour: 0, lastDay: 0, today: 0 }, { MAX_EMAILS_PER_RUN: "2" }), /MAX_EMAILS_PER_RUN/);
+  assert.throws(() => assertRateLimits({ lastHour: 0, lastDay: 0, today: 0 }, { GULLKORNET_DAILY_SEND_LIMIT: "101" }), /must be between 1 and 100/);
 });
 
 test("Phase 11 counts send history based on created_at and fails closed on corrupt timestamps", () => {
@@ -73,7 +76,7 @@ test("Phase 11 counts send history based on created_at and fails closed on corru
     { created_at: "2026-10-08T18:00:00Z" },
     { created_at: "2026-10-08T11:00:00Z" }
   ], now);
-  assert.deepEqual(counts, { lastHour: 2, lastDay: 3 });
+  assert.deepEqual(counts, { lastHour: 2, lastDay: 3, today: 2 });
   assert.throws(() => countRecentSends([{ created_at: "not-a-date" }], now), /invalid timestamp/);
 });
 
@@ -145,26 +148,31 @@ test("Phase 11 blocks a recipient already present in the recent Resend send ledg
 });
 
 
-const approvedDraft = { subject: "Et lite spørsmål til Pilot AS", text: "Hei! Jeg la merke til at dere tilbyr frisørtjenester. Har dere tid til en kort prat? Svar «nei takk» hvis dette ikke er ønsket." };
+const approvedDraft = { subject: "Dette la vi merke til hos dere", text: "Hei! Jeg la merke til at dere tilbyr frisørtjenester. Cidea hjelper med nettsider og digital markedsføring. Kunne jeg sendt en kort idé? Svar nei takk hvis dette ikke er ønsket." };
 
 const approvedAirtableRecord: AirtableSendApproval = {
   id: "rec123",
   fields: {
     Email: "post@phase11.no",
-    "Lead Status": "Approved",
-    "Review Status": "Ready for outreach",
+    Website: "https://phase11.no/",
+    "Contact Source URL": "https://phase11.no/kontakt",
+    "Personalization Evidence": "Tjenestetekst: frisørtjenester",
+    "Lead Status": "Draft Ready",
     "Do Not Contact": false,
-    "Outreach Subject": approvedDraft.subject,
-    "Outreach Draft": approvedDraft.text,
-    "Verified Observation": "Nettsiden fremhever frisørtjenester."
+    "AI Decision": "APPROVE",
+    "AI Confidence": 0.95,
+    "AI Evidence": "Tjenestetekst: frisørtjenester",
+    "AI Evidence URL": "https://phase11.no/tjenester",
+    "AI Draft Subject": approvedDraft.subject,
+    "AI Draft Body": approvedDraft.text
   }
 };
 
-test("Phase 11 requires exactly one approved Airtable record and returns its exact ID", () => {
+test("Phase 11 requires exactly one AI-approved Airtable record and returns its exact ID", () => {
   assert.equal(assertAirtableRecipientApproved([approvedAirtableRecord], "POST@PHASE11.NO", approvedDraft), "rec123");
   const unrelated: AirtableSendApproval = {
     id: "recOther",
-    fields: { Email: "other@example.no", "Lead Status": "New", "Review Status": "Needs review" }
+    fields: { Email: "other@example.no", "Lead Status": "New" }
   };
   assert.equal(assertAirtableRecipientApproved([unrelated, approvedAirtableRecord], "post@phase11.no", approvedDraft), "rec123");
   assert.throws(() => assertAirtableRecipientApproved([], "post@phase11.no", approvedDraft), /exactly one record/);
@@ -174,9 +182,12 @@ test("Phase 11 requires exactly one approved Airtable record and returns its exa
 
 test("Phase 11 blocks Airtable suppression, sent, and unreviewed records", () => {
   assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Do Not Contact":true}}], "post@phase11.no", approvedDraft), /Do Not Contact/);
-  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Do Not Contact":undefined}}], "post@phase11.no", approvedDraft), /cannot be verified false/);
-  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Lead Status":"Sent"}}], "post@phase11.no", approvedDraft), /Lead Status must be Approved/);
-  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Review Status":"Needs review"}}], "post@phase11.no", approvedDraft), /Review Status must be Ready for outreach/);
+  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Do Not Contact":"yes"}}], "post@phase11.no", approvedDraft), /unexpected value/);
+  // Airtable omits an unchecked checkbox from API responses, so an absent field means unchecked.
+  const { "Do Not Contact": _unchecked, ...unchecked } = approvedAirtableRecord.fields;
+  assert.equal(assertAirtableRecipientApproved([{ ...approvedAirtableRecord, fields: unchecked }], "post@phase11.no", approvedDraft), approvedAirtableRecord.id);
+  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "Lead Status":"Sent"}}], "post@phase11.no", approvedDraft), /Lead Status must be Draft Ready/);
+  assert.throws(() => assertAirtableRecipientApproved([{...approvedAirtableRecord, fields:{...approvedAirtableRecord.fields, "AI Decision":"NEEDS_REVIEW"}}], "post@phase11.no", approvedDraft), /AI Decision must be APPROVE/);
 });
 
 test("Phase 11 Airtable approval check fails closed on provider failure", async () => {
@@ -203,18 +214,26 @@ test("Phase 11 Airtable approval lookup accepts exactly one reviewed record", as
     const url = new URL(String(input));
     assert.equal(url.hostname, "api.airtable.com");
     assert.match(url.searchParams.get("filterByFormula") ?? "", /post@phase11\.no/);
-    assert.match(url.searchParams.get("filterByFormula") ?? "", /Do Not Contact.*= 0/);
+    // Suppressed duplicates must be returned so the exactly-one check can fail closed.
+    // Suppressed rows must still be returned; the field is referenced only as a tripwire matching 0 and 1.
+    assert.match(url.searchParams.get("filterByFormula") ?? "", /OR\(\{Do Not Contact\} = 0, \{Do Not Contact\} = 1\)/);
+    assert.match(url.searchParams.get("filterByFormula") ?? "", /LOWER\(TRIM\(\{Email\}\)\)/);
     return new Response(JSON.stringify({
       records: [{
         id: "rec123",
         fields: {
           Email: "post@phase11.no",
-          "Lead Status": "Approved",
-          "Review Status": "Ready for outreach",
+          Website: "https://phase11.no/",
+          "Contact Source URL": "https://phase11.no/kontakt",
+          "Personalization Evidence": "Tjenestetekst: frisørtjenester",
+          "Lead Status": "Draft Ready",
           "Do Not Contact": false,
-          "Outreach Subject": approvedDraft.subject,
-          "Outreach Draft": approvedDraft.text,
-          "Verified Observation": "Nettsiden fremhever frisørtjenester."
+          "AI Decision": "APPROVE",
+          "AI Confidence": 0.95,
+          "AI Evidence": "Tjenestetekst: frisørtjenester",
+          "AI Evidence URL": "https://phase11.no/tjenester",
+          "AI Draft Subject": approvedDraft.subject,
+          "AI Draft Body": approvedDraft.text
         }
       }]
     }), { status: 200, headers: { "Content-Type": "application/json" } });

@@ -38,9 +38,10 @@ jobs:
       GULLKORNET_DISCOVERY_INDUSTRY: "professional services"
       GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
       GULLKORNET_AIRTABLE_TABLE: "Leads"
+      # Pull request runs may read Airtable (suppression checks) but must never write to production.
+      GULLKORNET_AIRTABLE_WRITES: ${{ github.event_name == 'pull_request' && 'disabled' || 'enabled' }}
       AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
       OPENOUTREACH_INGEST_URL: https://openoutreach-production-ab8b.up.railway.app
-      OPENOUTREACH_INGEST_TOKEN: ${{ secrets.OPENOUTREACH_INGEST_TOKEN }}
 
     steps:
       - name: Check out repository

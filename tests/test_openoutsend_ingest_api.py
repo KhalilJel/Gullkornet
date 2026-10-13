@@ -2,6 +2,7 @@ import contextlib
 import io
 import json
 import os
+import sys
 import threading
 import unittest
 from http.server import ThreadingHTTPServer
@@ -262,6 +263,53 @@ class ReplyStatusEndpointTests(unittest.TestCase):
             unittest.mock.call(["FROM", "michael@example.no"]),
         ])
 
+    def test_reply_from_a_colleague_at_the_same_business_counts_as_a_reply(self):
+        client = unittest.mock.Mock()
+        client.list_folders.return_value = [([b"\\HasNoChildren"], b"/", b"INBOX")]
+        # Nothing from post@, but daglig.leder@ at the same company answered.
+        client.search.side_effect = lambda criteria: [7] if criteria == ["FROM", "@salong.no"] else []
+        self.assertTrue(api.search_folders_for_sender(client, "post@salong.no", "salong.no"))
+        self.assertEqual(client.search.call_args_list, [
+            unittest.mock.call(["FROM", "post@salong.no"]),
+            unittest.mock.call(["FROM", "@salong.no"]),
+        ])
+
+    def test_business_reply_domain_never_widens_freemail_or_cidea(self):
+        own = "jelassi@cideamarketing.com"
+        self.assertEqual(api.business_reply_domain(" Post@Salong.NO ", own), "salong.no")
+        self.assertIsNone(api.business_reply_domain("owner@gmail.com", own))
+        self.assertIsNone(api.business_reply_domain("someone@online.no", own))
+        self.assertIsNone(api.business_reply_domain("hello@cideamarketing.com", own))
+        self.assertIsNone(api.business_reply_domain("x@cideamarketing.com", "monitor@other-mailbox.no"))
+
+    def test_recipient_has_replied_searches_the_business_domain_but_not_freemail(self):
+        searches: list[list[str]] = []
+
+        class FakeClient:
+            def __enter__(self): return self
+            def __exit__(self, *exc): return False
+            def list_folders(self): return [([], b"/", b"INBOX")]
+            def select_folder(self, name, readonly): assert readonly is True
+            def search(self, criteria):
+                searches.append(criteria)
+                return [1] if criteria == ["FROM", "@salong.no"] else []
+
+        mailbox_model = unittest.mock.Mock()
+        mailbox_model.objects.filter.return_value.first.return_value = object()
+        fake_modules = {
+            "django": unittest.mock.Mock(),
+            "cold_outreach": unittest.mock.Mock(),
+            "cold_outreach.emails": unittest.mock.Mock(),
+            "cold_outreach.emails.models": unittest.mock.Mock(Mailbox=mailbox_model),
+            "cold_outreach.emails.sync": unittest.mock.Mock(_connect=lambda _mailbox: FakeClient()),
+        }
+        with patch.dict(sys.modules, fake_modules):
+            self.assertTrue(api.recipient_has_replied("post@salong.no", "jelassi@cideamarketing.com"))
+            self.assertIn(["FROM", "@salong.no"], searches)
+            searches.clear()
+            self.assertFalse(api.recipient_has_replied("owner@gmail.com", "jelassi@cideamarketing.com"))
+            self.assertEqual(searches, [["FROM", "owner@gmail.com"]])
+
     def test_reply_search_fails_closed_if_a_selectable_folder_cannot_be_checked(self):
         client = unittest.mock.Mock()
         client.list_folders.return_value = [([], b"/", b"INBOX"), ([], b"/", b"Junk")]
@@ -291,3 +339,170 @@ class ReplyStatusEndpointTests(unittest.TestCase):
                 self.request_status({"email": "michael@example.no"})
             self.assertEqual(error.exception.code, 503)
             lookup.assert_not_called()
+
+
+# ── Locks on OpenOutSend's own send path (bypasses Gullkornet's gates) ──
+import openoutsend_resend  # noqa: E402
+import openoutsend_send_lock as lock  # noqa: E402
+from email.message import EmailMessage  # noqa: E402
+
+UPSTREAM_SNIPPET = '''import argparse
+import sys
+
+
+def _check(args): return 0
+def _send(args): raise AssertionError("upstream send must never run")
+def _ingest(args): return 0
+
+
+def dispatch(args):
+    return {"check": _check, "send": _send}.get(args.command, _ingest)(args)
+'''
+
+
+class SendLockTest(unittest.TestCase):
+    def _load(self, source: str) -> dict:
+        namespace: dict = {}
+        exec(compile(source, "cold_outreach/__main__.py", "exec"), namespace)
+        return namespace
+
+    def test_locked_send_refuses_without_running_upstream_send(self):
+        module = self._load(lock.lock_source(UPSTREAM_SNIPPET))
+        args = type("Args", (), {"command": "send"})()
+        with patch("sys.stderr") as stderr:
+            self.assertEqual(module["dispatch"](args), lock.EXIT_CODE)
+        self.assertIn("disabled in the Gullkornet image", "".join(c.args[0] for c in stderr.write.call_args_list))
+
+    def test_ingest_and_check_still_dispatch_normally(self):
+        module = self._load(lock.lock_source(UPSTREAM_SNIPPET))
+        for command in (None, "check"):
+            self.assertEqual(module["dispatch"](type("Args", (), {"command": command})()), 0)
+
+    def test_lock_is_idempotent_and_fails_loudly_if_upstream_changes(self):
+        locked = lock.lock_source(UPSTREAM_SNIPPET)
+        self.assertEqual(lock.lock_source(locked), locked)
+        with self.assertRaises(SystemExit):
+            lock.lock_source(UPSTREAM_SNIPPET.replace('"send": _send', '"send": _send_v2'))
+
+    def test_resend_delivery_is_closed_unless_explicitly_enabled(self):
+        message = EmailMessage()
+        message["From"] = "jelassi@cideamarketing.com"
+        message["To"] = "post@example.no"
+        message["Subject"] = "Test"
+        message.set_content("Hei")
+        with patch.dict(os.environ, {}, clear=False), \
+                patch.object(openoutsend_resend, "_request") as request:
+            os.environ.pop(openoutsend_resend.DELIVERY_ENABLED_ENV, None)
+            with self.assertRaisesRegex(openoutsend_resend.ResendTransportError, "delivery is disabled"):
+                openoutsend_resend.deliver(message)
+            request.assert_not_called()
+
+
+READ_ONLY_TOKEN = "reply-status-read-only-token-0123456789abcdef"
+INGEST_TOKEN = "ingest-token-0123456789abcdefghijklmnopqrstuv"
+
+
+class ReadOnlyReplyStatusTokenTests(unittest.TestCase):
+    """The reply-status token may check replies and nothing else."""
+
+    def setUp(self):
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), api.IngestHandler)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        self.base_url = f"http://127.0.0.1:{self.server.server_port}"
+        self.env = patch.dict(os.environ, {
+            api.TOKEN_ENV: INGEST_TOKEN,
+            api.REPLY_STATUS_TOKEN_ENV: READ_ONLY_TOKEN,
+            api.REPLY_MONITOR_ENABLED_ENV: "true",
+            api.REPLY_MONITOR_MAILBOX_ENV: "jelassi@cideamarketing.com",
+            "OUTSEND_MAILBOX_ADDRESS": "jelassi@cideamarketing.com",
+        })
+        self.env.start()
+        now = datetime.now(timezone.utc).isoformat()
+        api._update_reply_monitor_state(
+            status="running", last_check_at=now, last_success_at=now,
+            last_counts={"mirrored": 0, "classified": 0, "projected": 0}, last_error_code=None,
+        )
+
+    def tearDown(self):
+        self.env.stop()
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=2)
+
+    def post(self, path, body, content_type, authorization):
+        headers = {"Content-Type": content_type}
+        if authorization is not None:
+            headers["Authorization"] = authorization
+        return urlopen(Request(self.base_url + path, data=body, headers=headers, method="POST"), timeout=3)
+
+    def reply_status(self, authorization):
+        return self.post(api.REPLY_STATUS_PATH, b'{"email":"michael@example.no"}', "application/json", authorization)
+
+    def ingest(self, authorization):
+        return self.post(api.INGEST_PATH, b'{"lead_id":"lead-1","email":"hello@example.no"}\n',
+                         "application/x-ndjson", authorization)
+
+    def test_read_only_token_works_for_reply_status(self):
+        with patch.object(api, "recipient_has_replied", return_value=False) as lookup:
+            with self.reply_status("Bearer " + READ_ONLY_TOKEN) as response:
+                payload = json.loads(response.read())
+        self.assertEqual(payload, {"replied": False, "mode": "read_only_reply_check", "send_triggered": False})
+        lookup.assert_called_once()
+
+    def test_read_only_token_cannot_ingest(self):
+        with patch.object(api.subprocess, "run") as run:
+            with self.assertRaises(HTTPError) as error:
+                self.ingest("Bearer " + READ_ONLY_TOKEN)
+        self.assertEqual(error.exception.code, 401)
+        run.assert_not_called()
+
+    def test_ingest_authentication_is_unchanged(self):
+        completed = type("Completed", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+        with patch.object(api.subprocess, "run", return_value=completed) as run:
+            with self.ingest("Bearer " + INGEST_TOKEN) as response:
+                payload = json.loads(response.read())
+        self.assertEqual(payload, {"accepted": 1, "mode": "ingest_only", "send_triggered": False})
+        run.assert_called_once()
+
+    def test_ingest_token_still_works_for_reply_status_for_existing_callers(self):
+        with patch.object(api, "recipient_has_replied", return_value=True):
+            with self.reply_status("Bearer " + INGEST_TOKEN) as response:
+                self.assertEqual(json.loads(response.read())["replied"], True)
+
+    def test_wrong_missing_and_malformed_tokens_are_rejected_everywhere(self):
+        for authorization in ("Bearer wrong", "Bearer ", "Bearer", READ_ONLY_TOKEN, "Basic " + READ_ONLY_TOKEN, "", None):
+            for call in (self.reply_status, self.ingest):
+                with patch.object(api, "recipient_has_replied") as lookup, patch.object(api.subprocess, "run") as run:
+                    with self.assertRaises(HTTPError) as error:
+                        call(authorization)
+                    self.assertEqual(error.exception.code, 401, (call.__name__, authorization))
+                    lookup.assert_not_called()
+                    run.assert_not_called()
+
+    def test_reply_status_works_with_only_the_read_only_token_but_ingest_is_not_configured(self):
+        with patch.dict(os.environ, {api.TOKEN_ENV: ""}):
+            with patch.object(api, "recipient_has_replied", return_value=False):
+                with self.reply_status("Bearer " + READ_ONLY_TOKEN) as response:
+                    self.assertEqual(json.loads(response.read())["replied"], False)
+            with self.assertRaises(HTTPError) as error:
+                self.ingest("Bearer " + READ_ONLY_TOKEN)
+            self.assertEqual(error.exception.code, 503)
+
+    def test_reply_status_is_unavailable_when_no_token_is_configured(self):
+        with patch.dict(os.environ, {api.TOKEN_ENV: "", api.REPLY_STATUS_TOKEN_ENV: ""}):
+            with self.assertRaises(HTTPError) as error:
+                self.reply_status("Bearer " + READ_ONLY_TOKEN)
+            self.assertEqual(error.exception.code, 503)
+
+    def test_startup_validation_rejects_weak_or_shared_reply_status_tokens(self):
+        with patch.dict(os.environ, {api.TOKEN_ENV: INGEST_TOKEN, api.REPLY_STATUS_TOKEN_ENV: INGEST_TOKEN}):
+            with self.assertRaises(SystemExit):
+                api.validate_reply_status_token()
+        with patch.dict(os.environ, {api.TOKEN_ENV: INGEST_TOKEN, api.REPLY_STATUS_TOKEN_ENV: "short"}):
+            with self.assertRaises(SystemExit):
+                api.validate_reply_status_token()
+        with patch.dict(os.environ, {api.TOKEN_ENV: INGEST_TOKEN, api.REPLY_STATUS_TOKEN_ENV: READ_ONLY_TOKEN}):
+            api.validate_reply_status_token()
+        with patch.dict(os.environ, {api.TOKEN_ENV: INGEST_TOKEN, api.REPLY_STATUS_TOKEN_ENV: ""}):
+            api.validate_reply_status_token()

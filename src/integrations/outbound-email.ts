@@ -1,3 +1,5 @@
+import { osloClock, SendDeferredError } from "./send-schedule.js";
+
 export type OutreachDraft = {
   companyName: string;
   emails: Array<{ email: string; sourceUrl?: string; sourceType?: string }>;
@@ -9,11 +11,12 @@ export type PreparedEmail = { from: string; to: string; subject: string; text: s
 
 export const DEFAULT_SENDER = "hello@cideamarketing.com";
 
-// Phase 11 shared policy for all future live-send entry points.
+// Shared policy for every live-send entry point. maxPerDay is a hard ceiling per Oslo calendar day;
+// the 09:00-15:00 window with 5-minute spacing (see send-schedule.ts) allows at most 72 sends.
 export const PHASE11_RATE_LIMITS = Object.freeze({
-  maxPerRun: 3,
-  maxPerHour: 3,
-  maxPerDay: 10
+  maxPerRun: 1,
+  maxPerHour: 12,
+  maxPerDay: 100
 });
 
 export type SendLedgerEntry = {
@@ -58,9 +61,11 @@ export function assertRecipientNotAlreadySent(
 export function countRecentSends(
   entries: SendLedgerEntry[],
   nowMs = Date.now()
-): { lastHour: number; lastDay: number } {
+): { lastHour: number; lastDay: number; today: number } {
   let lastHour = 0;
   let lastDay = 0;
+  let today = 0;
+  const osloToday = osloClock(nowMs).date;
   for (const entry of entries) {
     const timestamp = Date.parse(entry.created_at);
     if (!Number.isFinite(timestamp)) {
@@ -70,26 +75,28 @@ export function countRecentSends(
     if (age < 0) continue;
     if (age < 60 * 60 * 1000) lastHour++;
     if (age < 24 * 60 * 60 * 1000) lastDay++;
+    if (osloClock(timestamp).date === osloToday) today++;
   }
-  return { lastHour, lastDay };
+  return { lastHour, lastDay, today };
 }
 
 export function assertRateLimits(
-  recent: { lastHour: number; lastDay: number },
+  recent: { lastHour: number; lastDay: number; today?: number },
   env: NodeJS.ProcessEnv = process.env
 ): void {
   const maxRun = PHASE11_RATE_LIMITS.maxPerRun;
   const maxHour = PHASE11_RATE_LIMITS.maxPerHour;
   const maxDay = PHASE11_RATE_LIMITS.maxPerDay;
   if (recent.lastHour >= maxHour) {
-    throw new Error(`Hourly production rate limit reached (${maxHour}/hour).`);
+    throw new SendDeferredError(`Hourly production rate limit reached (${maxHour}/hour).`);
   }
   const configuredDay = Number(env.GULLKORNET_DAILY_SEND_LIMIT ?? String(maxDay));
   if (!Number.isInteger(configuredDay) || configuredDay < 1 || configuredDay > maxDay) {
     throw new Error(`GULLKORNET_DAILY_SEND_LIMIT must be between 1 and ${maxDay} during Phase 11.`);
   }
-  if (recent.lastDay >= configuredDay) {
-    throw new Error(`Daily production rate limit reached (${configuredDay}/day).`);
+  // The ceiling is per Oslo calendar day; fall back to the rolling 24 h count only if it is not supplied.
+  if ((recent.today ?? recent.lastDay) >= configuredDay) {
+    throw new SendDeferredError(`Daily production rate limit reached (${configuredDay}/day).`);
   }
   // Validate configuration eagerly. A single-recipient entry point is 1/run;
   // bulk sender remains hard-disabled until a separate accepted batch runner exists.

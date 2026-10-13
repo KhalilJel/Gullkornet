@@ -21,6 +21,10 @@ MAX_RECORDS = 100
 INGEST_PATH = "/v1/leads"
 REPLY_STATUS_PATH = "/v1/reply-status"
 TOKEN_ENV = "OPENOUTREACH_INGEST_TOKEN"
+# Read-only credential for POST /v1/reply-status. It can never authorize ingest, so GitHub Actions
+# can hold it without holding the ingest token.
+REPLY_STATUS_TOKEN_ENV = "OPENOUTREACH_REPLY_STATUS_TOKEN"
+MIN_REPLY_STATUS_TOKEN_LENGTH = 32
 REPLY_MONITOR_ENABLED_ENV = "OPENOUTREACH_REPLY_MONITOR_ENABLED"
 REPLY_MONITOR_MAILBOX_ENV = "GULLKORNET_REPLY_MONITOR_MAILBOX"
 REPLY_MONITOR_INTERVAL_ENV = "OPENOUTREACH_REPLY_MONITOR_INTERVAL_SECONDS"
@@ -91,6 +95,23 @@ def authorized(header: str | None, token: str | None) -> bool:
 
 
 
+def reply_status_authorized(header: str | None) -> bool:
+    """Reply-status accepts the read-only token, and still the ingest token for existing callers."""
+    return (authorized(header, os.environ.get(TOKEN_ENV))
+            or authorized(header, os.environ.get(REPLY_STATUS_TOKEN_ENV)))
+
+
+def validate_reply_status_token() -> None:
+    """Refuse to start with a reply-status token that is weak or equal to the ingest token."""
+    reply_token = os.environ.get(REPLY_STATUS_TOKEN_ENV, "").strip()
+    if not reply_token:
+        return
+    if len(reply_token) < MIN_REPLY_STATUS_TOKEN_LENGTH:
+        raise SystemExit(f"{REPLY_STATUS_TOKEN_ENV} must be at least {MIN_REPLY_STATUS_TOKEN_LENGTH} characters")
+    if hmac.compare_digest(reply_token, os.environ.get(TOKEN_ENV, "").strip()):
+        raise SystemExit(f"{REPLY_STATUS_TOKEN_ENV} must differ from {TOKEN_ENV}")
+
+
 def reply_monitor_state() -> dict[str, Any]:
     """Return a safe snapshot; never expose mailbox addresses or credentials."""
     with _REPLY_MONITOR_LOCK:
@@ -103,7 +124,32 @@ def _update_reply_monitor_state(**values: Any) -> None:
 
 
 
-def search_folders_for_sender(client: Any, sender_email: str) -> bool:
+# Shared mailbox providers; an address there does not identify a business.
+# Keep in sync with FREEMAIL_DOMAINS in src/domain/email-domain.ts.
+FREEMAIL_DOMAINS = frozenset({
+    "gmail.com", "googlemail.com", "hotmail.com", "hotmail.no", "outlook.com", "outlook.no",
+    "live.com", "live.no", "msn.com", "yahoo.com", "yahoo.no", "icloud.com", "me.com",
+    "mac.com", "aol.com", "protonmail.com", "proton.me", "online.no", "getmail.no",
+    "broadpark.no", "frisurf.no", "start.no", "c2i.net", "altibox.no", "lyse.net",
+})
+CIDEA_DOMAINS = frozenset({"cideamarketing.com"})
+
+
+def business_reply_domain(sender_email: str, own_address: str) -> str | None:
+    """Domain whose mail also counts as a reply from this business, if any.
+
+    A colleague answering from another address at the same company must block
+    outreach too. Freemail domains and CIDEA's own domain are never widened.
+    """
+    domain = sender_email.strip().lower().rsplit("@", 1)[-1].rstrip(".")
+    own_domain = own_address.strip().lower().rsplit("@", 1)[-1]
+    if (not domain or "." not in domain or domain in FREEMAIL_DOMAINS
+            or domain in CIDEA_DOMAINS or domain == own_domain):
+        return None
+    return domain
+
+
+def search_folders_for_sender(client: Any, sender_email: str, domain: str | None = None) -> bool:
     """Search every selectable IMAP folder read-only; any search error fails closed."""
     folders = client.list_folders()
     if not folders:
@@ -123,13 +169,15 @@ def search_folders_for_sender(client: Any, sender_email: str) -> bool:
         checked += 1
         if client.search(["FROM", sender_email]):
             return True
+        if domain and client.search(["FROM", "@" + domain]):
+            return True
     if checked == 0:
         raise RuntimeError("REPLY_MAILBOX_HAS_NO_SELECTABLE_FOLDERS")
     return False
 
 
 def recipient_has_replied(sender_email: str, expected_address: str) -> bool:
-    """Search all selectable folders for any message from a recipient, read-only."""
+    """Search all selectable folders for any message from a recipient or their business, read-only."""
     if not EMAIL_PATTERN.fullmatch(sender_email.strip()):
         raise ValueError("VALID_EMAIL_REQUIRED")
     import django
@@ -143,7 +191,9 @@ def recipient_has_replied(sender_email: str, expected_address: str) -> bool:
     if mailbox is None:
         raise RuntimeError("REPLY_MONITOR_MAILBOX_NOT_CONFIGURED")
     with _connect(mailbox) as client:
-        return search_folders_for_sender(client, sender_email.strip())
+        return search_folders_for_sender(
+            client, sender_email.strip(), business_reply_domain(sender_email, expected_address)
+        )
 
 
 def reply_monitor_healthy(state: dict[str, Any], now: datetime | None = None) -> bool:
@@ -336,13 +386,22 @@ class IngestHandler(BaseHTTPRequestHandler):
             self._respond(404, {"error": "NOT_FOUND"})
             return
 
-        token = os.environ.get(TOKEN_ENV)
-        if not token:
-            self._respond(503, {"error": "INGEST_NOT_CONFIGURED"})
-            return
-        if not authorized(self.headers.get("Authorization"), token):
-            self._respond(401, {"error": "UNAUTHORIZED"})
-            return
+        if self.path == REPLY_STATUS_PATH:
+            if not (os.environ.get(TOKEN_ENV, "").strip() or os.environ.get(REPLY_STATUS_TOKEN_ENV, "").strip()):
+                self._respond(503, {"error": "INGEST_NOT_CONFIGURED"})
+                return
+            if not reply_status_authorized(self.headers.get("Authorization")):
+                self._respond(401, {"error": "UNAUTHORIZED"})
+                return
+        else:
+            # Ingest authentication is unchanged: only the ingest token is accepted.
+            token = os.environ.get(TOKEN_ENV)
+            if not token:
+                self._respond(503, {"error": "INGEST_NOT_CONFIGURED"})
+                return
+            if not authorized(self.headers.get("Authorization"), token):
+                self._respond(401, {"error": "UNAUTHORIZED"})
+                return
 
         content_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
         if self.path == REPLY_STATUS_PATH:
@@ -506,6 +565,8 @@ def run_startup_acceptance_test(base_url: str, token: str) -> None:
 def main() -> None:
     if not os.environ.get(TOKEN_ENV, "").strip():
         raise SystemExit(f"{TOKEN_ENV} must be configured; refusing to start an unauthenticated ingest API")
+
+    validate_reply_status_token()
 
     check = subprocess.run(["outsend", "check"], capture_output=True, text=True, timeout=45, check=False)
     if check.returncode != 0:

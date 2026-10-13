@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { fetchAirtableRecipientApproval, markAirtableRecipientSent } from "../integrations/airtable-send-approval.js";
 import { assertRecipientHasNotReplied } from "../integrations/reply-status.js";
+import { assertMinimumSpacing, assertWithinSendWindow } from "../integrations/send-schedule.js";
 import { assertLiveSendAllowed, assertProductionKillSwitchEnabled, assertRateLimits, assertRecipientNotAlreadySent, countRecentSends, fetchRecentSendLedger, parseSuppressionList, prepareEmail, sendOneEmail, type OutreachDraft } from "../integrations/outbound-email.js";
 
 const args = process.argv.slice(2);
@@ -54,6 +55,7 @@ try {
 
   // The kill switch is the first live-path gate: if off, no provider/CRM calls occur.
   assertProductionKillSwitchEnabled(process.env);
+  assertWithinSendWindow();
 
   let suppressionContents: string;
   try {
@@ -67,6 +69,7 @@ try {
   assertLiveSendAllowed(email, process.env, suppressedEmails);
   const ledger = await fetchRecentSendLedger(process.env.RESEND_API_KEY!.trim());
   assertRecipientNotAlreadySent(ledger, email.to);
+  assertMinimumSpacing(ledger);
   assertRateLimits(countRecentSends(ledger), process.env);
   const result = await sendOneEmail(
     email,

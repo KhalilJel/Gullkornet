@@ -9,7 +9,8 @@ export async function assertRecipientHasNotReplied(
   env: NodeJS.ProcessEnv = process.env
 ): Promise<void> {
   const endpoint = env.OPENOUTREACH_REPLY_STATUS_URL?.trim();
-  const token = env.OPENOUTREACH_INGEST_TOKEN?.trim();
+  // A dedicated read-only token: the ingest token is deliberately never read here.
+  const token = env.OPENOUTREACH_REPLY_STATUS_TOKEN?.trim();
   if (!endpoint || !token) {
     throw new Error("Authenticated OpenOutSend reply-status URL and token are required. Refusing to send.");
   }

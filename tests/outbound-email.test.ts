@@ -35,7 +35,7 @@ test("enforces the configured daily pilot limit", () => {
   );
   assert.throws(
     () => assertRateLimits({ lastHour: 0, lastDay: 0 }, { GULLKORNET_DAILY_SEND_LIMIT: "0", MAX_EMAILS_PER_RUN: "1" }),
-    /must be between 1 and 10/
+    /must be between 1 and 100/
   );
 });
 

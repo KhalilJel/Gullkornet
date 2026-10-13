@@ -1,3 +1,4 @@
+import { assertAirtableWritesAllowed } from "../domain/airtable-write-guard.js";
 export type EmailSource = { email: string; sourceUrl: string; sourceType?: string };
 
 export type ResearchRecord = {
@@ -153,6 +154,16 @@ function fieldsFor(
       : item.personalizationEvidence;
     put("Personalization Evidence", evidenceSummary);
     put("Research Notes", item.notes?.join("\n"));
+
+    // Any refreshed research invalidates the previous AI decision and draft.
+    // The Airtable AI automation watches these source fields and will reassess.
+    fields["AI Decision"] = "NEEDS_REVIEW";
+    fields["AI Confidence"] = 0;
+    fields["AI Evidence"] = null;
+    fields["AI Evidence URL"] = null;
+    fields["AI Decision Reason"] = "Awaiting a fresh automated AI assessment after research refresh.";
+    fields["AI Draft Subject"] = null;
+    fields["AI Draft Body"] = null;
   }
 
   // A sync must never uncheck a suppression flag.
@@ -166,6 +177,7 @@ async function airtableRequest<T>(
   options: AirtableReviewSyncOptions,
   body?: string
 ): Promise<T> {
+  if (method !== "GET") assertAirtableWritesAllowed();
   const fetchImpl = options.fetchImpl ?? fetch;
   const maxAttempts = method === "GET" ? 2 : 1;
   let lastError: unknown;
@@ -261,6 +273,7 @@ export async function syncAirtableReviewRecords(
   input: ResearchRecord[],
   options: AirtableReviewSyncOptions
 ): Promise<AirtableReviewSyncResult> {
+  assertAirtableWritesAllowed();
   const apiToken = options.apiToken.trim();
   const baseId = options.baseId.trim();
   const tableName = options.tableName?.trim() || "Leads";

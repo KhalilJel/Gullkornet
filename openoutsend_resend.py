@@ -92,8 +92,15 @@ def verify_sender(from_address: str) -> tuple[bool, str]:
     return False, f"Resend has no verified sending domain for {domain}"
 
 
+DELIVERY_ENABLED_ENV = "GULLKORNET_OPENOUTSEND_DELIVERY_ENABLED"
+
+
 def deliver(email_message: EmailMessage) -> tuple[int, bytes]:
     """Send one OpenOutSend message through Resend."""
+    # Second layer behind openoutsend_send_lock.py: OpenOutSend's send pass skips
+    # Gullkornet's approval gates, so delivery stays closed unless explicitly enabled.
+    if (os.environ.get(DELIVERY_ENABLED_ENV) or "").strip().lower() != "true":
+        raise ResendTransportError("OpenOutSend delivery is disabled in the Gullkornet image")
     from_address = (email_message.get("From") or "").strip()
     to_address = (email_message.get("To") or "").strip()
     bcc_address = (email_message.get("Bcc") or "").strip()

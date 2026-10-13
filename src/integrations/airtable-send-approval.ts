@@ -1,13 +1,22 @@
+import { assertAirtableWritesAllowed } from "../domain/airtable-write-guard.js";
+import { businessDomainOf } from "../domain/email-domain.js";
+
 export type AirtableSendApproval = {
   id: string;
   fields: {
     Email?: unknown;
+    Website?: unknown;
+    "Contact Source URL"?: unknown;
+    "Personalization Evidence"?: unknown;
     "Lead Status"?: unknown;
-    "Review Status"?: unknown;
     "Do Not Contact"?: unknown;
-    "Outreach Subject"?: unknown;
-    "Outreach Draft"?: unknown;
-    "Verified Observation"?: unknown;
+    "AI Decision"?: unknown;
+    "AI Confidence"?: unknown;
+    "AI Evidence"?: unknown;
+    "AI Evidence URL"?: unknown;
+    "AI Decision Reason"?: unknown;
+    "AI Draft Subject"?: unknown;
+    "AI Draft Body"?: unknown;
   };
 };
 
@@ -35,8 +44,8 @@ export async function fetchApprovedOutreachQueue(
   for (let page = 0; page < 20; page += 1) {
     const url = new URL(API_ROOT + "/" + baseId + "/" + encodeURIComponent(tableName));
     url.searchParams.set("pageSize", "100");
-    url.searchParams.set("filterByFormula", 'AND({Lead Status} = "Approved", {Review Status} = "Ready for outreach", {Do Not Contact} = 0)');
-    for (const field of ["Email", "Lead Status", "Review Status", "Do Not Contact", "Outreach Subject", "Outreach Draft", "Verified Observation"]) {
+    url.searchParams.set("filterByFormula", 'AND({Lead Status} = "Draft Ready", {AI Decision} = "APPROVE", {AI Confidence} >= 0.9, {Do Not Contact} = 0)');
+    for (const field of ["Email", "Website", "Contact Source URL", "Personalization Evidence", "Lead Status", "Do Not Contact", "AI Decision", "AI Confidence", "AI Evidence", "AI Evidence URL", "AI Decision Reason", "AI Draft Subject", "AI Draft Body"]) {
       url.searchParams.append("fields[]", field);
     }
     if (offset) url.searchParams.set("offset", offset);
@@ -60,6 +69,30 @@ function normalizeEmail(value: unknown): string {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
+// A business in any of these states has been contacted, has answered, or must not be
+// contacted. No other address at the same business may be sent to.
+const BUSINESS_BLOCKING_STATUSES = new Set([
+  "Sent", "Replied", "Contacted", "Suppressed", "Do Not Contact", "Follow-up", "Meeting", "Won", "Lost"
+]);
+
+function assertBusinessNotAlreadyContacted(
+  records: AirtableSendApproval[],
+  approvedRecord: AirtableSendApproval,
+  recipient: string
+): void {
+  const domain = businessDomainOf(recipient);
+  if (!domain) return;
+  const blocked = records.some((record) =>
+    record !== approvedRecord &&
+    businessDomainOf(normalizeEmail(record.fields.Email)) === domain &&
+    (record.fields["Do Not Contact"] === true ||
+      BUSINESS_BLOCKING_STATUSES.has(String(record.fields["Lead Status"] ?? "")))
+  );
+  if (blocked) {
+    throw new Error("Another Airtable record for the same business domain is already contacted, replied, or suppressed. Refusing to send.");
+  }
+}
+
 export function assertAirtableRecipientApproved(
   records: AirtableSendApproval[],
   recipient: string,
@@ -71,25 +104,41 @@ export function assertAirtableRecipientApproved(
     throw new Error(`Airtable must contain exactly one record for the recipient; found ${matches.length}. Refusing to send.`);
   }
   const fields = matches[0].fields;
-  if (fields["Do Not Contact"] !== false) {
-    throw new Error("Airtable Do Not Contact is enabled or cannot be verified false. Refusing to send.");
+  assertBusinessNotAlreadyContacted(records, matches[0], normalized);
+  // Airtable's API omits an unchecked checkbox instead of returning false, so absent means
+  // unchecked. Every Do Not Contact read also passes a formula that references the field
+  // (see approvalLookupFormula and the queue filter), so a renamed field errors instead.
+  if (fields["Do Not Contact"] !== undefined && fields["Do Not Contact"] !== false) {
+    throw new Error("Airtable Do Not Contact is enabled or has an unexpected value. Refusing to send.");
   }
-  if (fields["Lead Status"] !== "Approved") {
-    throw new Error("Airtable Lead Status must be Approved before sending.");
+  if (fields["Lead Status"] !== "Draft Ready") {
+    throw new Error("Airtable Lead Status must be Draft Ready before AI-approved sending.");
   }
-  if (fields["Review Status"] !== "Ready for outreach") {
-    throw new Error("Airtable Review Status must be Ready for outreach before sending.");
+  if (fields["AI Decision"] !== "APPROVE") {
+    throw new Error("Airtable AI Decision must be APPROVE before sending.");
   }
-  const verifiedObservation = fields["Verified Observation"];
-  if (typeof verifiedObservation !== "string" || !verifiedObservation.trim()) {
-    throw new Error("A human-verified website observation is required before sending.");
+  if (typeof fields["AI Confidence"] !== "number" || fields["AI Confidence"] < 0.9) {
+    throw new Error("Airtable AI Confidence must be at least 0.90 before sending.");
   }
-  if (fields["Outreach Subject"] !== expected.subject || fields["Outreach Draft"] !== expected.text) {
-    throw new Error("The approved Airtable subject and draft must exactly match the message to be sent.");
+  if (fields["AI Draft Subject"] !== expected.subject || fields["AI Draft Body"] !== expected.text) {
+    throw new Error("The AI-approved Airtable subject and draft must exactly match the message to be sent.");
   }
-  if (!/\b(?:jeg la merke til|jeg så at|jeg så på|jeg la merke til at)\b/i.test(expected.text) ||
-      /Vi kom over bedriften deres|Jeg kom over nettsiden deres/i.test(expected.text)) {
-    throw new Error("Only a source-grounded personalized draft is eligible for outreach.");
+  const evidence = fields["AI Evidence"];
+  const evidenceUrl = typeof fields["AI Evidence URL"] === "string" ? fields["AI Evidence URL"] : "";
+  const personalEvidence = typeof fields["Personalization Evidence"] === "string" ? fields["Personalization Evidence"] : "";
+  if (typeof evidence !== "string" || !evidence.trim() || !personalEvidence.includes(evidence.trim())) {
+    throw new Error("AI evidence must match the public-site research evidence exactly.");
+  }
+  const website = typeof fields.Website === "string" ? fields.Website : "";
+  const contactUrl = typeof fields["Contact Source URL"] === "string" ? fields["Contact Source URL"] : "";
+  const evidenceHost = hostOf(evidenceUrl);
+  const websiteHost = hostOf(website);
+  if (!evidenceHost || !websiteHost || !isSameSite(evidenceHost, websiteHost) || hostOf(contactUrl) !== websiteHost) {
+    throw new Error("AI evidence and contact source must be on the business's official website.");
+  }
+  const emailDomain = normalized.split("@").at(-1) ?? "";
+  if (emailDomain !== websiteHost) {
+    throw new Error("The public shared-inbox email domain must match the official business website.");
   }
   if (!/(?:nei takk|ikke ønsker flere|stoppe henvendelser)/i.test(expected.text)) {
     throw new Error("The draft must include a clear opt-out instruction before sending.");
@@ -105,6 +154,23 @@ function escapeFormulaString(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
+/**
+ * Approval lookup. Deliberately does NOT filter out Do Not Contact rows (the field reference is only a tripwire): a suppressed
+ * duplicate must be returned so the exactly-one check fails closed. Matching is
+ * case/whitespace-insensitive, and for business domains it also returns records at the
+ * same domain so a business is not contacted twice through another address.
+ */
+export function approvalLookupFormula(recipient: string): string {
+  const email = recipient.trim().toLowerCase();
+  const exact = `LOWER(TRIM({Email})) = "${escapeFormulaString(email)}"`;
+  const domain = businessDomainOf(email);
+  const match = domain
+    ? `OR(${exact}, RIGHT(LOWER(TRIM({Email})), ${domain.length + 1}) = "${escapeFormulaString("@" + domain)}")`
+    : exact;
+  // Always true for a checkbox; it only makes Airtable reject the query if the field is missing.
+  return `AND(${match}, OR({Do Not Contact} = 0, {Do Not Contact} = 1))`;
+}
+
 export async function fetchAirtableRecipientApproval(
   recipient: string,
   expected: ApprovedDraft,
@@ -113,9 +179,9 @@ export async function fetchAirtableRecipientApproval(
   const { apiToken, baseId, tableName } = airtableConfig(env);
 
   const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`);
-  url.searchParams.set("filterByFormula", `AND({Email} = "${escapeFormulaString(recipient.trim().toLowerCase())}", {Do Not Contact} = 0)`);
+  url.searchParams.set("filterByFormula", approvalLookupFormula(recipient));
   url.searchParams.set("pageSize", "100");
-  for (const field of ["Email", "Lead Status", "Review Status", "Do Not Contact", "Outreach Subject", "Outreach Draft", "Verified Observation"]) {
+  for (const field of ["Email", "Website", "Contact Source URL", "Personalization Evidence", "Lead Status", "Do Not Contact", "AI Decision", "AI Confidence", "AI Evidence", "AI Evidence URL", "AI Decision Reason", "AI Draft Subject", "AI Draft Body"]) {
     url.searchParams.append("fields[]", field);
   }
 
@@ -139,10 +205,23 @@ export async function fetchAirtableRecipientApproval(
   return assertAirtableRecipientApproved(records, recipient, expected);
 }
 
+function hostOf(value: string): string {
+  try {
+    const url = new URL(value);
+    if (!["https:", "http:"].includes(url.protocol) || url.username || url.password) return "";
+    return url.hostname.toLowerCase().replace(/^www\./, "");
+  } catch { return ""; }
+}
+
+function isSameSite(candidateHost: string, websiteHost: string): boolean {
+  return candidateHost === websiteHost || candidateHost.endsWith("." + websiteHost);
+}
+
 export async function markAirtableRecipientSent(
   recordId: string,
   env: NodeJS.ProcessEnv = process.env
 ): Promise<void> {
+  assertAirtableWritesAllowed(env);
   const apiToken = env.AIRTABLE_API_TOKEN?.trim();
   const baseId = env.GULLKORNET_AIRTABLE_BASE_ID?.trim();
   const tableName = env.GULLKORNET_AIRTABLE_TABLE?.trim() || "Leads";
