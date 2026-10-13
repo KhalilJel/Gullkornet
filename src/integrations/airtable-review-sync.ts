@@ -36,6 +36,9 @@ export type AirtableReviewSyncOptions = {
   tableName?: string;
   fetchImpl?: typeof fetch;
   now?: () => Date;
+  /** Opt-in (default false): create new rows only for businesses that would be Draft Ready.
+   * Existing rows are still updated exactly as before, so refreshes, DNC and protected states keep working. */
+  createOnlyDraftReady?: boolean;
 };
 
 export type AirtableReviewSyncResult = {
@@ -44,6 +47,8 @@ export type AirtableReviewSyncResult = {
   created: number;
   updated: number;
   skipped: number;
+  /** New businesses not written because createOnlyDraftReady was on and they were not Draft Ready. */
+  notCreated: number;
 };
 
 const API_ROOT = "https://api.airtable.com/v0";
@@ -324,14 +329,16 @@ export async function syncAirtableReviewRecords(
     if (existing) updates.push({ item, key, existing });
     else creates.push({ item, key });
   }
+  const toCreate = options.createOnlyDraftReady ? creates.filter(({ item }) => getStatus(item) === "Draft Ready") : creates;
 
   const updated = await writeBatch("update", updates, normalizedOptions, tableName, now);
-  const created = await writeBatch("create", creates, normalizedOptions, tableName, now);
+  const created = await writeBatch("create", toCreate, normalizedOptions, tableName, now);
   return {
     inputRecords: research.length,
     uniqueBusinesses: unique.size,
     created,
     updated,
-    skipped: research.length - unique.size
+    skipped: research.length - unique.size,
+    notCreated: creates.length - toCreate.length
   };
 }

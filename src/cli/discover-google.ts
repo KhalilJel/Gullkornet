@@ -29,7 +29,9 @@ async function readHistory(): Promise<DiscoveryHistory> {
 }
 
 try {
-  const candidates = await discoverGooglePlacesCandidates({ searchTerm });
+  // Opt-in: 2-3 pages per city (up to 3x billed requests). Unset or invalid keeps one page.
+  const maxPagesPerCity = Number.parseInt(process.env.GULLKORNET_PLACES_MAX_PAGES?.trim() || "1", 10) || 1;
+  const candidates = await discoverGooglePlacesCandidates({ searchTerm, maxPagesPerCity });
   const history = await readHistory();
   const knownDomains = new Set(history.domains.map((value) => value.toLowerCase()));
   const knownNames = new Set(history.companyNames.map((value) => value.trim().toLocaleLowerCase("nb-NO")));

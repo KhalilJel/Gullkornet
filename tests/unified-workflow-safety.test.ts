@@ -38,6 +38,15 @@ test("unified lead research rejects unsafe or accidental discovery limits", () =
   assert.match(workflow, /DAILY_LEAD_LIMIT must be an integer from 1 to 100/);
 });
 
+test("paging and Draft-Ready-only creation come only from repository variables (unset = off)", () => {
+  assert.match(workflow, /GULLKORNET_PLACES_MAX_PAGES: \$\{\{ vars\.GULLKORNET_PLACES_MAX_PAGES \}\}/);
+  assert.match(workflow, /GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY: \$\{\{ vars\.GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY \}\}/);
+  // Never hard-coded on, and the per-run limit stays at 100.
+  assert.doesNotMatch(workflow, /GULLKORNET_PLACES_MAX_PAGES: ["']?[23]/);
+  assert.doesNotMatch(workflow, /GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY: ["']?true/);
+  assert.match(workflow, /DAILY_LEAD_LIMIT < 1 \|\| DAILY_LEAD_LIMIT > 100/);
+});
+
 test("unified workflow keeps CLI stdout and stderr private", () => {
   assert.match(workflow, /discover:google -- "\$SEARCH_TERM" > data\/google-candidates\.json 2> data\/discovery\.stderr\.log/);
   assert.match(workflow, /audit:websites -- data\/google-candidates\.json > data\/website-audit\.json 2> data\/website-audit\.stderr\.log/);
