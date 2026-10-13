@@ -63,6 +63,10 @@ jobs:
           NODE
 
       - name: Research public contact emails and prepare drafts
+        env:
+          # Optional. Without the secret, Firecrawl is skipped and the built-in fetch is used alone.
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          FIRECRAWL_MAX_PER_RUN: "10"
         run: |
           set -euo pipefail
           umask 077

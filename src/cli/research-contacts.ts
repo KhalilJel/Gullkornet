@@ -1,9 +1,30 @@
 import { readFile } from "node:fs/promises";
-import { researchContactsAndDrafts } from "../integrations/contact-research.js";
+import { researchContactsAndDrafts, type ResearchDeps } from "../integrations/contact-research.js";
+import { scrapePublicWebsite } from "../integrations/firecrawl.js";
+import { routerPolicyFromEnv } from "../integrations/research-router.js";
 import type { GoogleCandidate, WebsiteAudit } from "../integrations/website-audit.js";
 
 const candidatesPath = process.argv[2] ?? "data/google-candidates.json";
 const auditPath = process.argv[3] ?? "data/website-audit.json";
+
+// Firecrawl is the only escalation provider a CI runner can call. JEV, Browser Use, Hermes and
+// Agent Reach live in a private container without a public endpoint, so they are not wired here.
+function buildResearchDeps(): ResearchDeps {
+  const policy = routerPolicyFromEnv();
+  const hasFirecrawl = Boolean(process.env.FIRECRAWL_API_KEY?.trim());
+  return {
+    policy,
+    state: { firecrawlUsed: 0, browserUsed: 0 },
+    providers: hasFirecrawl
+      ? {
+          firecrawl: async (url) => {
+            const page = await scrapePublicWebsite(url);
+            return { url: page.sourceUrl ?? page.url, title: page.title, description: page.description, markdown: page.markdown };
+          }
+        }
+      : {}
+  };
+}
 
 async function readJson(path: string): Promise<unknown> {
   return JSON.parse(await readFile(path, "utf8")) as unknown;
@@ -28,7 +49,7 @@ try {
   });
 
   const audits = auditData as WebsiteAudit[];
-  const results = await researchContactsAndDrafts(candidates, audits, 3);
+  const results = await researchContactsAndDrafts(candidates, audits, 3, buildResearchDeps());
   console.log(JSON.stringify(results, null, 2));
   const withEmail = results.filter((item) => item.emails.length > 0).length;
   const withDraft = results.filter((item) => Boolean(item.draftBody && item.subject)).length;

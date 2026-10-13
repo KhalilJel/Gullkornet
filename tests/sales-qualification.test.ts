@@ -14,11 +14,14 @@ const goodInput = {
   ]
 };
 
-test("qualifies an evidenced target-area lead with explainable reasons", () => {
+test("qualifies an evidenced lead anywhere in Norway by default, with explainable reasons", () => {
+  for (const location of ["Bærum, Norway", "Trondheim, Norway", "Tromsø"]) {
+    const result = evaluateLeadQualification({ ...goodInput, location });
+    assert.equal(result.status, "qualified", location);
+    assert.equal(result.score, 90, location);
+    assert.ok(result.reasons.some((reason) => reason.includes("Norway-wide")), location);
+  }
   const result = evaluateLeadQualification(goodInput);
-  assert.equal(result.status, "qualified");
-  assert.equal(result.score, 90);
-  assert.ok(result.reasons.some((reason) => reason.includes("target geography")));
   assert.ok(result.reasons.some((reason) => reason.includes("MISSING_META_DESCRIPTION")));
   assert.ok(result.score >= 0 && result.score <= 100);
 });
@@ -29,8 +32,14 @@ test("routes missing or weak evidence to human review", () => {
   assert.ok(result.reviewReasons.some((reason) => reason.includes("Evidence is missing or too weak")));
 });
 
-test("rejects a lead outside the configured target geography", () => {
-  const result = evaluateLeadQualification({ ...goodInput, location: "Trondheim, Norway" });
+test("an unknown location still needs review under Norway-wide targeting", () => {
+  const result = evaluateLeadQualification({ ...goodInput, location: "" });
+  assert.equal(result.status, "review_required");
+  assert.ok(result.reviewReasons.some((reason) => reason.includes("Geography is unknown")));
+});
+
+test("rejects a lead outside an explicitly configured target geography", () => {
+  const result = evaluateLeadQualification({ ...goodInput, location: "Trondheim, Norway", targetGeographies: ["Oslo", "Bærum"] });
   assert.equal(result.status, "rejected");
   assert.ok(result.reasons.some((reason) => reason.includes("target geographies")));
 });

@@ -1,5 +1,7 @@
 # Hermes Agent Integration
 
+> Pipeline status (2026-10-13): this component runs inside the private `hermes-agent` Railway container and cannot be called from GitHub Actions or the Gullkornet code. It is not part of the per-lead flow. See `docs/AI-STACK.md` for what is actually wired.
+
 Status: Phase 1 — complete
 
 Last updated: 2026-10-06

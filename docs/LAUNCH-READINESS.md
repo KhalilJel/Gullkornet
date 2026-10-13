@@ -16,7 +16,8 @@ Live sending stays off (`GULLKORNET_ENABLE_LIVE_SEND` unset) until every gate be
 2. **Railway redeploy** of the reply service. Its source is documented as branch `phase11/production` and is not updated by merging a pull request; confirm the current source in Railway, note the current deployment ID for rollback, and either point the service at the reviewed commit or at `main` after merge. Then run the verification below.
 3. **GitHub Actions access to the reply check.** Set the repository secret `OPENOUTREACH_REPLY_STATUS_TOKEN` (the same value as the Railway variable of that name) and the repository variable `OPENOUTREACH_REPLY_STATUS_URL` (HTTPS, ending in `/v1/reply-status`). GitHub never receives `OPENOUTREACH_INGEST_TOKEN`. Neither value exists yet, so the send workflow currently fails closed.
 4. **Airtable automation** "Gullkornet AI Outreach Assessment" must be activated by the owner, and `Do Not Contact` must exist as a checkbox on the Leads table.
-5. **Data exposure cleanup** of already published artifacts and files (owner decision; see the pull request).
+5. **Optional research fallback.** Add the repository secret `FIRECRAWL_API_KEY` to let contact research recover sites the built-in fetch cannot read (up to `FIRECRAWL_MAX_PER_RUN`, 10 by default). Without it the pipeline works unchanged. The `Contact Research and Drafts` workflow is currently disabled by the owner; it is the only step that writes research results to production Airtable and must be re-enabled deliberately.
+6. **Data exposure cleanup** of already published artifacts and files (owner decision; see the pull request).
 
 ## Railway variables for the reply service (names confirmed from the code)
 

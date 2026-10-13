@@ -101,3 +101,13 @@ test("an unchecked Do Not Contact box (omitted by the Airtable API) is accepted;
   assert.throws(() => assertAirtableRecipientApproved([{ ...approved, fields: { ...withoutDnc, "Do Not Contact": "no" } }], "post@salong.no", expected), /Do Not Contact/);
   assert.throws(() => assertAirtableRecipientApproved([{ ...approved, fields: { ...withoutDnc, "Do Not Contact": null } }], "post@salong.no", expected), /Do Not Contact/);
 });
+
+test("a strategic account is never approved for automatic sending", () => {
+  const notes = "[GK-ROUTE:STRATEGIC_ACCOUNT] Regelsett cidea-routing-rules@1";
+  assert.throws(
+    () => assertAirtableRecipientApproved([{ ...approved, fields: { ...approved.fields, "Research Notes": notes } }], "post@salong.no", expected),
+    /Strategic accounts are not eligible/
+  );
+  const ordinary = "[GK-ROUTE:CideaLead] Regelsett cidea-routing-rules@1";
+  assert.equal(assertAirtableRecipientApproved([{ ...approved, fields: { ...approved.fields, "Research Notes": ordinary } }], "post@salong.no", expected), approved.id);
+});

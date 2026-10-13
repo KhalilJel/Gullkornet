@@ -2,11 +2,12 @@
 
 ## Approved operating rules
 
-- Discover businesses across Norway and across the existing rotating business categories.
+- Discover businesses across Norway and across the existing rotating business categories. Qualification (`evaluateLeadQualification`) is Norway-wide by default; the former Oslo-area default was removed. A restriction only applies when a caller passes `targetGeographies`.
 - Target at least 50 eligible first-contact emails per day when the qualified queue supports it. Never lower the evidence, recipient, opt-out, duplicate, reply, or suppression checks to reach the target.
 - Send only to public, role-based business inboxes on the same domain as the official business website. Do not guess addresses or address named individuals.
 - Send Monday–Friday from 09:00 to 15:00 Europe/Oslo, with at least five minutes between messages.
 - Use `hello@cideamarketing.com`, one email per business, and no automatic follow-up.
+- Capacity check: weekdays 09:00 to 15:00 with at least five minutes between emails allows at most 72 sends a day. The target of 50 qualified first-contact emails a day fits inside that; the hard ceiling of 100 per Oslo day cannot be reached within the window and is only a safety limit.
 - Stop or hold a record when evidence, identity, contact source, or AI confidence is uncertain. Require AI confidence of at least 0.90 for an eligible decision.
 - Honor Airtable `Do Not Contact`, the reply-status service, suppression lists, and provider send history. A reply, opt-out, duplicate, complaint, or delivery failure must block further outreach.
 - Keep the human-only `Verified Observation` field blank. AI decisions are stored separately.

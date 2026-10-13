@@ -160,6 +160,8 @@ JEV and Browser Use must not both be invoked automatically for every company.
 
 ## Human control
 
+Superseded by `docs/AUTONOMOUS-AI-OUTREACH.md`: the approved operating mode is autonomous, with the AI assessment and the send gates replacing per-lead review, and `STRATEGIC_ACCOUNT` records excluded from automatic sending. The implemented routing is `src/domain/cidea-routing.ts`. The original design below is kept for context.
+
 Initial operating mode:
 
 Research → Score → Generate → Human review → Send / deliver

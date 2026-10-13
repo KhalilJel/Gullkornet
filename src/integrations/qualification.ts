@@ -20,7 +20,8 @@ export type QualificationDecision = {
   opportunitySignals: string[];
 };
 
-const DEFAULT_TARGET_GEOGRAPHIES = ["Oslo", "Akershus", "Bærum", "Asker", "Lillestrøm", "Lørenskog", "Nordre Follo", "Nesodden", "Ullensaker", "Rælingen", "Eidsvoll", "Nannestad", "Vestby", "Frogn", "Enebakk", "Åsgårdstrand"];
+// Discovery covers all of Norway, so no geography is excluded unless the caller restricts it.
+const DEFAULT_TARGET_GEOGRAPHIES: string[] = [];
 const COMPETITOR_INDUSTRY = /web\s?design|webutvikling|web development|digital marketing agency|markedsføringsbyrå|branding agency|merkevarebyrå|seo agency|seo-byrå/i;
 
 function normalize(value: string): string {
@@ -69,7 +70,7 @@ export function evaluateLeadQualification(input: QualificationInput): Qualificat
   const location = typeof input.location === "string" ? input.location.trim() : "";
   if (!location) {
     reviewReasons.push("Geography is unknown.");
-  } else if (!matchesTargetGeography(location, targets)) {
+  } else if (targets.length > 0 && !matchesTargetGeography(location, targets)) {
     return {
       status: "rejected",
       score: 0,
@@ -78,7 +79,7 @@ export function evaluateLeadQualification(input: QualificationInput): Qualificat
       opportunitySignals
     };
   } else {
-    reasons.push("Location matches a configured target geography.");
+    reasons.push(targets.length > 0 ? "Location matches a configured target geography." : "Location is known (Norway-wide targeting).");
   }
 
   const industry = typeof input.industry === "string" ? input.industry.trim() : "";
@@ -114,7 +115,7 @@ export function evaluateLeadQualification(input: QualificationInput): Qualificat
   let score = 0;
   if (company) score += 10;
   if (input.identityVerified === true) score += 20;
-  if (location && matchesTargetGeography(location, targets)) score += 20;
+  if (location && (targets.length === 0 || matchesTargetGeography(location, targets))) score += 20;
   if (industry && !COMPETITOR_INDUSTRY.test(industry)) score += 15;
   score += Math.min(30, opportunitySignals.length * 10);
   if (typeof input.website === "string" && /^https?:\/\//i.test(input.website.trim())) score += 5;
