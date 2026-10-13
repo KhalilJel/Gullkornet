@@ -31,7 +31,8 @@ async function readHistory(): Promise<DiscoveryHistory> {
 try {
   // Opt-in: 2-3 pages per city (up to 3x billed requests). Unset or invalid keeps one page.
   const maxPagesPerCity = Number.parseInt(process.env.GULLKORNET_PLACES_MAX_PAGES?.trim() || "1", 10) || 1;
-  const candidates = await discoverGooglePlacesCandidates({ searchTerm, maxPagesPerCity });
+  const stats = { placesRequests: 0 };
+  const candidates = await discoverGooglePlacesCandidates({ searchTerm, maxPagesPerCity, stats });
   const history = await readHistory();
   const knownDomains = new Set(history.domains.map((value) => value.toLowerCase()));
   const knownNames = new Set(history.companyNames.map((value) => value.trim().toLocaleLowerCase("nb-NO")));
@@ -55,6 +56,18 @@ try {
       domains: [...domains],
       companyNames: [...names]
     }, null, 2) + "\n", "utf8");
+  }
+  // Counts only (no names, domains or search text), for the run log.
+  const statsPath = process.env.DISCOVERY_STATS_PATH?.trim();
+  if (statsPath) {
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(statsPath, JSON.stringify({
+      placesRequests: stats.placesRequests,
+      maxPagesPerCity: Math.min(Math.max(maxPagesPerCity, 1), 3),
+      rawCandidates: candidates.length,
+      rawWithWebsite: candidates.filter((c) => c.websiteUrl).length,
+      selected: fresh.length
+    }) + "\n", { encoding: "utf8", mode: 0o600 });
   }
   console.error(
     `Discovered ${candidates.length} candidates; ${fresh.length} new candidates after cross-run dedupe, capped at ${dailyLimit}. ` +

@@ -30,6 +30,8 @@ export type GooglePlacesDiscoveryOptions = {
   /** Pages of up to 20 results per city query (1-3; Google returns at most 60 per query). Default 1.
    * Every page is a separate billed Text Search request. */
   maxPagesPerCity?: number;
+  /** Optional counter: incremented once per billed Text Search request. */
+  stats?: { placesRequests: number };
   fetchImpl?: typeof fetch;
 };
 
@@ -121,6 +123,7 @@ export async function discoverGooglePlacesCandidates(
   for (const city of cities) {
     let pageToken: string | undefined;
     for (let page = 0; page < maxPagesPerCity; page += 1) {
+      if (options.stats) options.stats.placesRequests += 1;
       const response = await fetchImpl("https://places.googleapis.com/v1/places:searchText", {
         method: "POST",
         headers: {

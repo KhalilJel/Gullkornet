@@ -118,6 +118,14 @@ test("pagination stops when Google returns no token, and is capped at 3 pages", 
   assert.equal(capped.length, 6); // 2 cities x max 3 pages
 });
 
+test("stats count every billed Places request, including follow-up pages", async () => {
+  const log: Array<{ pageToken?: string; fieldMask: string | null; textQuery: string }> = [];
+  const stats = { placesRequests: 0 };
+  await discoverGooglePlacesCandidates({ apiKey: "k", cities: ["Oslo", "Bergen"], maxPagesPerCity: 2, stats, fetchImpl: pagedFetch(3, log) });
+  assert.equal(stats.placesRequests, log.length);
+  assert.equal(stats.placesRequests, 4);
+});
+
 test("requires a Google Maps Platform API key", async () => {
   await assert.rejects(
     () => discoverGooglePlacesCandidates({ apiKey: " " }),
