@@ -2,6 +2,7 @@ import contextlib
 import io
 import json
 import os
+import sys
 import threading
 import unittest
 from http.server import ThreadingHTTPServer
@@ -261,6 +262,53 @@ class ReplyStatusEndpointTests(unittest.TestCase):
             unittest.mock.call(["FROM", "michael@example.no"]),
             unittest.mock.call(["FROM", "michael@example.no"]),
         ])
+
+    def test_reply_from_a_colleague_at_the_same_business_counts_as_a_reply(self):
+        client = unittest.mock.Mock()
+        client.list_folders.return_value = [([b"\\HasNoChildren"], b"/", b"INBOX")]
+        # Nothing from post@, but daglig.leder@ at the same company answered.
+        client.search.side_effect = lambda criteria: [7] if criteria == ["FROM", "@salong.no"] else []
+        self.assertTrue(api.search_folders_for_sender(client, "post@salong.no", "salong.no"))
+        self.assertEqual(client.search.call_args_list, [
+            unittest.mock.call(["FROM", "post@salong.no"]),
+            unittest.mock.call(["FROM", "@salong.no"]),
+        ])
+
+    def test_business_reply_domain_never_widens_freemail_or_cidea(self):
+        own = "jelassi@cideamarketing.com"
+        self.assertEqual(api.business_reply_domain(" Post@Salong.NO ", own), "salong.no")
+        self.assertIsNone(api.business_reply_domain("owner@gmail.com", own))
+        self.assertIsNone(api.business_reply_domain("someone@online.no", own))
+        self.assertIsNone(api.business_reply_domain("hello@cideamarketing.com", own))
+        self.assertIsNone(api.business_reply_domain("x@cideamarketing.com", "monitor@other-mailbox.no"))
+
+    def test_recipient_has_replied_searches_the_business_domain_but_not_freemail(self):
+        searches: list[list[str]] = []
+
+        class FakeClient:
+            def __enter__(self): return self
+            def __exit__(self, *exc): return False
+            def list_folders(self): return [([], b"/", b"INBOX")]
+            def select_folder(self, name, readonly): assert readonly is True
+            def search(self, criteria):
+                searches.append(criteria)
+                return [1] if criteria == ["FROM", "@salong.no"] else []
+
+        mailbox_model = unittest.mock.Mock()
+        mailbox_model.objects.filter.return_value.first.return_value = object()
+        fake_modules = {
+            "django": unittest.mock.Mock(),
+            "cold_outreach": unittest.mock.Mock(),
+            "cold_outreach.emails": unittest.mock.Mock(),
+            "cold_outreach.emails.models": unittest.mock.Mock(Mailbox=mailbox_model),
+            "cold_outreach.emails.sync": unittest.mock.Mock(_connect=lambda _mailbox: FakeClient()),
+        }
+        with patch.dict(sys.modules, fake_modules):
+            self.assertTrue(api.recipient_has_replied("post@salong.no", "jelassi@cideamarketing.com"))
+            self.assertIn(["FROM", "@salong.no"], searches)
+            searches.clear()
+            self.assertFalse(api.recipient_has_replied("owner@gmail.com", "jelassi@cideamarketing.com"))
+            self.assertEqual(searches, [["FROM", "owner@gmail.com"]])
 
     def test_reply_search_fails_closed_if_a_selectable_folder_cannot_be_checked(self):
         client = unittest.mock.Mock()

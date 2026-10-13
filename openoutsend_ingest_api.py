@@ -103,7 +103,32 @@ def _update_reply_monitor_state(**values: Any) -> None:
 
 
 
-def search_folders_for_sender(client: Any, sender_email: str) -> bool:
+# Shared mailbox providers; an address there does not identify a business.
+# Keep in sync with FREEMAIL_DOMAINS in src/domain/email-domain.ts.
+FREEMAIL_DOMAINS = frozenset({
+    "gmail.com", "googlemail.com", "hotmail.com", "hotmail.no", "outlook.com", "outlook.no",
+    "live.com", "live.no", "msn.com", "yahoo.com", "yahoo.no", "icloud.com", "me.com",
+    "mac.com", "aol.com", "protonmail.com", "proton.me", "online.no", "getmail.no",
+    "broadpark.no", "frisurf.no", "start.no", "c2i.net", "altibox.no", "lyse.net",
+})
+CIDEA_DOMAINS = frozenset({"cideamarketing.com"})
+
+
+def business_reply_domain(sender_email: str, own_address: str) -> str | None:
+    """Domain whose mail also counts as a reply from this business, if any.
+
+    A colleague answering from another address at the same company must block
+    outreach too. Freemail domains and CIDEA's own domain are never widened.
+    """
+    domain = sender_email.strip().lower().rsplit("@", 1)[-1].rstrip(".")
+    own_domain = own_address.strip().lower().rsplit("@", 1)[-1]
+    if (not domain or "." not in domain or domain in FREEMAIL_DOMAINS
+            or domain in CIDEA_DOMAINS or domain == own_domain):
+        return None
+    return domain
+
+
+def search_folders_for_sender(client: Any, sender_email: str, domain: str | None = None) -> bool:
     """Search every selectable IMAP folder read-only; any search error fails closed."""
     folders = client.list_folders()
     if not folders:
@@ -123,13 +148,15 @@ def search_folders_for_sender(client: Any, sender_email: str) -> bool:
         checked += 1
         if client.search(["FROM", sender_email]):
             return True
+        if domain and client.search(["FROM", "@" + domain]):
+            return True
     if checked == 0:
         raise RuntimeError("REPLY_MAILBOX_HAS_NO_SELECTABLE_FOLDERS")
     return False
 
 
 def recipient_has_replied(sender_email: str, expected_address: str) -> bool:
-    """Search all selectable folders for any message from a recipient, read-only."""
+    """Search all selectable folders for any message from a recipient or their business, read-only."""
     if not EMAIL_PATTERN.fullmatch(sender_email.strip()):
         raise ValueError("VALID_EMAIL_REQUIRED")
     import django
@@ -143,7 +170,9 @@ def recipient_has_replied(sender_email: str, expected_address: str) -> bool:
     if mailbox is None:
         raise RuntimeError("REPLY_MONITOR_MAILBOX_NOT_CONFIGURED")
     with _connect(mailbox) as client:
-        return search_folders_for_sender(client, sender_email.strip())
+        return search_folders_for_sender(
+            client, sender_email.strip(), business_reply_domain(sender_email, expected_address)
+        )
 
 
 def reply_monitor_healthy(state: dict[str, Any], now: datetime | None = None) -> bool:
