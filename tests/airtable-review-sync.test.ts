@@ -393,6 +393,83 @@ test("different addresses are unaffected and a row refreshing its own address is
   assert.equal(result.duplicateEmail, 0);
 });
 
+// ---- Protected rows keep their history: identity fields and status are never rewritten ----
+
+const PROTECTED_STATUSES = ["Sent", "Replied", "Approved", "Follow-up", "Contacted", "Meeting", "Won", "Lost", "Suppressed", "Do Not Contact"];
+const HISTORY = {
+  Company: "Original AS", Website: "https://www.original.no/", City: "Bergen", Industry: "frisør",
+  Email: "post@original.no", "Outreach Subject": "Old subject", "Outreach Draft": "Old draft", "First Seen": "2026-09-01T00:00:00.000Z"
+};
+const refreshed = () => item({ companyName: "Nytt Navn AS", websiteUrl: "https://original.no/ny-side", city: "Oslo", industry: "salong", notes: [],
+  emails: [{ email: "post@original.no", sourceUrl: "https://original.no/kontakt" }] });
+const ALLOWED_ON_PROTECTED = new Set(["Lead Status", "Last Seen", "Do Not Contact", "Duplicate Key"]);
+
+test("every protected status keeps its status and identity; only Last Seen is refreshed", async () => {
+  for (const status of PROTECTED_STATUSES) {
+    for (const dnc of [false, true]) {
+      const existing = [{ id: "recP", fields: { ...HISTORY, "Duplicate Key": "original.no", "Lead Status": status, ...(dnc ? { "Do Not Contact": true } : {}) } }];
+      const { patched, posted } = await syncCapture([refreshed()], existing);
+      const label = `${status}${dnc ? " + DNC" : ""}`;
+      assert.equal(posted.length, 0, label);
+      const fields = patched[0].fields;
+      assert.equal(fields["Lead Status"], status, label); // e.g. Replied + DNC stays Replied, never Suppressed
+      assert.ok(fields["Last Seen"], label);
+      for (const name of Object.keys(fields)) assert.ok(ALLOWED_ON_PROTECTED.has(name), `${label}: wrote ${name}`);
+      assert.equal("Duplicate Key" in fields, false, `${label}: an existing key is not rewritten`);
+      assert.equal(fields["Do Not Contact"], dnc ? true : undefined, label);
+    }
+  }
+});
+
+test("a DNC-flagged row that is not yet contacted is still marked Suppressed and keeps its identity", async () => {
+  const existing = [{ id: "recD", fields: { ...HISTORY, "Duplicate Key": "original.no", "Lead Status": "Draft Ready", "Do Not Contact": true } }];
+  const { patched } = await syncCapture([refreshed()], existing);
+  assert.equal(patched[0].fields["Lead Status"], "Suppressed");
+  assert.equal(patched[0].fields["Do Not Contact"], true);
+  for (const name of ["Company", "Website", "City", "Industry", "Email", "Outreach Draft", "AI Decision"]) assert.equal(name in patched[0].fields, false, name);
+});
+
+test("a protected legacy row without a Duplicate Key only gets the key filled in", async () => {
+  const existing = [{ id: "recL", fields: { ...HISTORY, "Lead Status": "Replied" } }];
+  const { patched } = await syncCapture([refreshed()], existing);
+  assert.equal(patched[0].fields["Duplicate Key"], "original.no");
+  assert.equal(patched[0].fields.Company, undefined);
+  assert.equal(patched[0].fields.Website, undefined);
+});
+
+test("a protected row without First Seen does not get one from a later research run", async () => {
+  const { "First Seen": _omitted, ...withoutFirstSeen } = HISTORY;
+  for (const status of PROTECTED_STATUSES) {
+    const existing = [{ id: "recF", fields: { ...withoutFirstSeen, "Duplicate Key": "original.no", "Lead Status": status } }];
+    const { patched } = await syncCapture([refreshed()], existing);
+    const fields = patched[0].fields;
+    assert.equal("First Seen" in fields, false, status);
+    for (const name of Object.keys(fields)) assert.ok(ALLOWED_ON_PROTECTED.has(name), `${status}: wrote ${name}`);
+    assert.equal(fields["Lead Status"], status);
+  }
+  // DNC flag on a not-yet-contacted row: same rule.
+  const dnc = [{ id: "recF2", fields: { ...withoutFirstSeen, "Duplicate Key": "original.no", "Lead Status": "Draft Ready", "Do Not Contact": true } }];
+  const fields = (await syncCapture([refreshed()], dnc)).patched[0].fields;
+  assert.deepEqual(Object.keys(fields).sort(), ["Do Not Contact", "Last Seen", "Lead Status"]);
+});
+
+test("new rows and unprotected rows without First Seen still get it", async () => {
+  const created = (await syncCapture([refreshed()], [])).posted[0];
+  assert.equal(created["First Seen"], "2026-10-09T18:00:00.000Z");
+  const { "First Seen": _omitted, ...withoutFirstSeen } = HISTORY;
+  const existing = [{ id: "recU2", fields: { ...withoutFirstSeen, "Duplicate Key": "original.no", "Lead Status": "Needs Review" } }];
+  assert.equal((await syncCapture([refreshed()], existing)).patched[0].fields["First Seen"], "2026-10-09T18:00:00.000Z");
+});
+
+test("unprotected rows are refreshed exactly as before", async () => {
+  const existing = [{ id: "recU", fields: { ...HISTORY, "Duplicate Key": "original.no", "Lead Status": "Needs Review" } }];
+  const { patched } = await syncCapture([refreshed()], existing);
+  const fields = patched[0].fields;
+  assert.deepEqual([fields.Company, fields.Website, fields.City, fields.Industry, fields["Duplicate Key"]], ["Nytt Navn AS", "https://original.no/ny-side", "Oslo", "salong", "original.no"]);
+  assert.equal(fields["AI Decision"], "NEEDS_REVIEW");
+  assert.equal(fields["First Seen"], undefined); // kept
+});
+
 test("matches legacy CRM rows without a Duplicate Key using the website domain", async () => {
   let postCount = 0;
   let patchCount = 0;

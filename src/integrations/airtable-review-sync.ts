@@ -103,9 +103,10 @@ export function getStatus(item: ResearchRecord, existing?: AirtableRecord): stri
   const status = existingStatus(existing);
   const doNotContact = existing?.fields["Do Not Contact"] === true;
 
-  if (doNotContact) return status === "Do Not Contact" ? "Do Not Contact" : "Suppressed";
-  if (status === "Suppressed" || status === "Do Not Contact") return status;
-  if (PRESERVED_STATUSES.has(status)) return status;
+  // A protected status is history (e.g. Replied) and is never replaced, not even by the DNC flag;
+  // the flag itself is always kept, and the sender refuses on it.
+  if (status === "Suppressed" || status === "Do Not Contact" || PRESERVED_STATUSES.has(status)) return status;
+  if (doNotContact) return "Suppressed";
   if (item.notes?.some((note) => note.includes("MANUAL REVIEW:"))) return "Needs Review";
 
   const hasCurrentEmail = Boolean(item.emails?.length);
@@ -135,19 +136,27 @@ function fieldsFor(
   now: () => Date
 ): Record<string, unknown> {
   const fields: Record<string, unknown> = {
-    Company: item.companyName.trim(),
     "Lead Status": getStatus(item, existing),
-    "Duplicate Key": key,
     "Last Seen": now().toISOString()
   };
   const put = (field: string, value: unknown) => {
     if (typeof value === "string" && value.trim()) fields[field] = value.trim();
   };
 
-  put("Website", item.websiteUrl);
-  put("City", item.city);
-  put("Industry", item.industry);
-  if (!existing?.fields["First Seen"]) fields["First Seen"] = item.researchedAt || now().toISOString();
+  // A sent, replied, terminal, suppressed or DNC row keeps the identity it was contacted under:
+  // new research never rewrites its company, website, city, industry or duplicate key
+  // (a missing key is only filled in, so later syncs keep matching it), and a later research
+  // run never records itself as the row's First Seen.
+  if (isProtectedRecord(existing)) {
+    if (!(typeof existing?.fields["Duplicate Key"] === "string" && existing.fields["Duplicate Key"].trim())) fields["Duplicate Key"] = key;
+  } else {
+    fields.Company = item.companyName.trim();
+    fields["Duplicate Key"] = key;
+    put("Website", item.websiteUrl);
+    put("City", item.city);
+    put("Industry", item.industry);
+    if (!existing?.fields["First Seen"]) fields["First Seen"] = item.researchedAt || now().toISOString();
+  }
 
   // Never overwrite email/draft/research history for sent, replied, approved,
   // follow-up, terminal, suppressed, or do-not-contact records.
