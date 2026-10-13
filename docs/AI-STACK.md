@@ -14,6 +14,8 @@ This page states what is **actually connected**, not what was planned. Status wo
 
 Gullkornet's workflows run on GitHub Actions. They can only call components that expose a public HTTPS API and whose credentials are available to the workflow. Hermes, Agent Reach, JEV Ultrafast, Browser Use and TypeSafe run inside one private Railway container (`hermes-agent`) that has **no public domain**, so nothing in this repository can call them. Docs that say they were verified describe tests run from inside that container, not from the pipeline.
 
+> Proposal (not deployed, not active): `docs/AGENT-GATEWAY.md` describes a thin gateway that would let CI reach Hermes/JEV/Browser Use through the private network. Until it is deployed and verified, the table below stays as is.
+
 ## Components
 
 | Component | Role in the pipeline | Code | Wired | Deployed | Verified in operation |
