@@ -4,6 +4,22 @@ Status (2026-10-13): written from the repository and GitHub state. Nothing below
 
 Pipeline that goes live: Google Places discovery -> built-in website fetch -> evidence-based research -> Airtable (review fields) -> Airtable AI assessment -> sender (`Gullkornet Daily Outreach`) with all gates. Operating rules are unchanged (`docs/AUTONOMOUS-AI-OUTREACH.md`): sender `hello@cideamarketing.com`, weekdays 09:00-15:00 Europe/Oslo, >= 5 min apart, 1 per run, 12/hour, hard cap 100 per Oslo day (window allows 72; target 50 when the qualified queue supports it), one first message per company, no automatic follow-ups, DNC / duplicate / reply / reservation / evidence / `STRATEGIC_ACCOUNT` gates stay.
 
+## Current status and order after PR #101 (supersedes the numbered list below where they differ)
+
+Done and verified: PR #100 merged (`2dd87ac`); `openoutreach` deployed from `main` with the send lock verified; reply-status checks passed (`replied:false`, `replied:true`, 401 on `/v1/leads`); Unified Lead Research run `38382730837` (research only) and run `38383510756` (one approved Airtable write of 10 rows; read-back: 10 unique keys, no Sent/Replied, DNC unticked, 1 `Draft Ready`, 2 `Needs Review`, 7 `No Public Email`).
+
+Remaining order, each step needing Khalil's approval:
+
+1. Merge PR #101 (after review).
+2. Airtable "Run test" on the single existing `Draft Ready` row, trigger not yet published (`docs/AIRTABLE-AI-ASSESSMENT.md`).
+3. Publish AI Assessment with the "matches conditions" trigger; confirm it fires on one newly created test row.
+4. Scheduled pipeline, research only: set `GULLKORNET_ENABLE_SCHEDULED_PIPELINE=true` (leave `GULLKORNET_SCHEDULED_AIRTABLE_SYNC` unset) and read the aggregate summaries for several days.
+5. Scheduled pipeline with Airtable sync: set `GULLKORNET_SCHEDULED_AIRTABLE_SYNC=true`.
+6. `npm run send:preview` locally. The sender itself cannot be dry-run without sending (it exits at the kill switch by design), so the preview, which runs the same selection and gates, is the dry run; also confirm Daily Outreach logs "kill switch is off".
+7. Separate go-live approval: `GULLKORNET_ENABLE_LIVE_SEND=true`.
+
+Not documented yet: 50 qualified first e-mails per day. The only sample gave 1 `Draft Ready` of 10 candidates; reaching 50/day at that yield needs about 500 candidates per day against a 100 per run cap. Measure the yield in step 4 and 5 before relying on the target. Limits are never lowered to reach it.
+
 ## Order of actions
 
 1. **YOU: merge PR #100** (it contains #98 and #99; they add nothing of their own and can be closed afterwards). CI on `main` must go green.
