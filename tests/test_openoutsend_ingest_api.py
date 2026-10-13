@@ -339,3 +339,60 @@ class ReplyStatusEndpointTests(unittest.TestCase):
                 self.request_status({"email": "michael@example.no"})
             self.assertEqual(error.exception.code, 503)
             lookup.assert_not_called()
+
+
+# ── Locks on OpenOutSend's own send path (bypasses Gullkornet's gates) ──
+import openoutsend_resend  # noqa: E402
+import openoutsend_send_lock as lock  # noqa: E402
+from email.message import EmailMessage  # noqa: E402
+
+UPSTREAM_SNIPPET = '''import argparse
+import sys
+
+
+def _check(args): return 0
+def _send(args): raise AssertionError("upstream send must never run")
+def _ingest(args): return 0
+
+
+def dispatch(args):
+    return {"check": _check, "send": _send}.get(args.command, _ingest)(args)
+'''
+
+
+class SendLockTest(unittest.TestCase):
+    def _load(self, source: str) -> dict:
+        namespace: dict = {}
+        exec(compile(source, "cold_outreach/__main__.py", "exec"), namespace)
+        return namespace
+
+    def test_locked_send_refuses_without_running_upstream_send(self):
+        module = self._load(lock.lock_source(UPSTREAM_SNIPPET))
+        args = type("Args", (), {"command": "send"})()
+        with patch("sys.stderr") as stderr:
+            self.assertEqual(module["dispatch"](args), lock.EXIT_CODE)
+        self.assertIn("disabled in the Gullkornet image", "".join(c.args[0] for c in stderr.write.call_args_list))
+
+    def test_ingest_and_check_still_dispatch_normally(self):
+        module = self._load(lock.lock_source(UPSTREAM_SNIPPET))
+        for command in (None, "check"):
+            self.assertEqual(module["dispatch"](type("Args", (), {"command": command})()), 0)
+
+    def test_lock_is_idempotent_and_fails_loudly_if_upstream_changes(self):
+        locked = lock.lock_source(UPSTREAM_SNIPPET)
+        self.assertEqual(lock.lock_source(locked), locked)
+        with self.assertRaises(SystemExit):
+            lock.lock_source(UPSTREAM_SNIPPET.replace('"send": _send', '"send": _send_v2'))
+
+    def test_resend_delivery_is_closed_unless_explicitly_enabled(self):
+        message = EmailMessage()
+        message["From"] = "jelassi@cideamarketing.com"
+        message["To"] = "post@example.no"
+        message["Subject"] = "Test"
+        message.set_content("Hei")
+        with patch.dict(os.environ, {}, clear=False), \
+                patch.object(openoutsend_resend, "_request") as request:
+            os.environ.pop(openoutsend_resend.DELIVERY_ENABLED_ENV, None)
+            with self.assertRaisesRegex(openoutsend_resend.ResendTransportError, "delivery is disabled"):
+                openoutsend_resend.deliver(message)
+            request.assert_not_called()

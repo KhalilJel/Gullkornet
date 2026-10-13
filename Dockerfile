@@ -18,6 +18,15 @@ RUN python -c "from pathlib import Path; p=Path('/usr/local/lib/python3.13/site-
  && OUTSEND_MAIL_TRANSPORT=smtp python -c "from cold_outreach.emails.smtp import verify_auth; print('SMTP_PATH=ok')" \
  && python -c "from cold_outreach.emails.sender import send_email; print('SENDER_PATCH=ok')"
 
+# Disable `outsend send`: it bypasses Gullkornet's kill switch, Airtable approval and suppression.
+# The lock asserts the upstream dispatch line, so an OpenOutSend upgrade fails the build instead of unlocking.
+# Kept in /app so the in-image unit tests below can import it.
+COPY openoutsend_send_lock.py /app/openoutsend_send_lock.py
+RUN python /app/openoutsend_send_lock.py /usr/local/lib/python3.13/site-packages/cold_outreach/__main__.py \
+ && OUTSEND_HOME=/tmp/send-lock-check sh -c 'outsend send; test $? -eq 3' \
+ && rm -rf /tmp/send-lock-check \
+ && echo "OUTSEND_SEND_LOCK=verified"
+
 COPY openoutsend_ingest_api.py /app/openoutsend_ingest_api.py
 COPY tests/test_openoutsend_ingest_api.py /app/tests/test_openoutsend_ingest_api.py
 
