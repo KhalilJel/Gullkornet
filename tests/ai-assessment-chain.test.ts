@@ -103,3 +103,51 @@ test("the replacement AI prompt encodes the evidence source rule, neutral-observ
   assert.match(prompt, /Public-site evidence: \{Personalization Evidence\}/);
   assert.match(prompt, /Research notes \(context only, never evidence\): \{Research Notes\}/);
 });
+
+// ---- Evidence URL: the cited page must be the page the quote was read from ----
+
+const HOMEPAGE_HTML = `<html><head><title>Antoniette Frisør - Antoniette</title></head><body><h1>Antoniette frisør</h1><p>${SERVICE_CUE}. Velkommen innom.</p></body></html>`;
+const CONTACT_HTML = "<html><head><title>Kontakt</title></head><body><h1>Kontakt oss</h1><p>Send e-post til post@antoniette.no eller ring oss.</p></body></html>";
+const PAGES: Record<string, string> = {
+  "http://www.antoniette.no/": HOMEPAGE_HTML,
+  "https://www.antoniette.no/kontakt/": CONTACT_HTML
+};
+
+/** Test-only check mirroring a human reviewer: does the cited page actually contain the quote? */
+function quoteIsOnCitedPage(evidence: string, evidenceUrl: string): boolean {
+  const html = PAGES[evidenceUrl];
+  if (!html) return false;
+  const quote = evidence.replace(/^Tjenestetekst:\s*/, "");
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").includes(quote);
+}
+
+test("the service sentence is extracted from the homepage and is absent from the contact page", async () => {
+  const { extractEvidence } = await import("../src/integrations/contact-research.js");
+  assert.equal(extractEvidence(HOMEPAGE_HTML).serviceEvidence?.includes(SERVICE_CUE), true);
+  assert.equal(extractEvidence(CONTACT_HTML).serviceEvidence, undefined);
+});
+
+test("catches the observed error: a homepage quote cited with the contact URL is not on that page", () => {
+  const quote = `Tjenestetekst: ${SERVICE_CUE}`;
+  assert.equal(quoteIsOnCitedPage(quote, "https://www.antoniette.no/kontakt/"), false); // what the model returned
+  assert.equal(quoteIsOnCitedPage(quote, "http://www.antoniette.no/"), true); // what the Website URL gives
+});
+
+test("the sync stores the homepage as Website and the contact page as Contact Source URL, so the two are distinguishable", async () => {
+  const fields = await writtenFields();
+  assert.equal(fields["Website"], "http://www.antoniette.no/");
+  assert.equal(fields["Contact Source URL"], "https://www.antoniette.no/kontakt/");
+  assert.ok(quoteIsOnCitedPage(`Tjenestetekst: ${SERVICE_CUE}`, String(fields["Website"])));
+});
+
+test("the prompt makes evidenceUrl the Website URL and forbids Contact Source URL by domain alone", async () => {
+  const prompt = await readFile(new URL("../docs/airtable-ai-assessment-prompt.txt", import.meta.url), "utf8");
+  assert.match(prompt, /use the Website URL exactly as supplied in the "Website" field/);
+  assert.match(prompt, /Never use the Contact Source URL as evidenceUrl just because it is on the same domain/);
+  assert.doesNotMatch(prompt, /the contact source URL or the website/);
+  // Existing requirements are kept.
+  assert.match(prompt, /copied character for character/);
+  assert.match(prompt, /can never be the sole basis for APPROVE/);
+  assert.match(prompt, /«svar nei takk»/);
+  assert.match(prompt, /confidence is below 0\.90, use NEEDS_REVIEW/);
+});
