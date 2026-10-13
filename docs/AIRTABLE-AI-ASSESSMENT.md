@@ -44,6 +44,8 @@ Use **"When a record matches conditions"** instead of "When record updated", wit
 
 Per Airtable's documentation this fires when a record *enters* the matching state, including a record that is **created** matching (the research sync does exactly that); confirm it once with a single new test row before relying on it, and again when a later research refresh resets the AI fields. It does not fire for `Needs Review` or `No Public Email` rows, so the personal Gmail address and the domain-mismatch address (both `Needs Review`) are never assessed or drafted. Actions stay as today: write only the `AI *` fields; never write `Lead Status`, `Verified Observation` or `Do Not Contact`, and never send. Keep the prompt instruction that anything uncertain returns `NEEDS_REVIEW`; the sender does not rely on it.
 
+Since pilot run `38409346860` (where `Bowie AS` with a named address became `Draft Ready`), the sync only sets `Draft Ready` when the address passes the sender's own `isSharedBusinessInbox` check; a named or personal address becomes `Needs Review` and is therefore never assessed. Rows already in Airtable keep their status until a later sync refreshes them.
+
 ## Safe one-time assessment of the existing rows
 
 Records that already match when an automation is published are not picked up by a "matches conditions" trigger. Only 1 of the 10 rows is `Draft Ready`, and only `Draft Ready` rows are worth assessing.
