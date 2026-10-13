@@ -437,6 +437,30 @@ test("a protected legacy row without a Duplicate Key only gets the key filled in
   assert.equal(patched[0].fields.Website, undefined);
 });
 
+test("a protected row without First Seen does not get one from a later research run", async () => {
+  const { "First Seen": _omitted, ...withoutFirstSeen } = HISTORY;
+  for (const status of PROTECTED_STATUSES) {
+    const existing = [{ id: "recF", fields: { ...withoutFirstSeen, "Duplicate Key": "original.no", "Lead Status": status } }];
+    const { patched } = await syncCapture([refreshed()], existing);
+    const fields = patched[0].fields;
+    assert.equal("First Seen" in fields, false, status);
+    for (const name of Object.keys(fields)) assert.ok(ALLOWED_ON_PROTECTED.has(name), `${status}: wrote ${name}`);
+    assert.equal(fields["Lead Status"], status);
+  }
+  // DNC flag on a not-yet-contacted row: same rule.
+  const dnc = [{ id: "recF2", fields: { ...withoutFirstSeen, "Duplicate Key": "original.no", "Lead Status": "Draft Ready", "Do Not Contact": true } }];
+  const fields = (await syncCapture([refreshed()], dnc)).patched[0].fields;
+  assert.deepEqual(Object.keys(fields).sort(), ["Do Not Contact", "Last Seen", "Lead Status"]);
+});
+
+test("new rows and unprotected rows without First Seen still get it", async () => {
+  const created = (await syncCapture([refreshed()], [])).posted[0];
+  assert.equal(created["First Seen"], "2026-10-09T18:00:00.000Z");
+  const { "First Seen": _omitted, ...withoutFirstSeen } = HISTORY;
+  const existing = [{ id: "recU2", fields: { ...withoutFirstSeen, "Duplicate Key": "original.no", "Lead Status": "Needs Review" } }];
+  assert.equal((await syncCapture([refreshed()], existing)).patched[0].fields["First Seen"], "2026-10-09T18:00:00.000Z");
+});
+
 test("unprotected rows are refreshed exactly as before", async () => {
   const existing = [{ id: "recU", fields: { ...HISTORY, "Duplicate Key": "original.no", "Lead Status": "Needs Review" } }];
   const { patched } = await syncCapture([refreshed()], existing);

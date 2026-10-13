@@ -145,7 +145,8 @@ function fieldsFor(
 
   // A sent, replied, terminal, suppressed or DNC row keeps the identity it was contacted under:
   // new research never rewrites its company, website, city, industry or duplicate key
-  // (a missing key is only filled in, so later syncs keep matching it).
+  // (a missing key is only filled in, so later syncs keep matching it), and a later research
+  // run never records itself as the row's First Seen.
   if (isProtectedRecord(existing)) {
     if (!(typeof existing?.fields["Duplicate Key"] === "string" && existing.fields["Duplicate Key"].trim())) fields["Duplicate Key"] = key;
   } else {
@@ -154,8 +155,8 @@ function fieldsFor(
     put("Website", item.websiteUrl);
     put("City", item.city);
     put("Industry", item.industry);
+    if (!existing?.fields["First Seen"]) fields["First Seen"] = item.researchedAt || now().toISOString();
   }
-  if (!existing?.fields["First Seen"]) fields["First Seen"] = item.researchedAt || now().toISOString();
 
   // Never overwrite email/draft/research history for sent, replied, approved,
   // follow-up, terminal, suppressed, or do-not-contact records.
