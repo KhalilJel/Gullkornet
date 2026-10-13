@@ -67,6 +67,9 @@ jobs:
           # Optional. Without the secret, Firecrawl is skipped and the built-in fetch is used alone.
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           FIRECRAWL_MAX_PER_RUN: "10"
+          # Optional. Browser escalation is used only when BOTH are set; otherwise it is reported as OFF.
+          AGENT_GATEWAY_URL: ${{ vars.AGENT_GATEWAY_URL }}
+          AGENT_GATEWAY_TOKEN: ${{ secrets.AGENT_GATEWAY_TOKEN }}
         run: |
           set -euo pipefail
           umask 077

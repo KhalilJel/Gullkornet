@@ -1,43 +1,10 @@
 import { readFile } from "node:fs/promises";
-import { researchContactsAndDrafts, type ResearchDeps } from "../integrations/contact-research.js";
-import { scrapePublicWebsite } from "../integrations/firecrawl.js";
-import { createGatewayExecutor, parseGatewayBaseUrl } from "../integrations/agent-gateway-client.js";
-import { routerPolicyFromEnv } from "../integrations/research-router.js";
+import { researchContactsAndDrafts } from "../integrations/contact-research.js";
+import { buildResearchDeps } from "../integrations/research-deps.js";
 import type { GoogleCandidate, WebsiteAudit } from "../integrations/website-audit.js";
 
 const candidatesPath = process.argv[2] ?? "data/google-candidates.json";
 const auditPath = process.argv[3] ?? "data/website-audit.json";
-
-// Firecrawl is called directly. JEV and Browser Use live in a private container and are only
-// reachable through the agent gateway when AGENT_GATEWAY_URL and AGENT_GATEWAY_TOKEN are set;
-// otherwise the router keeps recording escalation_needed.
-function buildResearchDeps(): ResearchDeps {
-  const policy = routerPolicyFromEnv();
-  const hasFirecrawl = Boolean(process.env.FIRECRAWL_API_KEY?.trim());
-  const gatewayUrl = parseGatewayBaseUrl(process.env.AGENT_GATEWAY_URL);
-  const gatewayToken = process.env.AGENT_GATEWAY_TOKEN?.trim();
-  const gateway = gatewayUrl && gatewayToken ? { baseUrl: gatewayUrl, token: gatewayToken } : undefined;
-  return {
-    policy,
-    state: { firecrawlUsed: 0, browserUsed: 0 },
-    providers: {
-      ...(hasFirecrawl
-        ? {
-            firecrawl: async (url: string) => {
-              const page = await scrapePublicWebsite(url);
-              return { url: page.sourceUrl ?? page.url, title: page.title, description: page.description, markdown: page.markdown };
-            }
-          }
-        : {}),
-      ...(gateway
-        ? {
-            jev: createGatewayExecutor({ ...gateway, engine: "jev-ultrafast" }),
-            browserUse: createGatewayExecutor({ ...gateway, engine: "browser-use" })
-          }
-        : {})
-    }
-  };
-}
 
 async function readJson(path: string): Promise<unknown> {
   return JSON.parse(await readFile(path, "utf8")) as unknown;
@@ -62,7 +29,9 @@ try {
   });
 
   const audits = auditData as WebsiteAudit[];
-  const results = await researchContactsAndDrafts(candidates, audits, 3, buildResearchDeps());
+  const { deps, notices } = buildResearchDeps();
+  for (const notice of notices) console.error(`[research] ${notice}`);
+  const results = await researchContactsAndDrafts(candidates, audits, 3, deps);
   console.log(JSON.stringify(results, null, 2));
   const withEmail = results.filter((item) => item.emails.length > 0).length;
   const withDraft = results.filter((item) => Boolean(item.draftBody && item.subject)).length;

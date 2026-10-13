@@ -22,7 +22,7 @@ jobs:
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           FIRECRAWL_MAX_PER_RUN: "3"
-        run: npx tsx src/cli/agent-smoke.ts | tee smoke-summary.txt
+        run: npm run --silent smoke:agents | tee smoke-summary.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:

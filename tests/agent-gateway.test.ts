@@ -125,3 +125,20 @@ test("gateway refuses a final URL that is not public", async () => {
     assert.deepEqual([result.status, result.evidence.length], ["blocked", 0]);
   });
 });
+
+test("gateway drops evidence when the host stops being public after the Hermes fetch (rebinding)", async () => {
+  let checks = 0;
+  const server = createGatewayServer({
+    token: TOKEN, hermesUrl: "http://hermes-agent.railway.internal:8642", hermesKey: "k".repeat(16),
+    isSafeUrl: async (url) => { checks += 1; return !(url.startsWith("https://example.no") && checks >= 3); },
+    fetchImpl: hermesOk, log: () => undefined
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const base = new URL(`http://127.0.0.1:${(server.address() as AddressInfo).port}`);
+    const result = await createGatewayExecutor({ baseUrl: base, token: TOKEN, engine: "jev-ultrafast" })({ url: "https://example.no/", goal: "" });
+    assert.deepEqual([result.status, result.failureReason, result.evidence.length], ["blocked", "DNS_REBINDING_SUSPECTED", 0]);
+  } finally {
+    server.close();
+  }
+});

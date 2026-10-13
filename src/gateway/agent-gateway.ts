@@ -142,9 +142,18 @@ export function createGatewayServer(config: GatewayConfig): Server {
     } catch {
       return send(res, 200, { status: "failed", evidence: [], failureReason: "HERMES_BAD_OUTPUT" });
     }
-    // The page Hermes ended on must itself be a public URL (redirects must not lead inward).
-    if (result.status === "success" && !(await isSafeUrl(result.finalUrl!))) {
-      return send(res, 200, { status: "blocked", evidence: [], failureReason: "FINAL_URL_NOT_PUBLIC" });
+    if (result.status === "success") {
+      // The page Hermes ended on must itself be a public URL (redirects must not lead inward).
+      if (!(await isSafeUrl(result.finalUrl!))) {
+        return send(res, 200, { status: "blocked", evidence: [], failureReason: "FINAL_URL_NOT_PUBLIC" });
+      }
+      // Rebinding detection: the host may have resolved to a public address at the first check
+      // and to an internal one when Hermes fetched. Resolve again after the fetch and drop the
+      // evidence if either URL is no longer public. This does NOT stop the fetch itself; that
+      // needs egress filtering in the Hermes container (docs/AGENT-GATEWAY.md).
+      if (!(await isSafeUrl(target))) {
+        return send(res, 200, { status: "blocked", evidence: [], failureReason: "DNS_REBINDING_SUSPECTED" });
+      }
     }
     return send(res, 200, result);
   }

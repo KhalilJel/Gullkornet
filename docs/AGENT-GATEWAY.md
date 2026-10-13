@@ -1,6 +1,6 @@
 # Agent gateway: making Hermes callable (proposal + tested code)
 
-Status (2026-10-13): **code is merged-ready on its branch; nothing is deployed, no Railway variable is changed, Hermes API is still off.** Nothing here is active in production.
+Status (2026-10-13): **implemented and unit-tested with mocked Hermes; not deployed, not verified against a live Hermes.** No Railway variable is changed and the Hermes API is still off. Until the verification sequence below passes, no browser agent is "active".
 
 ## Problem
 
@@ -43,7 +43,22 @@ Access limits: the gateway holds no Firecrawl, Airtable, Resend or OpenOutSend c
 2. From a Railway shell on a *different* service: `curl -H "Authorization: Bearer $HERMES_API_KEY" http://hermes-agent.railway.internal:8642/v1/models` returns 200. Without the header: 401. The same URL from your laptop must fail.
 3. Deploy agent-gateway; `GET /health` -> `{"ok":true}`; `GET /health/hermes` without token -> 401, with token -> `hermesReachable:true`.
 4. `POST /v1/browse` with a fixed public page: expect `status:"success"` with evidence. Check that a private-IP URL returns `blocked`.
+4b. Rebinding test: point a rebinding test domain (first answer public, then 127.0.0.1/169.254.169.254) at `/v1/browse`; expect `blocked`, and check Hermes could not read an internal service.
 5. Only then add the GitHub secret/variable. Whether Hermes actually picks JEV vs Browser Use from the `engine` hint is **unverified**; step 4 must show which tool ran in Hermes' logs.
+
+## Security limits implemented (all covered by `tests/agent-gateway.test.ts`)
+
+- Bearer token (>= 24 chars, constant-time compare); `/health` reveals only liveness.
+- Only `{url, engine}` is accepted; fixed read-only prompt; the URL is normalised before it enters the prompt.
+- Public-URL check before the call, and again on `finalUrl` and the original URL after the call.
+- Result schema validation, evidence capped at 20 x 4000 chars; max 2 concurrent browse calls (429), body <= 2 KB, header/request timeouts, Hermes call timeout 80 s.
+- Logs: method, path, status, duration, engine, host only.
+- Research flow (`src/integrations/research-deps.ts`): the gateway is wired only when `AGENT_GATEWAY_URL` (https) **and** `AGENT_GATEWAY_TOKEN` are both set. Otherwise the run prints `[research] Browser escalation: OFF (...)` and the router records `escalation_needed`. Qualification, DNC, duplicate, reply, reservation, evidence and send limits are untouched: evidence from the gateway goes through the same evidence model.
+
+## DNS rebinding: what is and is not solved
+
+- **Detected, not prevented:** the gateway re-resolves the host after Hermes has fetched and discards the evidence (`DNS_REBINDING_SUSPECTED`) if it is no longer public.
+- **Not solved in this repository:** the fetch itself happens inside the Hermes container. Preventing a rebound fetch needs egress filtering at that network layer (block private, link-local and `*.railway.internal` ranges from Hermes' browser/terminal tools, or run those tools through a pinned-IP proxy). That requires Railway/Hermes configuration and cannot be implemented or verified from here. Verification step 4b tests it.
 
 ## Open risks
 

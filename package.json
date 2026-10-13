@@ -17,7 +17,9 @@
     "send:email": "tsx src/cli/send-email.ts",
     "sync:airtable": "tsx src/cli/sync-airtable-leads.ts",
     "send:daily": "tsx src/cli/send-daily-outreach.ts",
-    "sales-engine": "tsx src/cli/run-sales-engine.ts"
+    "sales-engine": "tsx src/cli/run-sales-engine.ts",
+    "smoke:agents": "tsx src/cli/agent-smoke.ts",
+    "gateway:serve": "tsx src/cli/agent-gateway-server.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
