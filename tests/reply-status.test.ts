@@ -4,13 +4,13 @@ import { assertRecipientHasNotReplied } from "../src/integrations/reply-status.j
 
 const env = {
   OPENOUTREACH_REPLY_STATUS_URL: "https://openoutreach-production-ab8b.up.railway.app/v1/reply-status",
-  OPENOUTREACH_INGEST_TOKEN: "test-token"
+  OPENOUTREACH_REPLY_STATUS_TOKEN: "test-token"
 };
 
 test("reply-status check fails closed when URL or token is missing", async () => {
   await assert.rejects(assertRecipientHasNotReplied("pilot@example.no", {}), /URL and token are required/);
   await assert.rejects(
-    assertRecipientHasNotReplied("pilot@example.no", { ...env, OPENOUTREACH_INGEST_TOKEN: "" }),
+    assertRecipientHasNotReplied("pilot@example.no", { ...env, OPENOUTREACH_REPLY_STATUS_TOKEN: "" }),
     /URL and token are required/
   );
 });
@@ -73,6 +73,24 @@ test("reply-status provider errors and malformed responses block sending", async
       send_triggered: false
     }), { status: 200 })) as typeof fetch;
     await assert.rejects(assertRecipientHasNotReplied("pilot@example.no", env), /invalid reply-status response/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("reply-status never falls back to the ingest token", async () => {
+  const originalFetch = globalThis.fetch;
+  let called = false;
+  globalThis.fetch = (async () => { called = true; return new Response("{}"); }) as typeof fetch;
+  try {
+    await assert.rejects(
+      assertRecipientHasNotReplied("pilot@example.no", {
+        OPENOUTREACH_REPLY_STATUS_URL: env.OPENOUTREACH_REPLY_STATUS_URL,
+        OPENOUTREACH_INGEST_TOKEN: "ingest-token-that-must-not-be-used"
+      }),
+      /URL and token are required/
+    );
+    assert.equal(called, false);
   } finally {
     globalThis.fetch = originalFetch;
   }

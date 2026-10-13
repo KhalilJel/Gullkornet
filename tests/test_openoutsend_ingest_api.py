@@ -396,3 +396,113 @@ class SendLockTest(unittest.TestCase):
             with self.assertRaisesRegex(openoutsend_resend.ResendTransportError, "delivery is disabled"):
                 openoutsend_resend.deliver(message)
             request.assert_not_called()
+
+
+READ_ONLY_TOKEN = "reply-status-read-only-token-0123456789abcdef"
+INGEST_TOKEN = "ingest-token-0123456789abcdefghijklmnopqrstuv"
+
+
+class ReadOnlyReplyStatusTokenTests(unittest.TestCase):
+    """The reply-status token may check replies and nothing else."""
+
+    def setUp(self):
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), api.IngestHandler)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        self.base_url = f"http://127.0.0.1:{self.server.server_port}"
+        self.env = patch.dict(os.environ, {
+            api.TOKEN_ENV: INGEST_TOKEN,
+            api.REPLY_STATUS_TOKEN_ENV: READ_ONLY_TOKEN,
+            api.REPLY_MONITOR_ENABLED_ENV: "true",
+            api.REPLY_MONITOR_MAILBOX_ENV: "jelassi@cideamarketing.com",
+            "OUTSEND_MAILBOX_ADDRESS": "jelassi@cideamarketing.com",
+        })
+        self.env.start()
+        now = datetime.now(timezone.utc).isoformat()
+        api._update_reply_monitor_state(
+            status="running", last_check_at=now, last_success_at=now,
+            last_counts={"mirrored": 0, "classified": 0, "projected": 0}, last_error_code=None,
+        )
+
+    def tearDown(self):
+        self.env.stop()
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=2)
+
+    def post(self, path, body, content_type, authorization):
+        headers = {"Content-Type": content_type}
+        if authorization is not None:
+            headers["Authorization"] = authorization
+        return urlopen(Request(self.base_url + path, data=body, headers=headers, method="POST"), timeout=3)
+
+    def reply_status(self, authorization):
+        return self.post(api.REPLY_STATUS_PATH, b'{"email":"michael@example.no"}', "application/json", authorization)
+
+    def ingest(self, authorization):
+        return self.post(api.INGEST_PATH, b'{"lead_id":"lead-1","email":"hello@example.no"}\n',
+                         "application/x-ndjson", authorization)
+
+    def test_read_only_token_works_for_reply_status(self):
+        with patch.object(api, "recipient_has_replied", return_value=False) as lookup:
+            with self.reply_status("Bearer " + READ_ONLY_TOKEN) as response:
+                payload = json.loads(response.read())
+        self.assertEqual(payload, {"replied": False, "mode": "read_only_reply_check", "send_triggered": False})
+        lookup.assert_called_once()
+
+    def test_read_only_token_cannot_ingest(self):
+        with patch.object(api.subprocess, "run") as run:
+            with self.assertRaises(HTTPError) as error:
+                self.ingest("Bearer " + READ_ONLY_TOKEN)
+        self.assertEqual(error.exception.code, 401)
+        run.assert_not_called()
+
+    def test_ingest_authentication_is_unchanged(self):
+        completed = type("Completed", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+        with patch.object(api.subprocess, "run", return_value=completed) as run:
+            with self.ingest("Bearer " + INGEST_TOKEN) as response:
+                payload = json.loads(response.read())
+        self.assertEqual(payload, {"accepted": 1, "mode": "ingest_only", "send_triggered": False})
+        run.assert_called_once()
+
+    def test_ingest_token_still_works_for_reply_status_for_existing_callers(self):
+        with patch.object(api, "recipient_has_replied", return_value=True):
+            with self.reply_status("Bearer " + INGEST_TOKEN) as response:
+                self.assertEqual(json.loads(response.read())["replied"], True)
+
+    def test_wrong_missing_and_malformed_tokens_are_rejected_everywhere(self):
+        for authorization in ("Bearer wrong", "Bearer ", "Bearer", READ_ONLY_TOKEN, "Basic " + READ_ONLY_TOKEN, "", None):
+            for call in (self.reply_status, self.ingest):
+                with patch.object(api, "recipient_has_replied") as lookup, patch.object(api.subprocess, "run") as run:
+                    with self.assertRaises(HTTPError) as error:
+                        call(authorization)
+                    self.assertEqual(error.exception.code, 401, (call.__name__, authorization))
+                    lookup.assert_not_called()
+                    run.assert_not_called()
+
+    def test_reply_status_works_with_only_the_read_only_token_but_ingest_is_not_configured(self):
+        with patch.dict(os.environ, {api.TOKEN_ENV: ""}):
+            with patch.object(api, "recipient_has_replied", return_value=False):
+                with self.reply_status("Bearer " + READ_ONLY_TOKEN) as response:
+                    self.assertEqual(json.loads(response.read())["replied"], False)
+            with self.assertRaises(HTTPError) as error:
+                self.ingest("Bearer " + READ_ONLY_TOKEN)
+            self.assertEqual(error.exception.code, 503)
+
+    def test_reply_status_is_unavailable_when_no_token_is_configured(self):
+        with patch.dict(os.environ, {api.TOKEN_ENV: "", api.REPLY_STATUS_TOKEN_ENV: ""}):
+            with self.assertRaises(HTTPError) as error:
+                self.reply_status("Bearer " + READ_ONLY_TOKEN)
+            self.assertEqual(error.exception.code, 503)
+
+    def test_startup_validation_rejects_weak_or_shared_reply_status_tokens(self):
+        with patch.dict(os.environ, {api.TOKEN_ENV: INGEST_TOKEN, api.REPLY_STATUS_TOKEN_ENV: INGEST_TOKEN}):
+            with self.assertRaises(SystemExit):
+                api.validate_reply_status_token()
+        with patch.dict(os.environ, {api.TOKEN_ENV: INGEST_TOKEN, api.REPLY_STATUS_TOKEN_ENV: "short"}):
+            with self.assertRaises(SystemExit):
+                api.validate_reply_status_token()
+        with patch.dict(os.environ, {api.TOKEN_ENV: INGEST_TOKEN, api.REPLY_STATUS_TOKEN_ENV: READ_ONLY_TOKEN}):
+            api.validate_reply_status_token()
+        with patch.dict(os.environ, {api.TOKEN_ENV: INGEST_TOKEN, api.REPLY_STATUS_TOKEN_ENV: ""}):
+            api.validate_reply_status_token()

@@ -91,3 +91,13 @@ test("no workflow uploads raw prospect contact data or drafts as an artifact", a
     }
   }
 });
+
+test("no workflow receives the OpenOutSend ingest token; reply checks use the read-only token", async () => {
+  const dir = new URL("../.github/workflows/", import.meta.url);
+  for (const name of (await readdir(dir)).filter((file) => file.endsWith(".yml"))) {
+    const text = (await readFile(new URL(name, dir), "utf8")).replace(/\r\n/g, "\n");
+    assert.doesNotMatch(text, /secrets\.OPENOUTREACH_INGEST_TOKEN/, `${name} must not use the ingest token`);
+  }
+  const send = (await readFile(new URL("daily-outreach.yml", dir), "utf8")).replace(/\r\n/g, "\n");
+  assert.match(send, /OPENOUTREACH_REPLY_STATUS_TOKEN: \$\{\{ secrets\.OPENOUTREACH_REPLY_STATUS_TOKEN \}\}/);
+});

@@ -42,7 +42,6 @@ jobs:
       GULLKORNET_AIRTABLE_WRITES: ${{ github.event_name == 'pull_request' && 'disabled' || 'enabled' }}
       AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
       OPENOUTREACH_INGEST_URL: https://openoutreach-production-ab8b.up.railway.app
-      OPENOUTREACH_INGEST_TOKEN: ${{ secrets.OPENOUTREACH_INGEST_TOKEN }}
 
     steps:
       - name: Check out repository

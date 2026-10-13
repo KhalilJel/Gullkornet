@@ -21,6 +21,10 @@ MAX_RECORDS = 100
 INGEST_PATH = "/v1/leads"
 REPLY_STATUS_PATH = "/v1/reply-status"
 TOKEN_ENV = "OPENOUTREACH_INGEST_TOKEN"
+# Read-only credential for POST /v1/reply-status. It can never authorize ingest, so GitHub Actions
+# can hold it without holding the ingest token.
+REPLY_STATUS_TOKEN_ENV = "OPENOUTREACH_REPLY_STATUS_TOKEN"
+MIN_REPLY_STATUS_TOKEN_LENGTH = 32
 REPLY_MONITOR_ENABLED_ENV = "OPENOUTREACH_REPLY_MONITOR_ENABLED"
 REPLY_MONITOR_MAILBOX_ENV = "GULLKORNET_REPLY_MONITOR_MAILBOX"
 REPLY_MONITOR_INTERVAL_ENV = "OPENOUTREACH_REPLY_MONITOR_INTERVAL_SECONDS"
@@ -89,6 +93,23 @@ def authorized(header: str | None, token: str | None) -> bool:
     supplied = header[len(prefix):].strip()
     return bool(supplied) and hmac.compare_digest(supplied, token.strip())
 
+
+
+def reply_status_authorized(header: str | None) -> bool:
+    """Reply-status accepts the read-only token, and still the ingest token for existing callers."""
+    return (authorized(header, os.environ.get(TOKEN_ENV))
+            or authorized(header, os.environ.get(REPLY_STATUS_TOKEN_ENV)))
+
+
+def validate_reply_status_token() -> None:
+    """Refuse to start with a reply-status token that is weak or equal to the ingest token."""
+    reply_token = os.environ.get(REPLY_STATUS_TOKEN_ENV, "").strip()
+    if not reply_token:
+        return
+    if len(reply_token) < MIN_REPLY_STATUS_TOKEN_LENGTH:
+        raise SystemExit(f"{REPLY_STATUS_TOKEN_ENV} must be at least {MIN_REPLY_STATUS_TOKEN_LENGTH} characters")
+    if hmac.compare_digest(reply_token, os.environ.get(TOKEN_ENV, "").strip()):
+        raise SystemExit(f"{REPLY_STATUS_TOKEN_ENV} must differ from {TOKEN_ENV}")
 
 
 def reply_monitor_state() -> dict[str, Any]:
@@ -365,13 +386,22 @@ class IngestHandler(BaseHTTPRequestHandler):
             self._respond(404, {"error": "NOT_FOUND"})
             return
 
-        token = os.environ.get(TOKEN_ENV)
-        if not token:
-            self._respond(503, {"error": "INGEST_NOT_CONFIGURED"})
-            return
-        if not authorized(self.headers.get("Authorization"), token):
-            self._respond(401, {"error": "UNAUTHORIZED"})
-            return
+        if self.path == REPLY_STATUS_PATH:
+            if not (os.environ.get(TOKEN_ENV, "").strip() or os.environ.get(REPLY_STATUS_TOKEN_ENV, "").strip()):
+                self._respond(503, {"error": "INGEST_NOT_CONFIGURED"})
+                return
+            if not reply_status_authorized(self.headers.get("Authorization")):
+                self._respond(401, {"error": "UNAUTHORIZED"})
+                return
+        else:
+            # Ingest authentication is unchanged: only the ingest token is accepted.
+            token = os.environ.get(TOKEN_ENV)
+            if not token:
+                self._respond(503, {"error": "INGEST_NOT_CONFIGURED"})
+                return
+            if not authorized(self.headers.get("Authorization"), token):
+                self._respond(401, {"error": "UNAUTHORIZED"})
+                return
 
         content_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
         if self.path == REPLY_STATUS_PATH:
@@ -535,6 +565,8 @@ def run_startup_acceptance_test(base_url: str, token: str) -> None:
 def main() -> None:
     if not os.environ.get(TOKEN_ENV, "").strip():
         raise SystemExit(f"{TOKEN_ENV} must be configured; refusing to start an unauthenticated ingest API")
+
+    validate_reply_status_token()
 
     check = subprocess.run(["outsend", "check"], capture_output=True, text=True, timeout=45, check=False)
     if check.returncode != 0:

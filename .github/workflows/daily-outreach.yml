@@ -29,7 +29,7 @@ jobs:
       GULLKORNET_AIRTABLE_TABLE: ${{ vars.GULLKORNET_AIRTABLE_TABLE || 'Leads' }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       OPENOUTREACH_REPLY_STATUS_URL: ${{ vars.OPENOUTREACH_REPLY_STATUS_URL }}
-      OPENOUTREACH_INGEST_TOKEN: ${{ secrets.OPENOUTREACH_INGEST_TOKEN }}
+      OPENOUTREACH_REPLY_STATUS_TOKEN: ${{ secrets.OPENOUTREACH_REPLY_STATUS_TOKEN }}
       OUTREACH_FROM_EMAIL: "hello@cideamarketing.com"
     steps:
       - name: Check out repository
