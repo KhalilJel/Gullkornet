@@ -341,6 +341,58 @@ test("createOnlyDraftReady never skips updates: existing, DNC and protected rows
   assert.deepEqual(posted.map((f) => f.Company), ["Ready Co"]);
 });
 
+// ---- One address, one row (pilot run 38441671019: elafrisor.no and bitina.no shared an address) ----
+
+const shared = (company: string, site: string, email: string): ResearchRecord =>
+  item({ companyName: company, websiteUrl: `https://${site}/`, notes: [], emails: [{ email, sourceUrl: `https://${site}/kontakt` }] });
+
+test("no new row for an address an existing row on another domain already holds; that row is not written", async () => {
+  const existing = [{ id: "recBitina", fields: { "Duplicate Key": "bitina.no", Company: "Bitina Frisør", Website: "https://bitina.no/", "Lead Status": "Needs Review", Email: " POST@elafrisor.no " } }];
+  const { result, posted, patched } = await syncCapture([shared("Ela Frisør", "elafrisor.no", "post@elafrisor.no")], existing);
+  assert.equal(posted.length, 0);
+  assert.equal(patched.length, 0);
+  assert.equal(result.duplicateEmail, 1);
+  assert.equal(result.created, 0);
+});
+
+test("a protected older row with the same address is never overwritten or downgraded", async () => {
+  for (const fields of [
+    { "Lead Status": "Sent" }, { "Lead Status": "Replied" }, { "Lead Status": "Do Not Contact", "Do Not Contact": true }, { "Lead Status": "Suppressed" }
+  ]) {
+    const existing = [{ id: "recOld", fields: { "Duplicate Key": "gammel.no", Email: "post@ny.no", ...fields } }];
+    const { posted, patched, result } = await syncCapture([shared("Ny AS", "ny.no", "post@ny.no")], existing, true);
+    assert.equal(posted.length, 0, JSON.stringify(fields));
+    assert.equal(patched.length, 0, JSON.stringify(fields));
+    assert.equal(result.duplicateEmail, 1);
+  }
+});
+
+test("two new businesses with one address in the same run create only one row", async () => {
+  const { posted, result } = await syncCapture([shared("Bitina Frisør", "bitina.no", "post@elafrisor.no"), shared("Ela Frisør", "elafrisor.no", "post@elafrisor.no")], []);
+  assert.equal(posted.length, 1);
+  assert.equal(result.duplicateEmail, 1);
+});
+
+test("a refreshed row never takes an address another row holds, and is not upgraded to Draft Ready", async () => {
+  const existing = [
+    { id: "recA", fields: { "Duplicate Key": "a.no", Company: "A AS", "Lead Status": "Needs Review" } },
+    { id: "recB", fields: { "Duplicate Key": "b.no", Company: "B AS", "Lead Status": "Sent", Email: "post@b.no" } }
+  ];
+  const { patched, result } = await syncCapture([shared("A AS", "a.no", "post@b.no")], existing);
+  assert.deepEqual(patched.map((r) => r.id), ["recA"]);
+  assert.equal(patched[0].fields.Email, undefined);
+  assert.notEqual(patched[0].fields["Lead Status"], "Draft Ready");
+  assert.equal(result.duplicateEmail, 1);
+});
+
+test("different addresses are unaffected and a row refreshing its own address is updated as before", async () => {
+  const existing = [{ id: "recOwn", fields: { "Duplicate Key": "salong.no", Email: "post@salong.no", "Lead Status": "Draft Ready" } }];
+  const { posted, patched, result } = await syncCapture([item(ready("post@salong.no")), shared("Annen AS", "annen.no", "post@annen.no")], existing);
+  assert.equal(patched[0].fields.Email, "post@salong.no");
+  assert.deepEqual(posted.map((f) => f.Company), ["Annen AS"]);
+  assert.equal(result.duplicateEmail, 0);
+});
+
 test("matches legacy CRM rows without a Duplicate Key using the website domain", async () => {
   let postCount = 0;
   let patchCount = 0;

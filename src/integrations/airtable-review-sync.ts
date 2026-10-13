@@ -49,6 +49,8 @@ export type AirtableReviewSyncResult = {
   skipped: number;
   /** New businesses not written because createOnlyDraftReady was on and they were not Draft Ready. */
   notCreated: number;
+  /** Rows not created, or refreshed without taking the address, because another row already holds that email. */
+  duplicateEmail: number;
 };
 
 const API_ROOT = "https://api.airtable.com/v0";
@@ -322,12 +324,38 @@ export async function syncAirtableReviewRecords(
     }
   }
 
+  // The same address can appear under two website domains (e.g. a redirecting old domain,
+  // pilot run 38441671019). One address belongs to one row: a new row is not created for an
+  // address another row already holds, and a refreshed row never takes another row's address.
+  // The row that already holds the address is never written by this rule.
+  const emailOf = (item: ResearchRecord) => item.emails?.[0]?.email?.trim().toLowerCase() ?? "";
+  const emailOwner = new Map<string, AirtableRecord>();
+  for (const record of existingRecords) {
+    const email = typeof record.fields["Email"] === "string" ? record.fields["Email"].trim().toLowerCase() : "";
+    if (email && !emailOwner.has(email)) emailOwner.set(email, record);
+  }
+  const claimedByNewRows = new Set<string>();
+  let duplicateEmail = 0;
+
   const creates: Array<{ item: ResearchRecord; key: string }> = [];
   const updates: Array<{ item: ResearchRecord; key: string; existing: AirtableRecord }> = [];
   for (const [key, item] of unique) {
     const existing = existingByKey.get(key);
-    if (existing) updates.push({ item, key, existing });
-    else creates.push({ item, key });
+    const email = emailOf(item);
+    const owner = email ? emailOwner.get(email) : undefined;
+    if (existing) {
+      if (owner && owner.id !== existing.id) {
+        duplicateEmail += 1;
+        updates.push({ item: { ...item, emails: [] }, key, existing });
+      } else {
+        updates.push({ item, key, existing });
+      }
+    } else if (owner || (email && claimedByNewRows.has(email))) {
+      duplicateEmail += 1;
+    } else {
+      if (email) claimedByNewRows.add(email);
+      creates.push({ item, key });
+    }
   }
   const toCreate = options.createOnlyDraftReady ? creates.filter(({ item }) => getStatus(item) === "Draft Ready") : creates;
 
@@ -339,6 +367,7 @@ export async function syncAirtableReviewRecords(
     created,
     updated,
     skipped: research.length - unique.size,
-    notCreated: creates.length - toCreate.length
+    notCreated: creates.length - toCreate.length,
+    duplicateEmail
   };
 }

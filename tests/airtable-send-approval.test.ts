@@ -111,3 +111,10 @@ test("a strategic account is never approved for automatic sending", () => {
   const ordinary = "[GK-ROUTE:CideaLead] Regelsett cidea-routing-rules@1";
   assert.equal(assertAirtableRecipientApproved([{ ...approved, fields: { ...approved.fields, "Research Notes": ordinary } }], "post@salong.no", expected), approved.id);
 });
+
+test("sender fails closed when the same address sits on two rows under different website domains", () => {
+  // Pilot run 38441671019: a new row at elafrisor.no and an older row at bitina.no (redirects there) share one address.
+  const olderRow = { ...approved, id: "rec22222222222222", fields: { ...approved.fields, Website: "https://bitina.no/", "Lead Status": "Needs Review" } };
+  assert.throws(() => assertAirtableRecipientApproved([approved, olderRow], "post@salong.no", expected), /exactly one record/);
+  assert.match(approvalLookupFormula(" POST@salong.no "), /LOWER\(TRIM\(\{Email\}\)\) = "post@salong\.no"/);
+});
