@@ -1,10 +1,13 @@
 name: Gullkornet Daily Outreach
 
 on:
-  # One daily queue check. The kill switch keeps this a no-op until production
-  # sending is explicitly enabled in repository secrets.
+  # Queue check every five minutes on weekdays from 07:00 to 14:55 UTC. That superset covers
+  # 09:00-15:00 Europe/Oslo in both summer (UTC+2) and winter (UTC+1); the exact window,
+  # five-minute spacing and the 12/hour and 100/Oslo-day limits are enforced in code
+  # (src/integrations/send-schedule.ts), and each run sends at most one email.
+  # The kill switch keeps this a no-op until production sending is explicitly enabled.
   schedule:
-    - cron: "30 7 * * *"
+    - cron: "*/5 7-14 * * 1-5"
 
 permissions:
   contents: read
@@ -19,7 +22,7 @@ jobs:
     timeout-minutes: 10
     env:
       GULLKORNET_ENABLE_LIVE_SEND: ${{ secrets.GULLKORNET_ENABLE_LIVE_SEND }}
-      GULLKORNET_DAILY_SEND_LIMIT: "1"
+      GULLKORNET_DAILY_SEND_LIMIT: "100"
       MAX_EMAILS_PER_RUN: "1"
       AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
       GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}

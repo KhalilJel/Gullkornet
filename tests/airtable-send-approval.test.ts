@@ -50,7 +50,7 @@ test("matches the recipient regardless of case and surrounding whitespace", () =
   assert.equal(assertAirtableRecipientApproved([messy], " POST@salong.no ", expected), approved.id);
   assert.equal(
     approvalLookupFormula("  Post@Salong.NO "),
-    'OR(LOWER(TRIM({Email})) = "post@salong.no", RIGHT(LOWER(TRIM({Email})), 10) = "@salong.no")'
+    'AND(OR(LOWER(TRIM({Email})) = "post@salong.no", RIGHT(LOWER(TRIM({Email})), 10) = "@salong.no"), OR({Do Not Contact} = 0, {Do Not Contact} = 1))'
   );
 });
 
@@ -61,7 +61,8 @@ test("a suppressed duplicate of the same address makes the approval fail closed"
   };
   assert.throws(() => assertAirtableRecipientApproved([approved, suppressedDuplicate], "post@salong.no", expected), /exactly one record/);
   // The lookup itself must not hide Do Not Contact rows.
-  assert.doesNotMatch(approvalLookupFormula("post@salong.no"), /Do Not Contact/);
+  // The Do Not Contact reference is a field-existence tripwire that matches both values.
+  assert.match(approvalLookupFormula("post@salong.no"), /OR\(\{Do Not Contact\} = 0, \{Do Not Contact\} = 1\)\)$/);
 });
 
 test("refuses when another address at the same business is contacted, replied, or suppressed", () => {
@@ -71,6 +72,10 @@ test("refuses when another address at the same business is contacted, replied, o
     { "Lead Status": "Contacted" },
     { "Lead Status": "Suppressed" },
     { "Lead Status": "Do Not Contact" },
+    { "Lead Status": "Follow-up" },
+    { "Lead Status": "Meeting" },
+    { "Lead Status": "Won" },
+    { "Lead Status": "Lost" },
     { "Lead Status": "Draft Ready", "Do Not Contact": true }
   ]) {
     const record = { id: "recSibling00000001", fields: { Email: "Kontakt@Salong.no", ...sibling } };
@@ -85,7 +90,14 @@ test("refuses when another address at the same business is contacted, replied, o
 });
 
 test("business-domain matching never widens to freemail or CIDEA's own domain", () => {
-  assert.equal(approvalLookupFormula("owner@gmail.com"), 'LOWER(TRIM({Email})) = "owner@gmail.com"');
-  assert.equal(approvalLookupFormula("someone@online.no"), 'LOWER(TRIM({Email})) = "someone@online.no"');
-  assert.equal(approvalLookupFormula("hello@cideamarketing.com"), 'LOWER(TRIM({Email})) = "hello@cideamarketing.com"');
+  assert.equal(approvalLookupFormula("owner@gmail.com"), 'AND(LOWER(TRIM({Email})) = "owner@gmail.com", OR({Do Not Contact} = 0, {Do Not Contact} = 1))');
+  assert.equal(approvalLookupFormula("someone@online.no"), 'AND(LOWER(TRIM({Email})) = "someone@online.no", OR({Do Not Contact} = 0, {Do Not Contact} = 1))');
+  assert.equal(approvalLookupFormula("hello@cideamarketing.com"), 'AND(LOWER(TRIM({Email})) = "hello@cideamarketing.com", OR({Do Not Contact} = 0, {Do Not Contact} = 1))');
+});
+
+test("an unchecked Do Not Contact box (omitted by the Airtable API) is accepted; any other non-false value is refused", () => {
+  const { "Do Not Contact": _omitted, ...withoutDnc } = approved.fields;
+  assert.equal(assertAirtableRecipientApproved([{ ...approved, fields: withoutDnc }], "post@salong.no", expected), approved.id);
+  assert.throws(() => assertAirtableRecipientApproved([{ ...approved, fields: { ...withoutDnc, "Do Not Contact": "no" } }], "post@salong.no", expected), /Do Not Contact/);
+  assert.throws(() => assertAirtableRecipientApproved([{ ...approved, fields: { ...withoutDnc, "Do Not Contact": null } }], "post@salong.no", expected), /Do Not Contact/);
 });

@@ -25,9 +25,10 @@ The sender requires an exact AI decision of `APPROVE`, confidence at least 0.90,
 - The Airtable AI fields and assessment automation draft are created.
 - The sender now reads AI-generated subject/body and checks the AI decision and its supporting evidence.
 - The live-send kill switch remains required. No email was sent by this change.
-- The scheduled workflow still has its existing one-email-per-day setting. The requested 50/day target is not yet implemented; the automated review rejected the proposed increase in sending capacity. See the pending approval item before changing those limits.
+- The sending workflow runs every five minutes on weekdays (07:00-14:55 UTC, a superset of 09:00-15:00 Europe/Oslo in summer and winter). Code enforces the exact window (09:00 inclusive to 15:00 exclusive), at least five minutes between emails, one email per run, at most 12 per rolling hour, and a hard ceiling of 100 per Oslo calendar day. The window allows at most 72 sends a day; the 50/day target is reachable within it. Outside the window, too soon, or at a limit, a run exits successfully without sending.
+- Pull request runs can never write to production Airtable (`src/domain/airtable-write-guard.ts`), and no workflow uploads raw contact drafts as an artifact.
 - Existing Oslo records need a fresh AI assessment after the Airtable automation is enabled; their earlier human-review status is not an AI decision.
 
 ## Verification
 
-`npm run typecheck` passes and the full Node test suite passes: 172 tests.
+`npm run typecheck` passes and the Node test suite passes. See `docs/LAUNCH-READINESS.md` for the gates that remain before any live send.

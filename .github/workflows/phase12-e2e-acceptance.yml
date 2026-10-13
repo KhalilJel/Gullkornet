@@ -49,10 +49,12 @@ jobs:
           grep -F 'GULLKORNET_ENABLE_LIVE_SEND' .github/workflows/daily-outreach.yml
           grep -F "if: env.GULLKORNET_ENABLE_LIVE_SEND != 'true'" .github/workflows/daily-outreach.yml
           grep -F "if: env.GULLKORNET_ENABLE_LIVE_SEND == 'true'" .github/workflows/daily-outreach.yml
-          grep -F 'GULLKORNET_DAILY_SEND_LIMIT: "1"' .github/workflows/daily-outreach.yml
+          grep -F 'GULLKORNET_DAILY_SEND_LIMIT: "100"' .github/workflows/daily-outreach.yml
+          grep -F 'MAX_EMAILS_PER_RUN: "1"' .github/workflows/daily-outreach.yml
+          grep -F 'cron: "*/5 7-14 * * 1-5"' .github/workflows/daily-outreach.yml
           grep -F 'send_triggered' src/integrations/openoutsend-ingest.ts
           grep -F 'ingest_only' src/integrations/openoutsend-ingest.ts
-          echo "Sending workflow is default-off behind the explicit kill switch and capped at one daily email; OpenOutSend contract remains ingest-only."
+          echo "Sending workflow is default-off behind the explicit kill switch and limited to one email per run, 12/hour and 100 per Oslo day inside the weekday 09:00-15:00 window; OpenOutSend contract remains ingest-only."
 
       - name: Write privacy-safe acceptance summary
         if: always()

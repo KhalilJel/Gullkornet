@@ -1,3 +1,4 @@
+import { assertAirtableWritesAllowed } from "../domain/airtable-write-guard.js";
 import { businessDomainOf } from "../domain/email-domain.js";
 
 export type AirtableSendApproval = {
@@ -104,8 +105,11 @@ export function assertAirtableRecipientApproved(
   }
   const fields = matches[0].fields;
   assertBusinessNotAlreadyContacted(records, matches[0], normalized);
-  if (fields["Do Not Contact"] !== false) {
-    throw new Error("Airtable Do Not Contact is enabled or cannot be verified false. Refusing to send.");
+  // Airtable's API omits an unchecked checkbox instead of returning false, so absent means
+  // unchecked. Every Do Not Contact read also passes a formula that references the field
+  // (see approvalLookupFormula and the queue filter), so a renamed field errors instead.
+  if (fields["Do Not Contact"] !== undefined && fields["Do Not Contact"] !== false) {
+    throw new Error("Airtable Do Not Contact is enabled or has an unexpected value. Refusing to send.");
   }
   if (fields["Lead Status"] !== "Draft Ready") {
     throw new Error("Airtable Lead Status must be Draft Ready before AI-approved sending.");
@@ -151,7 +155,7 @@ function escapeFormulaString(value: string): string {
 }
 
 /**
- * Approval lookup. Deliberately does NOT filter out Do Not Contact rows: a suppressed
+ * Approval lookup. Deliberately does NOT filter out Do Not Contact rows (the field reference is only a tripwire): a suppressed
  * duplicate must be returned so the exactly-one check fails closed. Matching is
  * case/whitespace-insensitive, and for business domains it also returns records at the
  * same domain so a business is not contacted twice through another address.
@@ -160,9 +164,11 @@ export function approvalLookupFormula(recipient: string): string {
   const email = recipient.trim().toLowerCase();
   const exact = `LOWER(TRIM({Email})) = "${escapeFormulaString(email)}"`;
   const domain = businessDomainOf(email);
-  if (!domain) return exact;
-  const suffix = "@" + domain;
-  return `OR(${exact}, RIGHT(LOWER(TRIM({Email})), ${suffix.length}) = "${escapeFormulaString(suffix)}")`;
+  const match = domain
+    ? `OR(${exact}, RIGHT(LOWER(TRIM({Email})), ${domain.length + 1}) = "${escapeFormulaString("@" + domain)}")`
+    : exact;
+  // Always true for a checkbox; it only makes Airtable reject the query if the field is missing.
+  return `AND(${match}, OR({Do Not Contact} = 0, {Do Not Contact} = 1))`;
 }
 
 export async function fetchAirtableRecipientApproval(
@@ -215,6 +221,7 @@ export async function markAirtableRecipientSent(
   recordId: string,
   env: NodeJS.ProcessEnv = process.env
 ): Promise<void> {
+  assertAirtableWritesAllowed(env);
   const apiToken = env.AIRTABLE_API_TOKEN?.trim();
   const baseId = env.GULLKORNET_AIRTABLE_BASE_ID?.trim();
   const tableName = env.GULLKORNET_AIRTABLE_TABLE?.trim() || "Leads";

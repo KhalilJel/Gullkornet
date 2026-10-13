@@ -65,11 +65,11 @@ jobs:
           grep -Eq '"emailSent": 0' phase9-sales-engine.log
           echo "Phase 9 review queue and Airtable persistence verified. Send path remains disabled."
 
-      - name: Upload Phase 9 acceptance artifacts
+      # The review queue and drafts hold prospect addresses and message text and must never be
+      # uploaded to this public repository; the log contains counts and a correlation ID only.
+      - name: Upload privacy-safe Phase 9 evidence
         uses: actions/upload-artifact@v4
         with:
-          name: phase9-sales-engine-acceptance
-          path: |
-            data/sales-engine-review-queue.json
-            data/contact-research-drafts.json
+          name: phase9-sales-engine-evidence
+          path: phase9-sales-engine.log
           retention-days: 7

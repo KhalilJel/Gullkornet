@@ -1,3 +1,4 @@
+import { assertAirtableWritesAllowed } from "../domain/airtable-write-guard.js";
 export type EmailSource = { email: string; sourceUrl: string; sourceType?: string };
 
 export type ResearchRecord = {
@@ -176,6 +177,7 @@ async function airtableRequest<T>(
   options: AirtableReviewSyncOptions,
   body?: string
 ): Promise<T> {
+  if (method !== "GET") assertAirtableWritesAllowed();
   const fetchImpl = options.fetchImpl ?? fetch;
   const maxAttempts = method === "GET" ? 2 : 1;
   let lastError: unknown;
@@ -271,6 +273,7 @@ export async function syncAirtableReviewRecords(
   input: ResearchRecord[],
   options: AirtableReviewSyncOptions
 ): Promise<AirtableReviewSyncResult> {
+  assertAirtableWritesAllowed();
   const apiToken = options.apiToken.trim();
   const baseId = options.baseId.trim();
   const tableName = options.tableName?.trim() || "Leads";

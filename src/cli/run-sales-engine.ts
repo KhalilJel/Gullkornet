@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { runSalesEngine } from "../integrations/sales-engine.js";
 import { createPhase9SalesEngineDependencies } from "../integrations/sales-engine-runtime.js";
+import { airtableWritesBlocked } from "../domain/airtable-write-guard.js";
 import { salesEngineCompletedEvent, salesEngineFailedEvent, salesEngineStartedEvent } from "../integrations/sales-engine-observability.js";
 
 const correlationId = randomUUID();
@@ -87,14 +88,16 @@ async function main(): Promise<void> {
   );
 
   // Persist review-only records to Airtable. This path never sends email.
-  await syncReviewQueueToAirtable("data/contact-research-drafts.json");
+  const airtableSkipped = airtableWritesBlocked();
+  if (airtableSkipped) console.log(JSON.stringify({ event: "airtable_sync_skipped", reason: "writes_disabled_in_this_environment" }));
+  else await syncReviewQueueToAirtable("data/contact-research-drafts.json");
 
   // Emit counts and a correlation ID only; never log email addresses or draft bodies.
   console.log(JSON.stringify(salesEngineCompletedEvent({
     correlationId,
     durationMs: Date.now() - runStartedAt,
     result,
-    airtableReviewRecords: reviewRecords.length
+    airtableReviewRecords: airtableSkipped ? 0 : reviewRecords.length
   })));
 }
 
