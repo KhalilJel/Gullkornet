@@ -11,7 +11,7 @@ Done and verified: PR #100 merged (`2dd87ac`); `openoutreach` deployed from `mai
 Remaining order, each step needing Khalil's approval:
 
 1. Merge PR #101 (after review).
-2. Airtable "Run test" on the single existing `Draft Ready` row, trigger not yet published (`docs/AIRTABLE-AI-ASSESSMENT.md`).
+2. Apply the corrected AI prompt (`docs/airtable-ai-assessment-prompt.txt`; the first Run test showed APPROVE with evidence the sender cannot match, see `docs/AIRTABLE-AI-ASSESSMENT.md`), then Airtable "Run test" again on the single existing `Antoniette frisør` row, trigger not yet published (`docs/AIRTABLE-AI-ASSESSMENT.md`).
 3. Publish AI Assessment with the "matches conditions" trigger; confirm it fires on one newly created test row.
 4. Scheduled pipeline, research only: set `GULLKORNET_ENABLE_SCHEDULED_PIPELINE=true` (leave `GULLKORNET_SCHEDULED_AIRTABLE_SYNC` unset) and read the aggregate summaries for several days.
 5. Scheduled pipeline with Airtable sync: set `GULLKORNET_SCHEDULED_AIRTABLE_SYNC=true`.
