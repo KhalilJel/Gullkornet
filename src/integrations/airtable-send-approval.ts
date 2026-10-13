@@ -1,3 +1,5 @@
+import { businessDomainOf } from "../domain/email-domain.js";
+
 export type AirtableSendApproval = {
   id: string;
   fields: {
@@ -66,6 +68,30 @@ function normalizeEmail(value: unknown): string {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
+// A business in any of these states has been contacted, has answered, or must not be
+// contacted. No other address at the same business may be sent to.
+const BUSINESS_BLOCKING_STATUSES = new Set([
+  "Sent", "Replied", "Contacted", "Suppressed", "Do Not Contact", "Follow-up", "Meeting", "Won", "Lost"
+]);
+
+function assertBusinessNotAlreadyContacted(
+  records: AirtableSendApproval[],
+  approvedRecord: AirtableSendApproval,
+  recipient: string
+): void {
+  const domain = businessDomainOf(recipient);
+  if (!domain) return;
+  const blocked = records.some((record) =>
+    record !== approvedRecord &&
+    businessDomainOf(normalizeEmail(record.fields.Email)) === domain &&
+    (record.fields["Do Not Contact"] === true ||
+      BUSINESS_BLOCKING_STATUSES.has(String(record.fields["Lead Status"] ?? "")))
+  );
+  if (blocked) {
+    throw new Error("Another Airtable record for the same business domain is already contacted, replied, or suppressed. Refusing to send.");
+  }
+}
+
 export function assertAirtableRecipientApproved(
   records: AirtableSendApproval[],
   recipient: string,
@@ -77,6 +103,7 @@ export function assertAirtableRecipientApproved(
     throw new Error(`Airtable must contain exactly one record for the recipient; found ${matches.length}. Refusing to send.`);
   }
   const fields = matches[0].fields;
+  assertBusinessNotAlreadyContacted(records, matches[0], normalized);
   if (fields["Do Not Contact"] !== false) {
     throw new Error("Airtable Do Not Contact is enabled or cannot be verified false. Refusing to send.");
   }
@@ -123,6 +150,21 @@ function escapeFormulaString(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
+/**
+ * Approval lookup. Deliberately does NOT filter out Do Not Contact rows: a suppressed
+ * duplicate must be returned so the exactly-one check fails closed. Matching is
+ * case/whitespace-insensitive, and for business domains it also returns records at the
+ * same domain so a business is not contacted twice through another address.
+ */
+export function approvalLookupFormula(recipient: string): string {
+  const email = recipient.trim().toLowerCase();
+  const exact = `LOWER(TRIM({Email})) = "${escapeFormulaString(email)}"`;
+  const domain = businessDomainOf(email);
+  if (!domain) return exact;
+  const suffix = "@" + domain;
+  return `OR(${exact}, RIGHT(LOWER(TRIM({Email})), ${suffix.length}) = "${escapeFormulaString(suffix)}")`;
+}
+
 export async function fetchAirtableRecipientApproval(
   recipient: string,
   expected: ApprovedDraft,
@@ -131,7 +173,7 @@ export async function fetchAirtableRecipientApproval(
   const { apiToken, baseId, tableName } = airtableConfig(env);
 
   const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`);
-  url.searchParams.set("filterByFormula", `AND({Email} = "${escapeFormulaString(recipient.trim().toLowerCase())}", {Do Not Contact} = 0)`);
+  url.searchParams.set("filterByFormula", approvalLookupFormula(recipient));
   url.searchParams.set("pageSize", "100");
   for (const field of ["Email", "Website", "Contact Source URL", "Personalization Evidence", "Lead Status", "Do Not Contact", "AI Decision", "AI Confidence", "AI Evidence", "AI Evidence URL", "AI Decision Reason", "AI Draft Subject", "AI Draft Body"]) {
     url.searchParams.append("fields[]", field);

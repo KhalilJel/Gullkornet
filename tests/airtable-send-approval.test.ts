@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertAirtableRecipientApproved } from "../src/integrations/airtable-send-approval.js";
+import { approvalLookupFormula, assertAirtableRecipientApproved } from "../src/integrations/airtable-send-approval.js";
 
 const expected = {
   subject: "Dette la vi merke til hos dere",
@@ -43,4 +43,49 @@ test("refuses outreach drafts without an opt-out instruction", () => {
     () => assertAirtableRecipientApproved([noOptOut], "post@salong.no", { ...expected, text }),
     /opt-out instruction/
   );
+});
+
+test("matches the recipient regardless of case and surrounding whitespace", () => {
+  const messy = { ...approved, fields: { ...approved.fields, Email: "  Post@Salong.NO " } };
+  assert.equal(assertAirtableRecipientApproved([messy], " POST@salong.no ", expected), approved.id);
+  assert.equal(
+    approvalLookupFormula("  Post@Salong.NO "),
+    'OR(LOWER(TRIM({Email})) = "post@salong.no", RIGHT(LOWER(TRIM({Email})), 10) = "@salong.no")'
+  );
+});
+
+test("a suppressed duplicate of the same address makes the approval fail closed", () => {
+  const suppressedDuplicate = {
+    id: "recDuplicate000001",
+    fields: { Email: "POST@salong.no ", "Lead Status": "Suppressed", "Do Not Contact": true }
+  };
+  assert.throws(() => assertAirtableRecipientApproved([approved, suppressedDuplicate], "post@salong.no", expected), /exactly one record/);
+  // The lookup itself must not hide Do Not Contact rows.
+  assert.doesNotMatch(approvalLookupFormula("post@salong.no"), /Do Not Contact/);
+});
+
+test("refuses when another address at the same business is contacted, replied, or suppressed", () => {
+  for (const sibling of [
+    { "Lead Status": "Sent" },
+    { "Lead Status": "Replied" },
+    { "Lead Status": "Contacted" },
+    { "Lead Status": "Suppressed" },
+    { "Lead Status": "Do Not Contact" },
+    { "Lead Status": "Draft Ready", "Do Not Contact": true }
+  ]) {
+    const record = { id: "recSibling00000001", fields: { Email: "Kontakt@Salong.no", ...sibling } };
+    assert.throws(
+      () => assertAirtableRecipientApproved([approved, record], "post@salong.no", expected),
+      /same business domain/,
+      JSON.stringify(sibling)
+    );
+  }
+  const untouched = { id: "recSibling00000002", fields: { Email: "kontakt@salong.no", "Lead Status": "Draft Ready", "Do Not Contact": false } };
+  assert.equal(assertAirtableRecipientApproved([approved, untouched], "post@salong.no", expected), approved.id);
+});
+
+test("business-domain matching never widens to freemail or CIDEA's own domain", () => {
+  assert.equal(approvalLookupFormula("owner@gmail.com"), 'LOWER(TRIM({Email})) = "owner@gmail.com"');
+  assert.equal(approvalLookupFormula("someone@online.no"), 'LOWER(TRIM({Email})) = "someone@online.no"');
+  assert.equal(approvalLookupFormula("hello@cideamarketing.com"), 'LOWER(TRIM({Email})) = "hello@cideamarketing.com"');
 });
