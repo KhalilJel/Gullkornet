@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { readFile } from "node:fs/promises";
-import { discoverGooglePlacesCandidates } from "../integrations/google-places.js";
+import { discoverGooglePlacesCandidates, selectFreshCandidates } from "../integrations/google-places.js";
 import { normalizeDomain } from "../domain/dedupe.js";
 
 const searchTerm = process.argv[2]?.trim() || "regnskapsfører";
@@ -34,11 +34,7 @@ try {
   const knownDomains = new Set(history.domains.map((value) => value.toLowerCase()));
   const knownNames = new Set(history.companyNames.map((value) => value.trim().toLocaleLowerCase("nb-NO")));
 
-  const fresh = candidates.filter((candidate) => {
-    const domain = normalizeDomain(candidate.websiteUrl);
-    const name = candidate.companyName.trim().toLocaleLowerCase("nb-NO");
-    return !(domain && knownDomains.has(domain)) && !knownNames.has(name);
-  }).slice(0, dailyLimit);
+  const fresh = selectFreshCandidates(candidates, history, dailyLimit);
 
   console.log(JSON.stringify(fresh, null, 2));
   if (updateHistory) {
