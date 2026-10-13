@@ -260,7 +260,13 @@ function isUsefulServiceEvidence(value?: string): value is string {
   const decodedEntityNoise = /&#(?:x[\da-f]+|\d+);/i.test(value);
   const markupResidue = /\{\{[^}]+\}\}|\bdata-[\w-]+\s*=|[<>]/i.test(value);
   const spacedLetterNoise = /(?:\b[A-Z]\s+){3,}[A-Z]\b/i.test(value);
-  return navigationTerms.length === 0 && phoneNumbers.length === 0 && !decodedEntityNoise && !markupResidue && !spacedLetterNoise && !/\b(?:followers|likes)\b/i.test(value);
+  // Menu, booking-button, carousel and title run-ons seen in pilot run 38409346860 (e.g. "Timebooking ❮ ❯",
+  // "BESTILL TIME BLUSH HAIR BESTILL TIME", "Alta | bloomfrisor.no"). "bestille time" in a real sentence is kept.
+  const bookingMenuNoise = /(?:^|[\s|])(?:bestill (?:frisør)?time|timebooking|book time|book online|ring oss|hopp til innhold|top of page|velg en side|nettbutikk|handlekurv)(?=$|[\s|.,!])/i.test(value);
+  const carouselOrTitleResidue = /[❮❯‹›←→]|\s\|\s|\b[\w-]+\.(?:no|com|net|org)\b/i.test(value);
+  const capsMenuRun = /(?:\b[A-ZÆØÅ]{2,}\b\s+){4,}/.test(value);
+  return navigationTerms.length === 0 && phoneNumbers.length === 0 && !decodedEntityNoise && !markupResidue && !spacedLetterNoise
+    && !bookingMenuNoise && !carouselOrTitleResidue && !capsMenuRun && !/\b(?:followers|likes)\b/i.test(value);
 }
 
 export function createPersonalizedDraft(

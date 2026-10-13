@@ -103,6 +103,39 @@ test("rejects spaced-letter navigation residue inside otherwise relevant service
   assert.equal(result.serviceEvidence, undefined);
 });
 
+// Service lines observed in pilot run 38409346860 (public homepage text): menu, booking-button,
+// carousel and title run-ons must never become the quoted evidence.
+const PILOT_NOISE = [
+  "Bibbis Frisør ✂️ Forvent det lille ekstra ✂️ Timebooking ❮ ❯ Bibbis Frisør – Gled deg til en pause i hverdagen",
+  "blushstudio 0 BESTILL TIME BLUSH HAIR BESTILL TIME BLUSH BEAUTY I`ll be hair for you A little balayage",
+  "Bowie Hair Frisørsalong Om oss Produkter Priser Kolleksjoner Bestill time Velg en side",
+  "Cancam Frisør | Nettbutikk | Frisørskole Hopp til innhold Bestill time Bestill frisørtime her",
+  "Bloom Frisør Alta | bloomfrisor.no Ana er opprinnelig fra Portugal og har bodd i Norge i flere år",
+  "Brattørgata (Bitina) Book time Ring oss Velkommen Ela Frisør – Luksus i Hverdagen Vårt hovedfokus er hår"
+];
+const PILOT_CONCRETE = [
+  "Hos oss kan du få hårklipp, farge og styling når det passer deg – uten å bestille time",
+  "Velkommen til Aura hair and beauty, frisør i Tønsberg på flotte Kaldnes – frisør, vipper, negler og kosmetisk hudpleie samlet i ett",
+  "Vi legger vekt på personlig service, høy kvalitet og dyktige frisører, negledesignere, hudpleiere og vippeteknikere",
+  "Våre frisører kombinerer gammeldagse teknikker med moderne stil for å gi deg den perfekte finishen"
+];
+
+test("rejects menu, booking-button, carousel and title run-ons observed in the pilot", () => {
+  for (const line of PILOT_NOISE) {
+    assert.equal(extractEvidence(`<main><p>${line}.</p></main>`).serviceEvidence, undefined, line);
+  }
+});
+
+test("keeps concrete service sentences observed in the pilot, including 'bestille time' inside a sentence", () => {
+  for (const line of PILOT_CONCRETE) {
+    assert.equal(extractEvidence(`<main><p>${line}.</p></main>`).serviceEvidence, `${line}.`, line);
+  }
+});
+
+test("a noisy first match no longer hides a clean later sentence on the same page", () => {
+  const html = `<main><p>${PILOT_NOISE[0]}.</p><p>Hos Bibbis Frisør får du klipp, farge og styling i rolige omgivelser.</p></main>`;
+  assert.equal(extractEvidence(html).serviceEvidence, "Hos Bibbis Frisør får du klipp, farge og styling i rolige omgivelser.");
+});
 
 test("decodes URL-encoded whitespace and characters in public mailto addresses", () => {
   const html = '<a href="mailto:%20fay.skogstad%40adamogeva.no">Send e-post</a>';
