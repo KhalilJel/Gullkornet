@@ -2,6 +2,8 @@
 
 Live sending stays off (`GULLKORNET_ENABLE_LIVE_SEND` unset) until every gate below is verified. This file records the gates; it contains no secrets or prospect data.
 
+Step-by-step order from merge to go-live, and the status of optional agents: `docs/GO-LIVE-RUNBOOK.md`.
+
 ## Verified in code and CI
 
 - Pull request CI cannot write to production Airtable; a regression test fails if a pull request workflow holds the Airtable token without disabling writes.
