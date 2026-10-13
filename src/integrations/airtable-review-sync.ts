@@ -11,6 +11,8 @@ export type ResearchRecord = {
   pageTitle?: string;
   headline?: string;
   serviceEvidence?: string;
+  /** Page each evidence text was read from; written next to the text so a quote can be traced to its page. */
+  evidenceSources?: { title?: string; headline?: string; serviceEvidence?: string };
   emails?: EmailSource[];
   subject?: string;
   draftBody?: string;
@@ -144,10 +146,15 @@ function fieldsFor(
     put("Outreach Subject", item.subject);
     put("Outreach Draft", item.draftBody);
 
+    const withSource = (label: string, text: string | undefined, url: string | undefined): string => {
+      if (!text) return "";
+      const source = url && /^https?:\/\//i.test(url) ? ` (Kilde: ${url})` : "";
+      return `${label}: ${text}${source}`;
+    };
     const observedEvidence = [
-      item.pageTitle ? `Sidetittel: ${item.pageTitle}` : "",
-      item.headline ? `Overskrift: ${item.headline}` : "",
-      item.serviceEvidence ? `Tjenestetekst: ${item.serviceEvidence}` : ""
+      withSource("Sidetittel", item.pageTitle, item.evidenceSources?.title),
+      withSource("Overskrift", item.headline, item.evidenceSources?.headline),
+      withSource("Tjenestetekst", item.serviceEvidence, item.evidenceSources?.serviceEvidence)
     ].filter(Boolean);
     const evidenceSummary = observedEvidence.length
       ? `Automatisk hentet fra offentlig nettside, ikke uavhengig verifisert og ikke fremsatt som et konkret problem i e-postutkastet: ${observedEvidence.join(" | ")}`

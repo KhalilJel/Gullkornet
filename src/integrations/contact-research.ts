@@ -29,6 +29,8 @@ export type ContactResearchDraft = {
   headline?: string;
   pageTitle?: string;
   serviceEvidence?: string;
+  /** Page each evidence text was read from (homepage by default; another page only when it filled a gap). */
+  evidenceSources?: EvidenceSources;
   contactPageUrl?: string;
   subject?: string;
   draftBody?: string;
@@ -201,6 +203,30 @@ export function extractPublicEmails(html: string, sourceUrl: string): PublicEmai
     }
   }
   return results.filter((item) => !/\.(png|jpe?g|gif|webp|svg)$/i.test(item.email));
+}
+
+export type EvidenceSources = { title?: string; headline?: string; serviceEvidence?: string };
+
+/**
+ * Combines evidence from the homepage with gap-filling evidence from other pages and records the
+ * page each text came from. The homepage always wins; another page is used (and credited) only
+ * for a field the homepage did not provide, in the order given.
+ */
+export function mergeEvidenceWithSources(
+  homepage: { headline?: string; serviceEvidence?: string },
+  homepageUrl: string,
+  extras: Array<{ headline?: string; serviceEvidence?: string; url: string }>
+): { headline?: string; serviceEvidence?: string; sources: EvidenceSources } {
+  let headline = homepage.headline;
+  let serviceEvidence = homepage.serviceEvidence;
+  const sources: EvidenceSources = { title: homepageUrl };
+  if (headline) sources.headline = homepageUrl;
+  if (serviceEvidence) sources.serviceEvidence = homepageUrl;
+  for (const extra of extras) {
+    if (!headline && extra.headline) { headline = extra.headline; sources.headline = extra.url; }
+    if (!serviceEvidence && extra.serviceEvidence) { serviceEvidence = extra.serviceEvidence; sources.serviceEvidence = extra.url; }
+  }
+  return { headline, serviceEvidence, sources };
 }
 
 export function extractEvidence(html: string): { headline?: string; serviceEvidence?: string } {
@@ -420,11 +446,10 @@ async function researchContactAndDraftCore(
     const title = getTitle(homepage.html) ?? scraped?.title ?? audit?.title;
     const evidence = extractEvidence(homepage.html);
     const emails = extractPublicEmails(homepage.html, homepage.finalUrl);
+    const evidenceExtras: Array<{ headline?: string; serviceEvidence?: string; url: string }> = [];
     if (readable && scraped) {
       // Thin built-in page: add what the scrape found without replacing the verified page.
-      const extra = extractEvidence(scraped.markdown);
-      evidence.headline ??= extra.headline;
-      evidence.serviceEvidence ??= extra.serviceEvidence;
+      evidenceExtras.push({ ...extractEvidence(scraped.markdown), url: scraped.url });
       emails.push(...extractPublicEmails(scraped.markdown, scraped.url));
     }
     const contactUrls = readable ? getContactLinks(homepage.html, homepage.finalUrl) : [];
@@ -435,15 +460,16 @@ async function researchContactAndDraftCore(
         if (page.status >= 400 || !page.html) continue;
         contactPageUrl ??= page.finalUrl;
         emails.push(...extractPublicEmails(page.html, page.finalUrl));
-        const contactEvidence = extractEvidence(page.html);
-        evidence.headline ??= contactEvidence.headline;
-        evidence.serviceEvidence ??= contactEvidence.serviceEvidence;
+        evidenceExtras.push({ ...extractEvidence(page.html), url: page.finalUrl });
         if (emails.length >= 8) break;
       } catch {
         // One failed contact page should not prevent research of the homepage.
       }
     }
 
+    const merged = mergeEvidenceWithSources(evidence, homepage.finalUrl, evidenceExtras);
+    evidence.headline = merged.headline;
+    evidence.serviceEvidence = merged.serviceEvidence;
     const uniqueEmails = [...new Map(emails.map((item) => [item.email, item])).values()].slice(0, 10);
     const websiteHost = new URL(homepage.finalUrl).hostname.toLowerCase().replace(/^www\./, "");
     let submittedWebsiteHost: string | undefined;
@@ -489,6 +515,7 @@ async function researchContactAndDraftCore(
       headline: evidence.headline,
       pageTitle: title,
       serviceEvidence: evidence.serviceEvidence,
+      evidenceSources: merged.sources,
       contactPageUrl,
       subject: draft.subject,
       draftBody: draft.draftBody,

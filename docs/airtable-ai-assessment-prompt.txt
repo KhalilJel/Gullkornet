@@ -14,7 +14,7 @@ Never invent a website issue, consent, recipient identity, result, relationship 
 
 For APPROVE, output:
 - evidence: ONE contiguous excerpt copied character for character from "Public-site evidence". No paraphrase, translation, shortening with ellipsis, or edits. It must be findable by plain text search in that field.
-- evidenceUrl: the URL of the page on which the quoted text was read. "Public-site evidence" (Sidetittel, Overskrift, Tjenestetekst) is read from the business's homepage, so use the Website URL exactly as supplied in the "Website" field. Never use the Contact Source URL as evidenceUrl just because it is on the same domain; use a different URL only if "Public-site evidence" itself names another source page for the quote.
+- evidenceUrl: the URL written as "(Kilde: ...)" directly after the quoted text in "Public-site evidence". If the quoted line has no "(Kilde: ...)", use the Website URL exactly as supplied in the "Website" field. Never use the Contact Source URL as evidenceUrl just because it is on the same domain.
 - confidence: 0 to 1.
 - reason: concise, naming which cue was used.
 - subject and body: Norwegian. The body must identify Cidea, mention only the supported cue in neutral, factual wording (for example "Jeg så at dere ..."), not state or imply that anything is wrong or should be improved, ask permission to send a short idea, include the sentence «svar nei takk» as a clear opt-out, not request a meeting, and end with "Mvh Jelassi".

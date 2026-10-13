@@ -151,3 +151,71 @@ test("the prompt makes evidenceUrl the Website URL and forbids Contact Source UR
   assert.match(prompt, /«svar nei takk»/);
   assert.match(prompt, /confidence is below 0\.90, use NEEDS_REVIEW/);
 });
+
+// ---- Source URL per evidence line ----
+
+const HOME = "https://www.antoniette.no/";
+const CONTACT = "https://www.antoniette.no/kontakt/";
+
+async function fieldsFor(record: ResearchRecord): Promise<Record<string, unknown>> {
+  let captured: Record<string, unknown> = {};
+  await syncAirtableReviewRecords([record], {
+    apiToken: "t", baseId: "app-test", tableName: "Leads", now: () => new Date("2026-10-13T10:28:07.000Z"),
+    fetchImpl: async (_input, init) => {
+      if (init?.method === "GET") return new Response(JSON.stringify({ records: [] }));
+      const body = JSON.parse(String(init?.body)) as { records: Array<{ fields: Record<string, unknown> }> };
+      captured = body.records[0].fields;
+      return new Response(JSON.stringify({ records: body.records.map((r, i) => ({ id: `rec0000000000000${i}`, ...r })) }));
+    }
+  });
+  return captured;
+}
+
+test("mergeEvidenceWithSources: the homepage wins and is credited for what it provides", async () => {
+  const { mergeEvidenceWithSources } = await import("../src/integrations/contact-research.js");
+  const merged = mergeEvidenceWithSources({ headline: "H", serviceEvidence: "S" }, HOME, [{ headline: "H2", serviceEvidence: "S2", url: CONTACT }]);
+  assert.deepEqual([merged.headline, merged.serviceEvidence], ["H", "S"]);
+  assert.deepEqual(merged.sources, { title: HOME, headline: HOME, serviceEvidence: HOME });
+});
+
+test("mergeEvidenceWithSources: a gap filled from the contact page is credited to the contact page", async () => {
+  const { mergeEvidenceWithSources } = await import("../src/integrations/contact-research.js");
+  const merged = mergeEvidenceWithSources({ headline: "H" }, HOME, [{ serviceEvidence: "Kontaktside-tjeneste", url: CONTACT }]);
+  assert.equal(merged.serviceEvidence, "Kontaktside-tjeneste");
+  assert.deepEqual(merged.sources, { title: HOME, headline: HOME, serviceEvidence: CONTACT });
+});
+
+test("homepage quote is stored with the homepage as its source, and the quote stays a verbatim substring", async () => {
+  const fields = await fieldsFor({ ...research, evidenceSources: { title: HOME, headline: HOME, serviceEvidence: HOME } });
+  const evidence = String(fields["Personalization Evidence"]);
+  assert.ok(evidence.includes(`Tjenestetekst: ${SERVICE_CUE} (Kilde: ${HOME})`));
+  assert.ok(evidence.includes(`Tjenestetekst: ${SERVICE_CUE}`)); // the model's excerpt without the suffix still matches
+  assert.ok(!evidence.includes(`Tjenestetekst: ${SERVICE_CUE} (Kilde: ${CONTACT})`));
+});
+
+test("fallback quote read from the contact page is stored with the contact page as its source", async () => {
+  const fields = await fieldsFor({ ...research, evidenceSources: { title: HOME, headline: HOME, serviceEvidence: CONTACT } });
+  const evidence = String(fields["Personalization Evidence"]);
+  assert.ok(evidence.includes(`Tjenestetekst: ${SERVICE_CUE} (Kilde: ${CONTACT})`));
+  assert.ok(evidence.includes(`Overskrift: Antoniette frisør (Kilde: ${HOME})`));
+});
+
+test("records without source data behave exactly as before (no suffix) and non-http sources are ignored", async () => {
+  const plain = String((await fieldsFor(research))["Personalization Evidence"]);
+  assert.ok(!plain.includes("Kilde:"));
+  const odd = String((await fieldsFor({ ...research, evidenceSources: { serviceEvidence: "javascript:alert(1)" } }))["Personalization Evidence"]);
+  assert.ok(!odd.includes("Kilde:"));
+});
+
+test("the sender still accepts a verbatim excerpt of a line that carries a source, and refuses an edited source", async () => {
+  const fields = await fieldsFor({ ...research, evidenceSources: { title: HOME, headline: HOME, serviceEvidence: HOME } });
+  assert.equal(eligibleDraftFromRecord(withAi(fields, `Tjenestetekst: ${SERVICE_CUE}`))?.email, "post@antoniette.no");
+  assert.equal(eligibleDraftFromRecord(withAi(fields, `Tjenestetekst: ${SERVICE_CUE} (Kilde: ${CONTACT})`)), undefined);
+});
+
+test("the prompt ties evidenceUrl to the Kilde on the quoted line, with Website as fallback and no contact-by-domain", async () => {
+  const prompt = await readFile(new URL("../docs/airtable-ai-assessment-prompt.txt", import.meta.url), "utf8");
+  assert.match(prompt, /written as "\(Kilde: \.\.\.\)" directly after the quoted text/);
+  assert.match(prompt, /If the quoted line has no "\(Kilde: \.\.\.\)", use the Website URL exactly as supplied/);
+  assert.match(prompt, /Never use the Contact Source URL as evidenceUrl just because it is on the same domain/);
+});
