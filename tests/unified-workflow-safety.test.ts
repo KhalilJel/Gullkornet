@@ -47,6 +47,17 @@ test("paging and Draft-Ready-only creation come only from repository variables (
   assert.match(workflow, /DAILY_LEAD_LIMIT < 1 \|\| DAILY_LEAD_LIMIT > 100/);
 });
 
+test("run log reports discovery and sync as counts only", () => {
+  const discovery = workflow.match(/- name: Discover candidates[\s\S]*?(?=\n      - name:)/)?.[0] ?? "";
+  assert.match(discovery, /DISCOVERY_STATS_PATH: data\/discovery-stats\.json/);
+  assert.match(discovery, /placesRequests: stats\.placesRequests/);
+  const sync = workflow.match(/- name: Sync researched drafts[\s\S]*?(?=\n      - name:)/)?.[0] ?? "";
+  const printed = sync.match(/console\.log\(JSON\.stringify\(\{([\s\S]*?)\}\)\)/)?.[1] ?? "";
+  for (const field of ["created", "updated", "skipped", "notCreated", "createOnlyDraftReady"]) assert.match(printed, new RegExp(`${field}:`));
+  assert.doesNotMatch(printed, /baseId|tableName|records|Email|Company|draftBody|subject|emails/);
+  assert.match(sync, /sync:airtable -- data\/contact-research-drafts\.json > data\/airtable-sync\.stdout\.log/);
+});
+
 test("unified workflow keeps CLI stdout and stderr private", () => {
   assert.match(workflow, /discover:google -- "\$SEARCH_TERM" > data\/google-candidates\.json 2> data\/discovery\.stderr\.log/);
   assert.match(workflow, /audit:websites -- data\/google-candidates\.json > data\/website-audit\.json 2> data\/website-audit\.stderr\.log/);

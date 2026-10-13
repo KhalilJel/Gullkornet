@@ -77,6 +77,7 @@ jobs:
           UPDATE_DISCOVERY_HISTORY: "true"
           # Opt-in, unset by default (= 1 page): 2-3 Google Places pages per city, each a billed request.
           GULLKORNET_PLACES_MAX_PAGES: ${{ vars.GULLKORNET_PLACES_MAX_PAGES }}
+          DISCOVERY_STATS_PATH: data/discovery-stats.json
         run: |
           set -euo pipefail
           umask 077
@@ -104,7 +105,15 @@ jobs:
           import { readFile } from "node:fs/promises";
           const rows = JSON.parse(await readFile("data/google-candidates.json", "utf8"));
           if (!Array.isArray(rows)) throw new Error("Candidate discovery did not return an array.");
-          console.log(JSON.stringify({ stage: "discovery", candidateCount: rows.length }));
+          const stats = JSON.parse(await readFile("data/discovery-stats.json", "utf8"));
+          console.log(JSON.stringify({
+            stage: "discovery",
+            candidateCount: rows.length,
+            placesRequests: stats.placesRequests,
+            maxPagesPerCity: stats.maxPagesPerCity,
+            rawCandidates: stats.rawCandidates,
+            rawWithWebsite: stats.rawWithWebsite
+          }));
           NODE
 
       - name: Audit candidate websites in runner-local storage
@@ -175,6 +184,19 @@ jobs:
             exit 1
           fi
           chmod 600 data/airtable-sync.stdout.log data/airtable-sync.stderr.log
+          node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+          const result = JSON.parse(await readFile("data/airtable-sync.stdout.log", "utf8"));
+          // Counts only; base id, table name and record content stay in the private log.
+          console.log(JSON.stringify({
+            stage: "airtable-sync",
+            createOnlyDraftReady: process.env.GULLKORNET_SYNC_CREATE_ONLY_DRAFT_READY === "true",
+            created: result.created,
+            updated: result.updated,
+            skipped: result.skipped,
+            notCreated: result.notCreated
+          }));
+          NODE
           echo "Airtable sync complete. No emails were sent."
 
       - name: Create aggregate-only run summary
