@@ -1,5 +1,6 @@
 import { assertAirtableWritesAllowed } from "../domain/airtable-write-guard.js";
 import { businessDomainOf } from "../domain/email-domain.js";
+import { isSharedBusinessInbox } from "./outbound-email.js";
 
 export type AirtableSendApproval = {
   id: string;
@@ -20,6 +21,13 @@ export type AirtableSendApproval = {
     "AI Draft Body"?: unknown;
   };
 };
+
+/**
+ * A policy refusal for ONE record (DNC, duplicate, missing evidence, low confidence, ...).
+ * The sender skips that record and keeps looking. Any other error (Airtable or reply-service
+ * outage, bad configuration) is not a SendRefusedError and aborts the whole run: fail closed.
+ */
+export class SendRefusedError extends Error {}
 
 export type ApprovedDraft = { subject: string; text: string };
 type AirtableQueueResponse = { records: AirtableSendApproval[]; offset?: string };
@@ -90,7 +98,7 @@ function assertBusinessNotAlreadyContacted(
       BUSINESS_BLOCKING_STATUSES.has(String(record.fields["Lead Status"] ?? "")))
   );
   if (blocked) {
-    throw new Error("Another Airtable record for the same business domain is already contacted, replied, or suppressed. Refusing to send.");
+    throw new SendRefusedError("Another Airtable record for the same business domain is already contacted, replied, or suppressed. Refusing to send.");
   }
 }
 
@@ -102,7 +110,7 @@ export function assertAirtableRecipientApproved(
   const normalized = normalizeEmail(recipient);
   const matches = records.filter(record => normalizeEmail(record.fields.Email) === normalized);
   if (matches.length !== 1) {
-    throw new Error(`Airtable must contain exactly one record for the recipient; found ${matches.length}. Refusing to send.`);
+    throw new SendRefusedError(`Airtable must contain exactly one record for the recipient; found ${matches.length}. Refusing to send.`);
   }
   const fields = matches[0].fields;
   assertBusinessNotAlreadyContacted(records, matches[0], normalized);
@@ -110,47 +118,47 @@ export function assertAirtableRecipientApproved(
   // unchecked. Every Do Not Contact read also passes a formula that references the field
   // (see approvalLookupFormula and the queue filter), so a renamed field errors instead.
   if (fields["Do Not Contact"] !== undefined && fields["Do Not Contact"] !== false) {
-    throw new Error("Airtable Do Not Contact is enabled or has an unexpected value. Refusing to send.");
+    throw new SendRefusedError("Airtable Do Not Contact is enabled or has an unexpected value. Refusing to send.");
   }
   if (fields["Lead Status"] !== "Draft Ready") {
-    throw new Error("Airtable Lead Status must be Draft Ready before AI-approved sending.");
+    throw new SendRefusedError("Airtable Lead Status must be Draft Ready before AI-approved sending.");
   }
   if (fields["AI Decision"] !== "APPROVE") {
-    throw new Error("Airtable AI Decision must be APPROVE before sending.");
+    throw new SendRefusedError("Airtable AI Decision must be APPROVE before sending.");
   }
   if (typeof fields["AI Confidence"] !== "number" || fields["AI Confidence"] < 0.9) {
-    throw new Error("Airtable AI Confidence must be at least 0.90 before sending.");
+    throw new SendRefusedError("Airtable AI Confidence must be at least 0.90 before sending.");
   }
   if (fields["AI Draft Subject"] !== expected.subject || fields["AI Draft Body"] !== expected.text) {
-    throw new Error("The AI-approved Airtable subject and draft must exactly match the message to be sent.");
+    throw new SendRefusedError("The AI-approved Airtable subject and draft must exactly match the message to be sent.");
   }
   // A strategic account needs deeper research and must not receive ordinary automated outreach.
   if (typeof fields["Research Notes"] === "string" && fields["Research Notes"].includes("[GK-ROUTE:STRATEGIC_ACCOUNT]")) {
-    throw new Error("Strategic accounts are not eligible for automated outreach. Refusing to send.");
+    throw new SendRefusedError("Strategic accounts are not eligible for automated outreach. Refusing to send.");
   }
   const evidence = fields["AI Evidence"];
   const evidenceUrl = typeof fields["AI Evidence URL"] === "string" ? fields["AI Evidence URL"] : "";
   const personalEvidence = typeof fields["Personalization Evidence"] === "string" ? fields["Personalization Evidence"] : "";
   if (typeof evidence !== "string" || !evidence.trim() || !personalEvidence.includes(evidence.trim())) {
-    throw new Error("AI evidence must match the public-site research evidence exactly.");
+    throw new SendRefusedError("AI evidence must match the public-site research evidence exactly.");
   }
   const website = typeof fields.Website === "string" ? fields.Website : "";
   const contactUrl = typeof fields["Contact Source URL"] === "string" ? fields["Contact Source URL"] : "";
   const evidenceHost = hostOf(evidenceUrl);
   const websiteHost = hostOf(website);
   if (!evidenceHost || !websiteHost || !isSameSite(evidenceHost, websiteHost) || hostOf(contactUrl) !== websiteHost) {
-    throw new Error("AI evidence and contact source must be on the business's official website.");
+    throw new SendRefusedError("AI evidence and contact source must be on the business's official website.");
   }
   const emailDomain = normalized.split("@").at(-1) ?? "";
   if (emailDomain !== websiteHost) {
-    throw new Error("The public shared-inbox email domain must match the official business website.");
+    throw new SendRefusedError("The public shared-inbox email domain must match the official business website.");
   }
   if (!/(?:nei takk|ikke ønsker flere|stoppe henvendelser)/i.test(expected.text)) {
-    throw new Error("The draft must include a clear opt-out instruction before sending.");
+    throw new SendRefusedError("The draft must include a clear opt-out instruction before sending.");
   }
   const recordId = matches[0].id;
   if (typeof recordId !== "string" || !/^rec[A-Za-z0-9]+$/.test(recordId)) {
-    throw new Error("Airtable approval record has no valid record ID. Refusing to send.");
+    throw new SendRefusedError("Airtable approval record has no valid record ID. Refusing to send.");
   }
   return recordId;
 }
@@ -261,5 +269,25 @@ export async function markAirtableRecipientSent(
   if (typeof fields !== "object" || fields === null ||
       (fields as Record<string, unknown>)["Lead Status"] !== "Sent") {
     throw new Error("Resend accepted the email, but Airtable's Sent state could not be verified. Reconcile before retrying.");
+  }
+}
+
+/**
+ * Extracts the exact message the sender would use for a queue record, or undefined if the
+ * record is not eligible on its own (missing or non-role address, missing draft, or any
+ * single-record approval rule fails). The full duplicate/DNC lookup happens separately.
+ */
+export function eligibleDraftFromRecord(record: AirtableSendApproval): { email: string; subject: string; text: string } | undefined {
+  const fields = record.fields;
+  const email = typeof fields.Email === "string" ? fields.Email.trim().toLowerCase() : "";
+  const subject = typeof fields["AI Draft Subject"] === "string" ? fields["AI Draft Subject"].trim() : "";
+  const text = typeof fields["AI Draft Body"] === "string" ? fields["AI Draft Body"].trim() : "";
+  if (!email || !subject || !text || !isSharedBusinessInbox(email)) return undefined;
+  try {
+    assertAirtableRecipientApproved([record], email, { subject, text });
+    return { email, subject, text };
+  } catch (error) {
+    if (error instanceof SendRefusedError) return undefined;
+    throw error;
   }
 }
