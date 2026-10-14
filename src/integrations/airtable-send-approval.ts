@@ -81,7 +81,7 @@ function normalizeEmail(value: unknown): string {
 // A business in any of these states has been contacted, has answered, or must not be
 // contacted. No other address at the same business may be sent to.
 const BUSINESS_BLOCKING_STATUSES = new Set([
-  "Sent", "Replied", "Contacted", "Suppressed", "Do Not Contact", "Follow-up", "Meeting", "Won", "Lost"
+  "Sent", "Replied", "Contacted", "Suppressed", "Do Not Contact", "Follow-up", "Interested", "Meeting", "Offer Sent", "Won", "Lost"
 ]);
 
 function assertBusinessNotAlreadyContacted(

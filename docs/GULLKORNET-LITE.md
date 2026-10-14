@@ -9,7 +9,12 @@ Fixed-template B2B outreach: Brønnøysund -> legal recipient filter -> Airtable
 1. **Intake** (`npm run lite:intake`, workflow *Gullkornet Lite Lead Intake*). Brreg open API, Oslo + Akershus by default, org form AS/ASA, not bankrupt or being wound up, <= 249 employees. Places can supplement (`--source places --input <discover:google output>`); a Places lead needs a unique Brreg match on its website, otherwise it is dropped.
 2. **Recipient filter** (`src/lite/recipient-policy.ts`). Only role addresses from the existing allow-list (post@, info@, kontakt@, firmapost@ ...), no freemail, no cideamarketing.com, and the email domain must match the registered website when one exists. ENK and every other non-allowed form are refused; ENK cannot be configured as allowed.
 3. **De-duplication** against every Airtable row (any status, including the advanced pipeline): same address, same business domain, same org number or same duplicate key. New rows get `Lead Status = Lite Ready` and `Research Notes = [GK-LITE] source=... orgnr=... orgform=... nace=... kommune=... template=...`. NACE code and municipality record the recipient's market, which the template refers to.
-4. **Send** (`npm run send:lite`, workflow *Gullkornet Lite Outreach*). Per record: exactly one Airtable row for the address, `Lite Ready`, Lite marker, legal form, DNC unticked, no other row at the same business Sent/Replied/Contacted/Suppressed/DNC/Follow-up/Meeting/Won/Lost, reply-status service says no reply, not in the 24 h Resend ledger. Then mark the row `Sent` and send with an idempotency key; only a clear Resend 4xx rejection puts the row back to `Lite Ready`. Any outage stops the run.
+4. **Send** (`npm run send:lite`, workflow *Gullkornet Lite Outreach*). Per record: exactly one Airtable row for the address, `Lite Ready`, Lite marker, legal form, DNC unticked, no other row at the same business Sent/Replied/Contacted/Suppressed/DNC/Follow-up/Meeting/Won/Lost, the segment has fresh research, a fresh Brreg lookup shows the company still registered, active, AS/ASA and (Brreg leads) still registering this address, the email domain has an MX record (`stale` in the run log otherwise; a Brreg or DNS outage stops the run), reply-status service says no reply, not in the 24 h Resend ledger. Then mark the row `Sent` and send with an idempotency key; only a clear Resend 4xx rejection puts the row back to `Lite Ready`. Any outage stops the run.
+
+5. **Replies** (`npm run lite:replies`, workflow *Gullkornet Lite Reply Sync*, hourly). Every `Sent` Lite row is looked up in the read-only reply-status service; answered rows become `Replied`. Sends nothing. Sales follow-up from there is manual: [LITE-SALGSOPPFOLGING.md](LITE-SALGSOPPFOLGING.md).
+6. **Audit** (`npm run lite:audit`, workflow *Gullkornet Lite Audit*, Mondays and manual). Read-only: data quality of every `Lite Ready` row (policy, duplicates by address/domain/org number, research, Brreg + MX freshness) and the sales overview (statuses, open offers, paid NOK against the 50 000 NOK goal). Record IDs and counts only.
+
+Pilot (5/day) checklist and stop rules: [LITE-PILOT.md](LITE-PILOT.md).
 
 ## Legal basis (summary, not legal advice)
 
@@ -51,7 +56,7 @@ E-handelsloven § 9: the subject is neutral; Lite sends as `Cidea Marketing <hel
 | `GULLKORNET_LITE_INTAKE_SYNC` | variable | unset | Scheduled intake writes Airtable only when `true`. |
 | `GULLKORNET_LITE_INTAKE_LIMIT` | variable | 150 | New `Lite Ready` rows per scheduled intake. |
 
-Failures in all three Lite workflows open or update the existing *[Gullkornet Pipeline Alert]* issue (`pipeline-failure-alerts.yml`).
+Failures in the Lite intake, outreach, market research and reply sync workflows open or update the existing *[Gullkornet Pipeline Alert]* issue (`pipeline-failure-alerts.yml`).
 
 Window: every day 08:00-20:00 Europe/Oslo (code; the cron is a superset). Defaults allow 100/day: 12 h x 15/h = 180, spacing allows 720.
 
@@ -60,7 +65,7 @@ Window: every day 08:00-20:00 Europe/Oslo (code; the cron is a superset). Defaul
 1. Run *Gullkornet Lite Market Research* for the first segments, review and merge the research pull requests (see *Template claims and market research*). Approve the Resend plan; set `RESEND_DAILY_QUOTA` (and `RESEND_MONTHLY_QUOTA`).
 2. Manual *Lite Lead Intake* with `sync_to_airtable=false`; read the counts. Then once with `true` and a small `limit` (10); check the rows in Airtable.
 3. Manual *Lite Outreach* with `preview=true`: counts eligible rows, sends nothing.
-4. Go-live: set secret `GULLKORNET_LITE_ENABLE_LIVE_SEND=true`. Start with `GULLKORNET_LITE_DAILY_LIMIT` 30, then 60, then 100 over the first week (sender reputation).
+4. Go-live: pilot first ([LITE-PILOT.md](LITE-PILOT.md)): `GULLKORNET_LITE_DAILY_LIMIT=5`, `GULLKORNET_LITE_MAX_PER_RUN=1`, then set secret `GULLKORNET_LITE_ENABLE_LIVE_SEND=true`. After the pilot, raise to 15, 30, 60, 100 (sender reputation).
 5. Enable scheduled intake: `GULLKORNET_LITE_INTAKE_ENABLED=true`, then `GULLKORNET_LITE_INTAKE_SYNC=true`.
 
 Rollback: set `GULLKORNET_LITE_ENABLE_LIVE_SEND` to anything but `true`. Each row is marked `Sent` *before* its email goes out, so a row can never be sent twice. If Resend clearly refuses (HTTP 4xx), the row is put back to `Lite Ready`. If the result is unknown (timeout, 5xx), or the reset fails, the run reports it and the row stays `Sent` (unsent) until you reset it by hand.

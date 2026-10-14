@@ -55,7 +55,7 @@ export type AirtableReviewSyncResult = {
 
 const API_ROOT = "https://api.airtable.com/v0";
 const PRESERVED_STATUSES = new Set([
-  "Sent", "Replied", "Approved", "Follow-up", "Contacted", "Meeting", "Won", "Lost", "Do Not Contact"
+  "Sent", "Replied", "Approved", "Follow-up", "Contacted", "Interested", "Meeting", "Offer Sent", "Won", "Lost", "Do Not Contact"
 ]);
 
 function normalizeDomain(value?: string): string {

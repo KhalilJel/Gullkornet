@@ -2,6 +2,7 @@ import { fetchRecentSendLedger, sendOneEmail } from "../integrations/outbound-em
 import { assertRecipientHasNotReplied } from "../integrations/reply-status.js";
 import { fetchLiteQueue, lookupLiteRecords, markLiteReady, markLiteSent } from "../lite/airtable-queue.js";
 import { airtableConfigFromEnv } from "../lite/intake.js";
+import { checkLiteFreshness } from "../lite/freshness.js";
 import { loadResearchIndex } from "../lite/market-research.js";
 import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
 import { loadLiteSendConfig } from "../lite/schedule.js";
@@ -36,6 +37,7 @@ async function main(): Promise<void> {
     lookupRecords: email => lookupLiteRecords(airtable, email),
     assertNotReplied: email => withTransientRetry(() => assertRecipientHasNotReplied(email, env), sleep),
     findResearch: segment => research.get(segment.key),
+    checkFreshness: (email, notes) => checkLiteFreshness(notes, email, allowedOrgForms),
     send: (email, key) => {
       if (preview) throw new Error("Preview must never send.");
       return sendOneEmail(email, resendKey, key);
@@ -54,7 +56,7 @@ async function main(): Promise<void> {
   // Counts only: no addresses or company names in logs.
   console.log(`Gullkornet Lite ${preview ? "preview" : "run"}: scanned=${summary.scanned} sent=${summary.sent} ` +
     `eligible=${summary.eligibleInPreview ?? "-"} refused=${summary.skipped.refused} replied=${summary.skipped.replied} ` +
-    `recentlySent=${summary.skipped.recentlySent} noResearch=${summary.skipped.noResearch} documentedSegments=${research.size} stoppedBy=${summary.stoppedBy}`);
+    `recentlySent=${summary.skipped.recentlySent} noResearch=${summary.skipped.noResearch} stale=${summary.skipped.stale} documentedSegments=${research.size} stoppedBy=${summary.stoppedBy}`);
 }
 
 main().catch(error => {

@@ -1,0 +1,44 @@
+name: Gullkornet Lite Reply Sync
+
+# Registers answers: every sent Lite row (Lead Status "Sent") is looked up in the read-only
+# reply-status service, and a business that has written back is moved to "Replied" in Airtable.
+# Sends nothing; holds no Resend credentials. Sending to a business already stops at "Sent".
+# Hourly 07:15-21:15 UTC; a failure (reply monitor or Airtable down) opens the pipeline alert.
+on:
+  schedule:
+    - cron: "15 7-21 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gullkornet-lite-reply-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
+      GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
+      GULLKORNET_AIRTABLE_TABLE: ${{ vars.GULLKORNET_AIRTABLE_TABLE || 'Leads' }}
+      OPENOUTREACH_REPLY_STATUS_URL: ${{ vars.OPENOUTREACH_REPLY_STATUS_URL }}
+      OPENOUTREACH_REPLY_STATUS_TOKEN: ${{ secrets.OPENOUTREACH_REPLY_STATUS_TOKEN }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Sync replies to Airtable
+        run: |
+          umask 077
+          npm run --silent lite:replies

@@ -395,7 +395,7 @@ test("dry run over five synthetic leads: 2 sent, ENK refused, replied skipped, D
   assert.deepEqual(outbox.map(o => o.email.to), ["post@frisor-a.example", "kontakt@ror-b.example"]);
   assert.ok(outbox.every(o => o.email.to.endsWith(".example")), "only reserved test domains");
   assert.ok(outbox.every(o => o.email.from === "Cidea Marketing <hello@cideamarketing.com>" && o.email.text === LITE_TEMPLATE.text));
-  assert.deepEqual(summary.skipped, { refused: 1, replied: 1, recentlySent: 0, noResearch: 0 });
+  assert.deepEqual(summary.skipped, { refused: 1, replied: 1, recentlySent: 0, noResearch: 0, stale: 0 });
   assert.equal(summary.scanned, 4);
   assert.equal(state.get("recLiteDry00001")?.fields["Lead Status"], "Sent");
   assert.match(String(state.get("recLiteDry00001")?.fields["Research Notes"]), / research=96\.021@oslo-akershus@2026-10-16$/);
