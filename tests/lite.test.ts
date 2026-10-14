@@ -11,7 +11,7 @@ import { assessLiteRecipient, parseAllowedOrgForms } from "../src/lite/recipient
 import {
   assertLiteCapacity, countLedger, isWithinLiteWindow, loadLiteSendConfig, theoreticalDailyCapacity
 } from "../src/lite/schedule.js";
-import { assertLiteRecipientApproved, liteIdempotencyKey, LiteRefusedError, runLiteSend, type LiteQueueRecord } from "../src/lite/send.js";
+import { assertLiteRecipientApproved, liteIdempotencyKey, LiteRefusedError, runLiteSend, withTransientRetry, type LiteQueueRecord } from "../src/lite/send.js";
 import { assertLiteTemplateCompliant, LITE_FROM, LITE_TEMPLATE } from "../src/lite/template.js";
 import { assessResearch, buildSegmentResearch, decryptResearch, encryptResearch, liteSegment, loadResearchIndex, saveResearch, segmentFromNotes, withResearchRef } from "../src/lite/market-research.js";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -570,4 +570,15 @@ test("research is stored encrypted and bound to its segment", async () => {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("reply check retries a transient 503 twice, then fails closed", async () => {
+  const waits: number[] = [];
+  let calls = 0;
+  const flaky = async () => { calls++; if (calls < 3) throw new Error("OpenOutSend reply-status check failed with HTTP 503. Refusing to send."); return "ok"; };
+  assert.equal(await withTransientRetry(flaky, async ms => { waits.push(ms); }), "ok");
+  assert.deepEqual(waits, [10_000, 30_000]);
+  calls = -10;
+  await assert.rejects(withTransientRetry(flaky, async () => undefined), /HTTP 503/);
+  await assert.rejects(withTransientRetry(async () => { throw new Error("HTTP 401"); }, async () => assert.fail("no retry on other errors")), /401/);
 });

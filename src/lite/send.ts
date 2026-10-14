@@ -204,3 +204,19 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
   else if (summary.sent >= cfg.maxPerRun) summary.stoppedBy = "max_per_run";
   return summary;
 }
+
+/**
+ * The reply service opens an IMAP connection per lookup and answers 503 now and then under a burst
+ * of lookups. Retry a 503 twice after a pause; any other answer, or a third 503, stops the run as before.
+ */
+export async function withTransientRetry<T>(call: () => Promise<T>, wait: (ms: number) => Promise<void>, pausesMs = [10_000, 30_000]): Promise<T> {
+  for (const pause of pausesMs) {
+    try {
+      return await call();
+    } catch (error) {
+      if (!(error instanceof Error && /HTTP 503\b/.test(error.message))) throw error;
+      await wait(pause);
+    }
+  }
+  return call();
+}
