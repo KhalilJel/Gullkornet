@@ -14,11 +14,13 @@ export function placesToLiteCandidate(
   place: GoogleCandidate,
   websiteEmails: PublicEmail[],
   registry: BrregLiteCandidate | undefined,
-  allowedOrgForms?: readonly string[]
+  allowedOrgForms?: readonly string[],
+  /** "website" when the business came from Brreg's own website field rather than Google Places. */
+  source: "places" | "website" = "places"
 ): LiteSourceCandidate | undefined {
   if (!registry || !place.websiteUrl) return undefined;
   const base = {
-    source: "places" as const,
+    source,
     organizationNumber: registry.organizationNumber,
     companyName: place.companyName || registry.companyName,
     orgForm: registry.orgForm,
