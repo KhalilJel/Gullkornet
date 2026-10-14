@@ -11,9 +11,12 @@ import { assessLiteRecipient, parseAllowedOrgForms } from "../src/lite/recipient
 import {
   assertLiteCapacity, countLedger, isWithinLiteWindow, loadLiteSendConfig, theoreticalDailyCapacity
 } from "../src/lite/schedule.js";
-import { assertLiteRecipientApproved, liteIdempotencyKey, LiteRefusedError, runLiteSend, type LiteQueueRecord } from "../src/lite/send.js";
+import { assertLiteRecipientApproved, liteIdempotencyKey, LiteRefusedError, runLiteSend, withTransientRetry, type LiteQueueRecord } from "../src/lite/send.js";
 import { assertLiteTemplateCompliant, LITE_FROM, LITE_TEMPLATE } from "../src/lite/template.js";
-import { assessResearch, buildSegmentResearch, liteSegment, segmentFromNotes, withResearchRef } from "../src/lite/market-research.js";
+import { assessResearch, buildSegmentResearch, decryptResearch, encryptResearch, liteSegment, loadResearchIndex, saveResearch, segmentFromNotes, withResearchRef } from "../src/lite/market-research.js";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import type { WebsiteAudit } from "../src/integrations/website-audit.js";
 import { SendDeferredError } from "../src/integrations/send-schedule.js";
 
@@ -545,4 +548,37 @@ test("research reference replaces an earlier one on the row", () => {
 
 test("Lite sends as Cidea Marketing <hello@cideamarketing.com>", () => {
   assert.equal(LITE_FROM, "Cidea Marketing <hello@cideamarketing.com>");
+});
+
+test("research is stored encrypted and bound to its segment", async () => {
+  const env = { GULLKORNET_LITE_RESEARCH_KEY: Buffer.alloc(32, 7).toString("base64") };
+  const research = dryRunResearch(SATURDAY_10_OSLO);
+  const file = encryptResearch(research, env);
+  assert.doesNotMatch(file, /Salong|salong|example/, "no company names or URLs in the stored file");
+  assert.deepEqual(decryptResearch(file, env), research);
+  assert.throws(() => decryptResearch(file, { GULLKORNET_LITE_RESEARCH_KEY: Buffer.alloc(32, 8).toString("base64") }));
+  assert.throws(() => decryptResearch(file, {}), /GULLKORNET_LITE_RESEARCH_KEY/);
+  const relabelled = JSON.stringify({ ...JSON.parse(file), segment: "43.221@oslo-akershus" });
+  assert.throws(() => decryptResearch(relabelled, env), "a file cannot be moved to another segment");
+
+  const dir = await mkdtemp(path.join(os.tmpdir(), "lite-research-"));
+  try {
+    await saveResearch(research, dir, env);
+    assert.equal((await loadResearchIndex(dir, env)).get("96.021@oslo-akershus")?.id, research.id);
+    await writeFile(path.join(dir, "plain.json"), JSON.stringify(research));
+    await assert.rejects(loadResearchIndex(dir, env), /Unencrypted/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("reply check retries a transient 503 twice, then fails closed", async () => {
+  const waits: number[] = [];
+  let calls = 0;
+  const flaky = async () => { calls++; if (calls < 3) throw new Error("OpenOutSend reply-status check failed with HTTP 503. Refusing to send."); return "ok"; };
+  assert.equal(await withTransientRetry(flaky, async ms => { waits.push(ms); }), "ok");
+  assert.deepEqual(waits, [10_000, 30_000]);
+  calls = -10;
+  await assert.rejects(withTransientRetry(flaky, async () => undefined), /HTTP 503/);
+  await assert.rejects(withTransientRetry(async () => { throw new Error("HTTP 401"); }, async () => assert.fail("no retry on other errors")), /401/);
 });

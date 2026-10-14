@@ -5,10 +5,12 @@ import { airtableConfigFromEnv } from "../lite/intake.js";
 import { loadResearchIndex } from "../lite/market-research.js";
 import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
 import { loadLiteSendConfig } from "../lite/schedule.js";
-import { runLiteSend } from "../lite/send.js";
+import { runLiteSend, withTransientRetry } from "../lite/send.js";
 
 // npm run send:lite            -> live run (no-op unless GULLKORNET_LITE_ENABLE_LIVE_SEND=true)
 // npm run send:lite -- --preview -> read-only: runs every gate over the queue, never sends or writes
+
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
 async function main(): Promise<void> {
   const preview = process.argv.includes("--preview");
@@ -28,11 +30,11 @@ async function main(): Promise<void> {
 
   const summary = await runLiteSend({
     now: () => Date.now(),
-    sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
+    sleep,
     fetchLedger: () => resendKey ? fetchRecentSendLedger(resendKey) : Promise.resolve([]),
     fetchQueue: () => fetchLiteQueue(airtable),
     lookupRecords: email => lookupLiteRecords(airtable, email),
-    assertNotReplied: email => assertRecipientHasNotReplied(email, env),
+    assertNotReplied: email => withTransientRetry(() => assertRecipientHasNotReplied(email, env), sleep),
     findResearch: segment => research.get(segment.key),
     send: (email, key) => {
       if (preview) throw new Error("Preview must never send.");

@@ -2,7 +2,8 @@ name: Gullkornet Lite Market Research
 
 # Documents the template sentence "Vi har sett på hvordan bedrifter i deres marked presenterer seg
 # digitalt" for one segment (NACE code x region): fetches the front pages of a spread sample of
-# registered AS/ASA websites in Brønnøysund and stores what was observed in research/segments/.
+# registered AS/ASA websites in Brønnøysund and stores what was observed in research/segments/,
+# encrypted with the GULLKORNET_LITE_RESEARCH_KEY secret (the repository is public).
 # The result is proposed as a pull request; Lite sends to a segment only after that file is on main
 # and less than 90 days old. Public data only: no Airtable, no Resend, never sends email.
 on:
@@ -53,6 +54,8 @@ jobs:
         run: npm ci
 
       - name: Research the segment
+        env:
+          GULLKORNET_LITE_RESEARCH_KEY: ${{ secrets.GULLKORNET_LITE_RESEARCH_KEY }}
         run: |
           umask 077
           case "$INPUT_INDUSTRY" in [0-9][0-9].[0-9]|[0-9][0-9].[0-9][0-9]|[0-9][0-9].[0-9][0-9][0-9]) ;; *) echo "industry must be a NACE code such as 96.210"; exit 1 ;; esac
