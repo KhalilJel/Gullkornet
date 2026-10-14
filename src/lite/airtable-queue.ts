@@ -1,3 +1,4 @@
+import { assertAirtableWritesAllowed } from "../domain/airtable-write-guard.js";
 import { approvalLookupFormula } from "../integrations/airtable-send-approval.js";
 import { LITE_READY_STATUS } from "./intake.js";
 import type { AirtableConfig } from "./intake.js";
@@ -49,4 +50,17 @@ export async function lookupLiteRecords(cfg: AirtableConfig, email: string): Pro
   const result = await getJson(url, cfg);
   if (result.offset) throw new Error("Airtable lookup was paginated. Refusing to send until duplicates are reconciled.");
   return result.records;
+}
+
+/** Undoes the pre-send claim (Sent -> Lite Ready) after a send that failed. */
+export async function markLiteReady(cfg: AirtableConfig, recordId: string, env: NodeJS.ProcessEnv = process.env): Promise<void> {
+  assertAirtableWritesAllowed(env);
+  if (!/^rec[A-Za-z0-9]+$/.test(recordId)) throw new Error("Airtable record ID is invalid.");
+  const response = await (cfg.fetchImpl ?? fetch)(`${tableUrl(cfg).toString()}/${recordId}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${cfg.apiToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: { "Lead Status": LITE_READY_STATUS } }),
+    signal: AbortSignal.timeout(15000)
+  });
+  if (!response.ok) throw new Error(`Airtable could not reset the row to Lite Ready (HTTP ${response.status}).`);
 }

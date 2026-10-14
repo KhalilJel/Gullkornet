@@ -65,6 +65,11 @@ export function sentWithinLedger(entries: SendLedgerEntry[], recipient: string):
   return entries.some(entry => (entry.to ?? []).some(to => typeof to === "string" && to.trim().toLowerCase() === email));
 }
 
+/** Resend answered 4xx (sendOneEmail's message), so the email was certainly not accepted. */
+export function isDefiniteRejection(error: unknown): boolean {
+  return error instanceof Error && /^Resend send failed \(HTTP 4\d\d\)/.test(error.message);
+}
+
 export function liteIdempotencyKey(recordId: string, email: PreparedEmail): string {
   return "gullkornet-lite-" + createHash("sha256")
     .update(["lite", recordId, email.to, email.subject, email.text].join("\n"))
@@ -82,6 +87,8 @@ export type LiteSendDeps = {
   assertNotReplied: (email: string) => Promise<void>;
   send: (email: PreparedEmail, idempotencyKey: string) => Promise<{ id: string }>;
   markSent: (recordId: string) => Promise<void>;
+  /** Puts a claimed row back to Lite Ready after a send that Resend did not accept. */
+  markReady: (recordId: string) => Promise<void>;
   log: (message: string) => void;
 };
 
@@ -124,7 +131,13 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
         const onlySpacing = counts.lastDay < cfg.dailyLimit && counts.lastDay < cfg.resendDailyQuota && counts.lastHour < cfg.hourlyLimit;
         if (!onlySpacing || waitMs <= 0 || waitMs > 5 * 60 * 1000) { summary.stoppedBy = "limit"; deps.log("Deferred: " + error.message); break; }
         await deps.sleep(waitMs);
-        assertLiteCapacity(countLedger(ledger, deps.now()), cfg, deps.now());
+        if (!isWithinLiteWindow(deps.now(), cfg)) { summary.stoppedBy = "outside_window"; break; }
+        try {
+          assertLiteCapacity(countLedger(ledger, deps.now()), cfg, deps.now());
+        } catch (retryError) {
+          if (!(retryError instanceof SendDeferredError)) throw retryError;
+          summary.stoppedBy = "limit"; deps.log("Deferred: " + retryError.message); break;
+        }
       }
     }
 
@@ -150,13 +163,29 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
     if (options.preview) { eligible++; continue; }
 
     const prepared: PreparedEmail = { from: DEFAULT_SENDER, to: email, subject: LITE_TEMPLATE.subject, text: LITE_TEMPLATE.text };
-    const result = await deps.send(prepared, liteIdempotencyKey(recordId, prepared));
-    ledger.push({ created_at: new Date(deps.now()).toISOString(), to: [email] });
+    // Claim the row (Sent) before sending: a row that is not Lite Ready never re-enters the queue,
+    // so a later failure can at worst leave one row marked Sent without an email, never send twice.
     try {
       await deps.markSent(recordId);
     } catch {
-      throw new Error(`Resend accepted email ${result.id}, but Airtable could not be marked Sent. Stop and reconcile before the next run.`);
+      throw new Error("Airtable could not mark the row Sent before sending. Nothing was sent. Refusing to continue.");
     }
+    try {
+      await deps.send(prepared, liteIdempotencyKey(recordId, prepared));
+    } catch (error) {
+      // Only a clear 4xx means Resend did not take the email. A timeout, reset, 5xx or a 2xx without
+      // an ID may have gone out, so the row stays Sent rather than risk a second email after 24 h.
+      if (!isDefiniteRejection(error)) {
+        throw new Error("Send result is unknown; the row stays Sent. Check Resend and reset it by hand only if no email went out.");
+      }
+      try {
+        await deps.markReady(recordId);
+      } catch {
+        throw new Error("Send failed and the row could not be put back to Lite Ready. It stays Sent; reconcile by hand if it should be retried.");
+      }
+      throw error;
+    }
+    ledger.push({ created_at: new Date(deps.now()).toISOString(), to: [email] });
     summary.sent++;
   }
   if (options.preview) { summary.stoppedBy = "preview"; summary.eligibleInPreview = eligible; }

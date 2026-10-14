@@ -66,6 +66,18 @@ test("Brreg website lookup accepts only a unique registry match", async () => {
   assert.equal(await lookupBrregByWebsite("a.example", twoUnits), undefined);
   const none = (async () => json({})) as typeof fetch;
   assert.equal(await lookupBrregByWebsite("a.example", none), undefined);
+  const large = (async () => json({ _embedded: { enheter: [{ organisasjonsnummer: "900000001", navn: "A AS", organisasjonsform: { kode: "AS" }, antallAnsatte: 250 }] } })) as typeof fetch;
+  assert.equal(await lookupBrregByWebsite("a.example", large), undefined, "250+ employees is not an SMB");
+});
+
+test("runner re-checks the window after waiting for spacing", async () => {
+  // 19:59:30 Oslo (CEST); the previous email went out 30 s ago, so the runner waits 30 s into 20:00.
+  const t = Date.parse("2026-10-17T17:59:30Z");
+  const run = dryRunDeps(t, [liteRecord("recA", { Email: "post@a.example" })]);
+  run.deps.fetchLedger = async () => [{ created_at: new Date(t - 30_000).toISOString(), to: ["post@other.example"] }];
+  const summary = await runLiteSend(run.deps, dryRunConfig());
+  assert.equal(summary.stoppedBy, "outside_window");
+  assert.equal(run.outbox.length, 0);
 });
 
 test("Places supplement needs a registry match and prefers the website's role address", () => {
@@ -111,6 +123,7 @@ test("ENK can never be configured as an allowed org form", () => {
   assert.deepEqual(parseAllowedOrgForms(undefined), ["AS", "ASA"]);
   assert.deepEqual(parseAllowedOrgForms("as, asa"), ["AS", "ASA"]);
   assert.throws(() => parseAllowedOrgForms("AS,ENK"), /ENK/);
+  assert.throws(() => parseAllowedOrgForms("AS,ANS,DA,NUF"), /refused: ANS, DA, NUF/);
 });
 
 // ---------- 3. Duplicates ----------
@@ -151,10 +164,10 @@ test("selection de-duplicates within a batch and reports rejections by reason on
 });
 
 test("Airtable record for a Lite lead carries status, marker, org number and form", () => {
-  const lead = { ...brregToLiteCandidate(toLiteCandidate({ organisasjonsnummer: "900000001", navn: "A AS", organisasjonsform: { kode: "AS" }, hjemmeside: "a.example", epostadresse: "post@a.example" })!), email: "post@a.example" };
+  const lead = { ...brregToLiteCandidate(toLiteCandidate({ organisasjonsnummer: "900000001", navn: "A AS", organisasjonsform: { kode: "AS" }, hjemmeside: "a.example", epostadresse: "post@a.example", naeringskode1: { kode: "96.021" }, forretningsadresse: { kommunenummer: "0301" } })!), email: "post@a.example" };
   const fields = liteAirtableFields(lead, new Date("2026-10-14T00:00:00Z"));
   assert.equal(fields["Lead Status"], LITE_READY_STATUS);
-  assert.match(String(fields["Research Notes"]), /^\[GK-LITE\] source=brreg orgnr=900000001 orgform=AS template=/);
+  assert.match(String(fields["Research Notes"]), /^\[GK-LITE\] source=brreg orgnr=900000001 orgform=AS nace=96\.021 kommune=0301 template=/);
   assert.equal(fields["Duplicate Key"], "a.example");
   assert.equal(fields.Email, "post@a.example");
 });
@@ -211,11 +224,47 @@ test("runner skips replied businesses and stops on a reply-service outage", asyn
   assert.equal(outage.outbox.length, 0);
 });
 
-test("runner stops the whole run if Airtable cannot be marked Sent after Resend accepted", async () => {
+test("runner claims the row before sending and stops, unsent, if Airtable cannot be written", async () => {
   const run = dryRunDeps(SATURDAY_10_OSLO, [liteRecord("recA", { Email: "post@a.example" }), liteRecord("recB", { Email: "post@b.example" })]);
   run.deps.markSent = async () => { throw new Error("HTTP 500"); };
-  await assert.rejects(runLiteSend(run.deps, dryRunConfig()), /could not be marked Sent/);
-  assert.equal(run.outbox.length, 1, "no second email after a failed bookkeeping step");
+  await assert.rejects(runLiteSend(run.deps, dryRunConfig()), /Nothing was sent/);
+  assert.equal(run.outbox.length, 0);
+});
+
+test("a row is Sent before the email goes out, so a crash after sending can never resend it", async () => {
+  const run = dryRunDeps(SATURDAY_10_OSLO, [liteRecord("recA", { Email: "post@a.example" })]);
+  const send = run.deps.send;
+  run.deps.send = async (email, key) => {
+    assert.equal(run.state.get("recA")?.fields["Lead Status"], "Sent", "claimed before send");
+    return send(email, key);
+  };
+  await runLiteSend(run.deps, dryRunConfig());
+  assert.equal(run.outbox.length, 1);
+  // A day later the 24h ledger and idempotency key have expired; the row is still out of the queue.
+  run.advance(25 * 3600_000);
+  run.deps.fetchLedger = async () => [];
+  const later = await runLiteSend(run.deps, dryRunConfig());
+  assert.equal(later.scanned, 0);
+  assert.equal(run.outbox.length, 1);
+});
+
+test("an unknown send result (timeout, 5xx) leaves the row Sent", async () => {
+  for (const message of ["The operation was aborted due to timeout", "Resend send failed (HTTP 500).", "Resend returned an unexpected success response without an email ID."]) {
+    const run = dryRunDeps(SATURDAY_10_OSLO, [liteRecord("recA", { Email: "post@a.example" })]);
+    run.deps.send = async () => { throw new Error(message); };
+    await assert.rejects(runLiteSend(run.deps, dryRunConfig()), /result is unknown/);
+    assert.equal(run.state.get("recA")?.fields["Lead Status"], "Sent", message);
+  }
+});
+
+test("a failed send puts the claimed row back to Lite Ready and stops the run", async () => {
+  const run = dryRunDeps(SATURDAY_10_OSLO, [liteRecord("recA", { Email: "post@a.example" }), liteRecord("recB", { Email: "post@b.example" })]);
+  run.deps.send = async () => { throw new Error("Resend send failed (HTTP 422)."); };
+  await assert.rejects(runLiteSend(run.deps, dryRunConfig()), /HTTP 422/);
+  assert.equal(run.state.get("recA")?.fields["Lead Status"], "Lite Ready");
+  run.deps.markReady = async () => { throw new Error("HTTP 500"); };
+  await assert.rejects(runLiteSend(run.deps, dryRunConfig()), /stays Sent/);
+  assert.equal(run.state.get("recA")?.fields["Lead Status"], "Sent");
 });
 
 test("runner never sends twice to an address already in the 24h Resend ledger", async () => {
@@ -237,6 +286,7 @@ test("preview runs every gate and never sends or writes", async () => {
   const run = dryRunDeps(SATURDAY_10_OSLO);
   run.deps.send = async () => { throw new Error("must not send"); };
   run.deps.markSent = async () => { throw new Error("must not write"); };
+  run.deps.markReady = async () => { throw new Error("must not write"); };
   const summary = await runLiteSend(run.deps, dryRunConfig(), { preview: true });
   assert.equal(summary.stoppedBy, "preview");
   assert.equal(summary.eligibleInPreview, 2);
@@ -244,10 +294,33 @@ test("preview runs every gate and never sends or writes", async () => {
 
 test("template is the approved text with sender identification and opt-out", () => {
   assertLiteTemplateCompliant();
-  assert.equal(LITE_TEMPLATE.subject, "Dette la vi merke til hos dere");
-  assert.match(LITE_TEMPLATE.text, /^Hei,\n/);
-  assert.match(LITE_TEMPLATE.text, /Cidea Marketing\n\nGi gjerne beskjed dersom dere ikke ønsker flere henvendelser\.$/);
+  assert.equal(LITE_TEMPLATE.subject, "En idé til forbedring hos dere");
+  assert.equal(LITE_TEMPLATE.text, [
+    "Hei,",
+    "",
+    "Vi har sett på hvordan bedrifter i deres marked presenterer seg digitalt, og mener det finnes muligheter for å forbedre hvordan dere tiltrekker dere nye kunder.",
+    "",
+    "Vi har en konkret idé som vi tror kan gjøre det enklere for potensielle kunder å finne dere og ta kontakt.",
+    "",
+    "Er dere åpne for at vi sender dere en kort forklaring?",
+    "",
+    "Mvh",
+    "Jelassi",
+    "Cidea Marketing",
+    "",
+    "Gi gjerne beskjed dersom dere ikke ønsker flere henvendelser."
+  ].join("\n"));
   assert.throws(() => assertLiteTemplateCompliant({ subject: "x", text: "Hei. Cidea Marketing" }), /opt-out/);
+});
+
+test("template guard refuses singular 'du' and other Cidea sales lines", () => {
+  const optOut = "Cidea Marketing\nGi gjerne beskjed dersom dere ikke ønsker flere henvendelser.";
+  assert.throws(() => assertLiteTemplateCompliant({ subject: "En idé til deg", text: optOut }), /dere/);
+  assert.throws(() => assertLiteTemplateCompliant({ subject: "x", text: `Er du åpen?\n${optOut}` }), /dere/);
+  assert.throws(() => assertLiteTemplateCompliant({ subject: "x", text: `Din bedrift.\n${optOut}` }), /dere/);
+  assert.throws(() => assertLiteTemplateCompliant({ subject: "x", text: `Cidea Leads\n${optOut}` }), /Cidea Marketing only/);
+  // Words that merely contain the letters are fine.
+  assertLiteTemplateCompliant({ subject: "Dugnad og middager", text: `Duen og dinosauren.\n${optOut}` });
 });
 
 // ---------- 6. Capacity and window ----------

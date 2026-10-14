@@ -16,6 +16,9 @@ export type LiteSourceCandidate = {
   websiteUrl?: string;
   city?: string;
   industry?: string;
+  /** NACE code and municipality: the "market" the template refers to, kept for documentation. */
+  industryCode?: string;
+  municipalityCode?: string;
   bankrupt?: boolean;
   windingUp?: boolean;
   /** Where the business was found (Brreg unit URL or Places listing). */
@@ -93,6 +96,8 @@ export function liteResearchNote(lead: LiteLead): string {
   const parts = [LITE_MARKER, `source=${lead.source}`];
   if (lead.organizationNumber) parts.push(`orgnr=${lead.organizationNumber}`);
   if (lead.orgForm) parts.push(`orgform=${lead.orgForm}`);
+  if (lead.industryCode) parts.push(`nace=${lead.industryCode}`);
+  if (lead.municipalityCode) parts.push(`kommune=${lead.municipalityCode}`);
   parts.push(`template=${LITE_TEMPLATE_VERSION}`);
   return parts.join(" ");
 }

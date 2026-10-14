@@ -25,6 +25,8 @@ export function placesToLiteCandidate(
     websiteUrl: place.websiteUrl,
     city: place.city ?? registry.city,
     industry: place.industry ?? registry.industry,
+    industryCode: registry.industryCode,
+    municipalityCode: registry.municipalityCode,
     bankrupt: registry.bankrupt,
     windingUp: registry.windingUp,
     sourceUrl: place.sourceUrl || registry.sourceUrl
@@ -50,6 +52,8 @@ export function brregToLiteCandidate(unit: BrregLiteCandidate): LiteSourceCandid
     websiteUrl: unit.websiteUrl,
     city: unit.city,
     industry: unit.industry,
+    industryCode: unit.industryCode,
+    municipalityCode: unit.municipalityCode,
     bankrupt: unit.bankrupt,
     windingUp: unit.windingUp,
     sourceUrl: unit.sourceUrl,

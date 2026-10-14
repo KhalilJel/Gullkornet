@@ -40,6 +40,7 @@ export function dryRunDeps(startMs: number, records = DRY_RUN_RECORDS, replied =
       return { id: `dry-${outbox.length}` };
     },
     markSent: async id => { const r = state.get(id); if (r) r.fields["Lead Status"] = "Sent"; },
+    markReady: async id => { const r = state.get(id); if (r) r.fields["Lead Status"] = "Lite Ready"; },
     log: () => undefined
   };
   return { deps, outbox, state, ledger, advance: (ms: number) => { clock += ms; } };

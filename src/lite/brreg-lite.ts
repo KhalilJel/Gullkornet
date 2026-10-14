@@ -79,6 +79,11 @@ export function toLiteCandidate(unit: BrregUnit): BrregLiteCandidate | undefined
   };
 }
 
+// Checked in code as well as in the query: the website lookup has no employee filter.
+function tooLarge(candidate: BrregLiteCandidate, maxEmployees: number): boolean {
+  return candidate.employeeCount !== undefined && candidate.employeeCount > maxEmployees;
+}
+
 async function fetchPage(url: URL, fetchImpl: typeof fetch): Promise<BrregPage> {
   const response = await fetchImpl(url, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15000) });
   if (!response.ok) throw new Error(`BRREG_REQUEST_FAILED status=${response.status}`);
@@ -115,7 +120,7 @@ export async function discoverBrregLiteCandidates(options: BrregLiteOptions = {}
           const units = payload._embedded?.enheter ?? [];
           for (const unit of units) {
             const candidate = toLiteCandidate(unit);
-            if (candidate) found.set(candidate.organizationNumber, candidate);
+            if (candidate && !tooLarge(candidate, maxEmployees)) found.set(candidate.organizationNumber, candidate);
           }
           const totalPages = payload.page?.totalPages;
           if (units.length === 0 || (typeof totalPages === "number" && page + 1 >= totalPages)) break;
@@ -149,5 +154,6 @@ export async function lookupBrregByWebsite(websiteUrl: string, fetchImpl: typeof
       if (candidate) matches.set(candidate.organizationNumber, candidate);
     }
   }
-  return matches.size === 1 ? [...matches.values()][0] : undefined;
+  const match = matches.size === 1 ? [...matches.values()][0] : undefined;
+  return match && !tooLarge(match, 249) ? match : undefined;
 }

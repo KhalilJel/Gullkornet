@@ -82,5 +82,8 @@ export function parseAllowedOrgForms(value?: string): string[] {
   const forms = (value ?? "").split(",").map(normalizeOrgForm).filter(Boolean);
   if (forms.length === 0) return [...DEFAULT_LITE_ORG_FORMS];
   if (forms.includes("ENK")) throw new Error("ENK can never be an allowed Gullkornet Lite organisation form.");
+  // Only limited companies: in ANS, DA, NUF and similar forms the owners can be natural persons.
+  const other = forms.filter(form => !DEFAULT_LITE_ORG_FORMS.includes(form));
+  if (other.length) throw new Error(`Gullkornet Lite allows only ${DEFAULT_LITE_ORG_FORMS.join(", ")}; refused: ${other.join(", ")}.`);
   return forms;
 }

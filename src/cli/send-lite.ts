@@ -1,7 +1,7 @@
 import { markAirtableRecipientSent } from "../integrations/airtable-send-approval.js";
 import { fetchRecentSendLedger, sendOneEmail } from "../integrations/outbound-email.js";
 import { assertRecipientHasNotReplied } from "../integrations/reply-status.js";
-import { fetchLiteQueue, lookupLiteRecords } from "../lite/airtable-queue.js";
+import { fetchLiteQueue, lookupLiteRecords, markLiteReady } from "../lite/airtable-queue.js";
 import { airtableConfigFromEnv } from "../lite/intake.js";
 import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
 import { loadLiteSendConfig } from "../lite/schedule.js";
@@ -38,6 +38,10 @@ async function main(): Promise<void> {
     markSent: recordId => {
       if (preview) throw new Error("Preview must never write.");
       return markAirtableRecipientSent(recordId, env);
+    },
+    markReady: recordId => {
+      if (preview) throw new Error("Preview must never write.");
+      return markLiteReady(airtable, recordId, env);
     },
     log: message => console.log(message)
   }, cfg, { preview, allowedOrgForms });
