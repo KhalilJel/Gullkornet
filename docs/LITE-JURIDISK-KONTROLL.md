@@ -42,6 +42,9 @@ Kilder (primærkilder der det finnes):
 
 ## 4. Beslutningsliste for eieren
 
+Status for utkastene 14.10.2026: B2–B4 i [LITE-EPOSTMAL-FORSLAG.md](LITE-EPOSTMAL-FORSLAG.md) og [PERSONVERNERKLAERING-UTKAST.md](PERSONVERNERKLAERING-UTKAST.md) · B5 i [LITE-INTERESSEAVVEINING.md](LITE-INTERESSEAVVEINING.md) · B6 i [LITE-DATABEHANDLERE.md](LITE-DATABEHANDLERE.md) · B7 i [LITE-LAGRING-OG-SLETTING.md](LITE-LAGRING-OG-SLETTING.md).
+
+
 | # | Beslutning | Anbefaling |
 |---|---|---|
 | B1 | Godta risikoen ved rolleadresser hos AS, eller sette en nedre grense (f.eks. minst 5 registrerte ansatte) | Få en jurist til å vurdere dette før pilot. En ansattgrense kan bygges uten å endre malen |

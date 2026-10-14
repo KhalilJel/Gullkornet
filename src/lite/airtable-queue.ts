@@ -116,3 +116,22 @@ export async function markLiteReplied(cfg: AirtableConfig, recordId: string, env
   const payload = await response.json().catch(() => null) as { id?: unknown; fields?: Record<string, unknown> } | null;
   if (payload?.id !== recordId || payload.fields?.["Lead Status"] !== "Replied") throw new Error("Airtable's Replied state could not be verified.");
 }
+
+/** Every row, every field (all statuses, both pipelines). Read-only; fails closed beyond 500 pages. */
+export async function fetchAllTableRows(cfg: AirtableConfig): Promise<LiteQueueRecord[]> {
+  const rows: LiteQueueRecord[] = [];
+  let offset: string | undefined;
+  for (let page = 0; page < 500; page++) {
+    const url = new URL(`https://api.airtable.com/v0/${cfg.baseId}/${encodeURIComponent(cfg.tableName)}`);
+    url.searchParams.set("pageSize", "100");
+    if (offset) url.searchParams.set("offset", offset);
+    const response = await (cfg.fetchImpl ?? fetch)(url, { headers: { Authorization: `Bearer ${cfg.apiToken}` }, signal: AbortSignal.timeout(20000) });
+    if (!response.ok) throw new Error(`Airtable read failed (HTTP ${response.status}).`);
+    const payload = await response.json() as { records?: LiteQueueRecord[]; offset?: string };
+    if (!Array.isArray(payload.records)) throw new Error("Airtable returned an invalid list.");
+    rows.push(...payload.records);
+    offset = typeof payload.offset === "string" ? payload.offset : undefined;
+    if (!offset) return rows;
+  }
+  throw new Error("Airtable table exceeded the safe pagination limit.");
+}
