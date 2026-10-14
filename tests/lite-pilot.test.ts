@@ -148,3 +148,17 @@ test("audit flags policy, duplicates, research and freshness issues without expo
   assert.deepEqual(report.overdueFollowUps, ["recLate"]);
   assert.ok(!JSON.stringify(report).includes("@"), "report holds no addresses");
 });
+
+test("website intake labels its leads source=website, so the send-time check does not demand the Brreg address", async () => {
+  const { toLiteCandidate } = await import("../src/lite/brreg-lite.js");
+  const { placesToLiteCandidate } = await import("../src/lite/places-supplement.js");
+  const { liteResearchNote } = await import("../src/lite/intake.js");
+  const registry = toLiteCandidate({ organisasjonsnummer: "900000001", navn: "A AS", organisasjonsform: { kode: "AS" }, hjemmeside: "a.example" })!;
+  const lead = placesToLiteCandidate({ companyName: "A AS", websiteUrl: "https://a.example" },
+    [{ email: "kontakt@a.example", sourceUrl: "https://a.example/kontakt", sourceType: "mailto" }], registry, undefined, "website");
+  assert.equal(lead?.source, "website");
+  const notes = liteResearchNote({ ...lead!, email: lead!.email! });
+  assert.match(notes, /source=website/);
+  // Brreg has no email for this unit; a website lead is still valid at send time.
+  assert.equal(await checkBrregStillValid(notes, "kontakt@a.example", undefined, brreg(unit({ epostadresse: undefined }))), undefined);
+});

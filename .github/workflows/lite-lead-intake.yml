@@ -10,6 +10,12 @@ on:
     - cron: "40 4 * * *"
   workflow_dispatch:
     inputs:
+      source:
+        description: "brreg (registered address) or website (role address on the registered website)"
+        required: true
+        default: "brreg"
+        type: choice
+        options: ["brreg", "website"]
       municipalities:
         description: "Comma-separated municipality numbers (empty = Oslo + Akershus default)"
         required: false
@@ -66,6 +72,7 @@ jobs:
       INPUT_START_PAGE: ${{ inputs.start_page }}
       INPUT_LIMIT: ${{ inputs.limit || vars.GULLKORNET_LITE_INTAKE_LIMIT || '150' }}
       INPUT_SYNC: ${{ inputs.sync_to_airtable }}
+      INPUT_SOURCE: ${{ inputs.source || 'brreg' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -96,6 +103,7 @@ jobs:
           sync_flag=""
           if [ "${{ github.event_name }}" = "schedule" ] && [ "$SCHEDULED_SYNC" = "true" ]; then sync_flag="--sync"; fi
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "$INPUT_SYNC" = "true" ]; then sync_flag="--sync"; fi
-          npm run --silent lite:intake -- --source brreg \
+          case "$INPUT_SOURCE" in brreg|website) ;; *) echo "source must be brreg or website"; exit 1 ;; esac
+          npm run --silent lite:intake -- --source "$INPUT_SOURCE" \
             --municipalities "$INPUT_MUNICIPALITIES" --industries "$INPUT_INDUSTRIES" \
             --pages "$INPUT_PAGES" --start-page "$start" --limit "$INPUT_LIMIT" $sync_flag

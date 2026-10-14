@@ -8,7 +8,7 @@ export const LITE_READY_STATUS = "Lite Ready";
 export const LITE_MARKER = "[GK-LITE]";
 
 export type LiteSourceCandidate = {
-  source: "brreg" | "places";
+  source: "brreg" | "places" | "website";
   organizationNumber?: string;
   companyName: string;
   orgForm?: string;

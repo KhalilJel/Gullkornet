@@ -6,9 +6,11 @@ import { discoverBrregLiteCandidates, lookupBrregByWebsite } from "../lite/brreg
 import { airtableConfigFromEnv, createLiteRecords, emptyIndex, fetchExistingIndex, selectLiteLeads, type LiteSourceCandidate } from "../lite/intake.js";
 import { documentedSegments, LITE_REGIONS, liteSegment, loadResearchIndex, regionOfMunicipality } from "../lite/market-research.js";
 import { brregToLiteCandidate, placesToLiteCandidate } from "../lite/places-supplement.js";
-import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
+import { assessLiteRecipient, parseAllowedOrgForms } from "../lite/recipient-policy.js";
 
 // npm run lite:intake -- --source brreg [--municipalities 0301,3201] [--industries 96.021,56.101] [--pages 3] [--start-page 0] [--limit 300] [--sync] [--out data/lite.json]
+// npm run lite:intake -- --source website [same Brreg options]   (units whose registered address does not
+//   qualify but who registered a website: a role address is looked for on that website; no Google calls)
 // npm run lite:intake -- --source places --input data/google-candidates.json [--limit 50] [--sync]
 // Without --sync nothing is written to Airtable. Logs contain counts only.
 // Only leads in a segment (NACE x region) with fresh market research in research/segments are kept;
@@ -32,7 +34,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (source === "brreg") {
+  if (source === "brreg" || source === "website") {
     const documentedList = [...documented].map(key => key.split("@"));
     const industries = list(arg("industries")).length ? list(arg("industries")) : [...new Set(documentedList.map(([nace]) => nace!))];
     const municipalities = list(arg("municipalities")).length ? list(arg("municipalities"))
@@ -44,8 +46,24 @@ async function main(): Promise<void> {
       pagesPerQuery: Number(arg("pages") ?? "3") || 3,
       startPage: Number(arg("start-page") ?? "0") || 0
     });
-    candidates = units.map(brregToLiteCandidate);
     console.log(`Brreg units fetched: ${units.length}; with registered email: ${units.filter(u => u.email).length}`);
+    if (source === "brreg") {
+      candidates = units.map(brregToLiteCandidate);
+    } else {
+      // Only units the Brreg path cannot use; the website must map back to exactly this unit.
+      const websiteOnly = units.filter(u => u.websiteUrl && !assessLiteRecipient(u, allowedOrgForms).ok).slice(0, limit);
+      let matched = 0;
+      for (const unit of websiteOnly) {
+        const registry = await lookupBrregByWebsite(unit.websiteUrl!);
+        if (!registry || registry.organizationNumber !== unit.organizationNumber) continue;
+        matched++;
+        const place = { companyName: unit.companyName, websiteUrl: unit.websiteUrl, city: unit.city, industry: unit.industry, sourceUrl: unit.sourceUrl };
+        const research = await researchContactAndDraft(place);
+        const candidate = placesToLiteCandidate(place, research.emails, registry, allowedOrgForms, "website");
+        if (candidate) candidates.push(candidate);
+      }
+      console.log(`Website-only units: ${websiteOnly.length}; website maps back to the unit: ${matched}`);
+    }
   } else if (source === "places") {
     const input = arg("input");
     if (!input) throw new Error("--input <google-candidates.json> is required for --source places.");
