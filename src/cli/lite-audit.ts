@@ -5,6 +5,7 @@ import { loadResearchIndex } from "../lite/market-research.js";
 import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
 import { fetchAllTableRows } from "../lite/airtable-queue.js";
 import { planLiteRetention } from "../lite/retention.js";
+import { lookupFingerprints } from "../lite/fingerprint.js";
 
 // npm run lite:audit
 // Read-only. Data quality of every Lite Ready row (recipient policy, duplicates, research, and a
@@ -101,6 +102,14 @@ async function main(): Promise<void> {
     const missingFields = SALES_FIELDS.filter(f => !schema.fields.has(f));
     const missingStatuses = SALES_STATUSES.filter(s => !schema.statuses.has(s));
     lines.push(`Schema: missing sales fields: ${missingFields.join(", ") || "none"}; missing Lead Status options: ${missingStatuses.join(", ") || "none"}`);
+  }
+  // Optional: status of specific businesses, asked for by keyed domain fingerprints (src/lite/fingerprint.ts).
+  const lookup = (env.LITE_AUDIT_LOOKUP ?? "").split(",").map(v => v.trim()).filter(Boolean);
+  if (lookup.length) {
+    const key = env.GULLKORNET_LITE_RESEARCH_KEY?.trim() ?? "";
+    for (const match of lookupFingerprints(rows, lookup, key)) {
+      lines.push(`Lookup ${match.fingerprint}: ${match.statuses.length ? match.statuses.join("+") : "not in Airtable"}${match.doNotContact ? " DNC" : ""}`);
+    }
   }
   console.log(lines.join("\n"));
   if (env.GITHUB_STEP_SUMMARY) {

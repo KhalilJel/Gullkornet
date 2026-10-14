@@ -162,3 +162,22 @@ test("website intake labels its leads source=website, so the send-time check doe
   // Brreg has no email for this unit; a website lead is still valid at send time.
   assert.equal(await checkBrregStillValid(notes, "kontakt@a.example", undefined, brreg(unit({ epostadresse: undefined }))), undefined);
 });
+
+test("domain fingerprints: keyed, stable, and a lookup returns only status for the asked businesses", async () => {
+  const { domainFingerprint, lookupFingerprints } = await import("../src/lite/fingerprint.js");
+  const fp = domainFingerprint("a.example", "k1");
+  assert.match(fp, /^[0-9a-f]{16}$/);
+  assert.equal(domainFingerprint("WWW.A.example", "k1"), fp);
+  assert.notEqual(domainFingerprint("a.example", "k2"), fp, "another key gives another fingerprint");
+  const rows = [
+    { id: "rec1", fields: { Email: "post@a.example", "Lead Status": "Sent" } },
+    { id: "rec2", fields: { Website: "https://www.a.example", "Lead Status": "Draft Ready", "Do Not Contact": true } },
+    { id: "rec3", fields: { Email: "post@b.example", "Lead Status": "Lite Ready" } }
+  ];
+  const result = lookupFingerprints(rows, [fp, domainFingerprint("c.example", "k1"), "not-a-fingerprint"], "k1");
+  assert.equal(result.length, 2);
+  assert.deepEqual(result[0], { fingerprint: fp, statuses: ["Sent", "Draft Ready"], doNotContact: true });
+  assert.deepEqual(result[1].statuses, []);
+  assert.ok(!JSON.stringify(result).includes("example"), "no domain in the output");
+  assert.throws(() => domainFingerprint("a.example", ""), /key/);
+});
