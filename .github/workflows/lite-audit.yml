@@ -5,6 +5,12 @@ name: Gullkornet Lite Audit
 # revenue against the goal. Writes nothing, sends nothing; prints record IDs and counts only.
 on:
   workflow_dispatch:
+    inputs:
+      lookup:
+        description: "Optional comma-separated domain fingerprints (src/lite/fingerprint.ts) to look up"
+        required: false
+        default: ""
+        type: string
   schedule:
     - cron: "0 5 * * 1"
 
@@ -22,6 +28,7 @@ jobs:
       GULLKORNET_AIRTABLE_TABLE: ${{ vars.GULLKORNET_AIRTABLE_TABLE || 'Leads' }}
       GULLKORNET_LITE_ORG_FORMS: ${{ vars.GULLKORNET_LITE_ORG_FORMS || 'AS,ASA' }}
       GULLKORNET_AIRTABLE_WRITES: disabled
+      LITE_AUDIT_LOOKUP: ${{ inputs.lookup }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
