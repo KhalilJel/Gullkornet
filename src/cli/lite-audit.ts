@@ -28,20 +28,31 @@ async function fetchAllRows(cfg: AirtableConfig): Promise<LiteQueueRecord[]> {
   throw new Error("Airtable table exceeded the safe pagination limit.");
 }
 
-/** Field names and Lead Status options, if the token may read the schema. */
-async function readSchema(cfg: AirtableConfig): Promise<{ fields: Set<string>; statuses: Set<string> } | undefined> {
+/** Field names and Lead Status options, if the token may read the schema; otherwise the HTTP status. */
+async function readSchema(cfg: AirtableConfig): Promise<{ fields: Set<string>; statuses: Set<string> } | { httpStatus: number }> {
   const response = await fetch(`https://api.airtable.com/v0/meta/bases/${cfg.baseId}/tables`, {
     headers: { Authorization: `Bearer ${cfg.apiToken}` }, signal: AbortSignal.timeout(20000)
   });
-  if (!response.ok) return undefined;
+  if (!response.ok) return { httpStatus: response.status };
   const payload = await response.json() as { tables?: Array<{ name?: string; fields?: Array<{ name?: string; options?: { choices?: Array<{ name?: string }> } }> }> };
   const table = payload.tables?.find(t => t.name === cfg.tableName);
-  if (!table?.fields) return undefined;
+  if (!table?.fields) return { httpStatus: 404 };
   const status = table.fields.find(f => f.name === "Lead Status");
   return {
     fields: new Set(table.fields.map(f => f.name ?? "")),
     statuses: new Set((status?.options?.choices ?? []).map(c => c.name ?? ""))
   };
+}
+
+/** Read-only field probe without schema access: Airtable answers 422 to an unknown field name. */
+async function fieldExists(cfg: AirtableConfig, field: string): Promise<boolean | undefined> {
+  const url = new URL(`https://api.airtable.com/v0/${cfg.baseId}/${encodeURIComponent(cfg.tableName)}`);
+  url.searchParams.set("maxRecords", "1");
+  url.searchParams.append("fields[]", field);
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${cfg.apiToken}` }, signal: AbortSignal.timeout(20000) });
+  if (response.ok) return true;
+  if (response.status === 422) return false;
+  return undefined;
 }
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
@@ -79,9 +90,25 @@ async function main(): Promise<void> {
   lines.push(`Sales: paid ${report.paidNok} NOK from ${report.payingRows} customer(s); goal ${REVENUE_GOAL_NOK} NOK (${Math.round(100 * report.paidNok / REVENUE_GOAL_NOK)} %); open offers ${report.offeredNok} NOK`);
   lines.push(`Follow-ups without a future Next Step Date: ${report.overdueFollowUps.length}${report.overdueFollowUps.length ? " (" + report.overdueFollowUps.join(", ") + ")" : ""}`);
 
-  const schema = await readSchema(cfg).catch(() => undefined);
-  if (!schema) lines.push("Schema: not readable with this token (needs schema.bases:read); sales fields not verified.");
-  else {
+  const tableStatus: Record<string, number> = {};
+  for (const row of rows) {
+    const status = typeof row.fields["Lead Status"] === "string" ? row.fields["Lead Status"] : "(empty)";
+    tableStatus[status] = (tableStatus[status] ?? 0) + 1;
+  }
+  lines.push(`Table status (all pipelines): ${Object.entries(tableStatus).sort((a, b) => b[1] - a[1]).map(([s, n]) => `${s}=${n}`).join(", ")}`);
+  const liteDnc = rows.filter(r => String(r.fields["Research Notes"] ?? "").includes("[GK-LITE]") && r.fields["Do Not Contact"] === true).length;
+  lines.push(`Lite rows with Do Not Contact: ${liteDnc}`);
+  for (const r of research.values()) {
+    const days = Math.floor((Date.parse(r.researchedAt) + 90 * 86_400_000 - now) / 86_400_000);
+    lines.push(`Research ${r.id}: ${days} days left of 90`);
+  }
+
+  const schema = await readSchema(cfg).catch(() => ({ httpStatus: 0 }));
+  if ("httpStatus" in schema) {
+    lines.push(`Schema API: HTTP ${schema.httpStatus} (needs scope schema.bases:read); Lead Status options not verified.`);
+    const probes = await Promise.all(SALES_FIELDS.map(async f => [f, await fieldExists(cfg, f).catch(() => undefined)] as const));
+    lines.push(`Sales fields (probe): ${probes.map(([f, ok]) => `${f}=${ok === undefined ? "unknown" : ok ? "present" : "MISSING"}`).join(", ")}`);
+  } else {
     const missingFields = SALES_FIELDS.filter(f => !schema.fields.has(f));
     const missingStatuses = SALES_STATUSES.filter(s => !schema.statuses.has(s));
     lines.push(`Schema: missing sales fields: ${missingFields.join(", ") || "none"}; missing Lead Status options: ${missingStatuses.join(", ") || "none"}`);

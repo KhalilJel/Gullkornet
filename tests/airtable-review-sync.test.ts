@@ -395,7 +395,7 @@ test("different addresses are unaffected and a row refreshing its own address is
 
 // ---- Protected rows keep their history: identity fields and status are never rewritten ----
 
-const PROTECTED_STATUSES = ["Sent", "Replied", "Approved", "Follow-up", "Contacted", "Meeting", "Won", "Lost", "Suppressed", "Do Not Contact"];
+const PROTECTED_STATUSES = ["Lite Ready", "Sent", "Replied", "Approved", "Follow-up", "Contacted", "Interested", "Meeting", "Offer Sent", "Won", "Lost", "Suppressed", "Do Not Contact"];
 const HISTORY = {
   Company: "Original AS", Website: "https://www.original.no/", City: "Bergen", Industry: "frisør",
   Email: "post@original.no", "Outreach Subject": "Old subject", "Outreach Draft": "Old draft", "First Seen": "2026-09-01T00:00:00.000Z"
