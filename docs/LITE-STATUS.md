@@ -22,10 +22,18 @@ Oppdatert 14.10.2026, 17:20 UTC. Live-utsending er **AV**. Ingen e-post er sendt
 
 ## Gjenstår (krever eieren)
 
-1. **Airtable-felter mangler.** Kontrollert med feltspørringer som bare leser: `Next Step`, `Next Step Date`, `Offer NOK`, `Paid NOK` og `Paid Date` finnes ikke. Schema-API-et svarer 403, fordi tokenet mangler `schema.bases:read`. Valgene i Lead Status kan derfor ikke kontrolleres. Legg til feltene og valgene `Interested`, `Offer Sent` og `Replied` i Airtable selv, eller gi tokenet `schema.bases:read` + `schema.bases:write`, så kan de opprettes via API. Reply Sync setter `Replied` med typecast, men det er ikke verifisert at tokenet får lagt til nye valg.
+1. **Airtable (kontrollert 14.10.2026, kveld).** Feltene `Next Step` (tekst), `Next Step Date` (dato), `Offer NOK` og `Paid NOK` (valuta) og `Paid Date` (dato) **finnes** med riktig type. Kontrollert med feltspørringer som bare leser og på Airtables API-dokumentasjonsside. `Lead Status` har valgene New, Researched, Draft Ready, Approved, Sent, Replied, Follow-up, Suppressed, Needs Review, No Public Email og Lite Ready. **`Interested`, `Offer Sent`, `Meeting`, `Won` og `Lost` mangler.** Legg dem til i Airtable (Lead Status → Edit field). Schema-API-et svarer fortsatt 403.
 2. **Juridiske beslutninger B1–B7** i [LITE-JURIDISK-KONTROLL.md](LITE-JURIDISK-KONTROLL.md).
-3. **Merge PR #120** (beskyttelse av Lite Ready-rader mot den avanserte synkroniseringen, og en utvidet audit).
+3. **Merge PR #121** (én ødelagt mottakerdomene stopper ikke lenger hele kjøringen) og PR-en for personvern og lagring. #120 er merget. (beskyttelse av Lite Ready-rader mot den avanserte synkroniseringen, og en utvidet audit).
 4. Godkjenning av første utsending: se [LITE-PILOT.md](LITE-PILOT.md).
+
+## Personvern og lagring (utkast, se PR)
+
+- Utkast til personvernerklæring: [PERSONVERNERKLAERING-UTKAST.md](PERSONVERNERKLAERING-UTKAST.md)
+- Interesseavveining: [LITE-INTERESSEAVVEINING.md](LITE-INTERESSEAVVEINING.md)
+- Forslag til ny mal (brukes ikke): [LITE-EPOSTMAL-FORSLAG.md](LITE-EPOSTMAL-FORSLAG.md)
+- Databehandlere og overføringer: [LITE-DATABEHANDLERE.md](LITE-DATABEHANDLERE.md)
+- Lagring i 90 dager (bygget, ikke aktivert): [LITE-LAGRING-OG-SLETTING.md](LITE-LAGRING-OG-SLETTING.md). Dry-run mot produksjon: 0 tiltak.
 
 ## Annet
 
