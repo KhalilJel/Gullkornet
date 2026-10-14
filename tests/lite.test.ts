@@ -1,0 +1,373 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import test from "node:test";
+import { discoverBrregLiteCandidates, lookupBrregByWebsite, toLiteCandidate } from "../src/lite/brreg-lite.js";
+import { DRY_RUN_RECORDS, dryRunConfig, dryRunDeps } from "../src/lite/fixtures.js";
+import {
+  createLiteRecords, emptyIndex, indexFromRecords, liteAirtableFields, LITE_READY_STATUS, selectLiteLeads, type LiteSourceCandidate
+} from "../src/lite/intake.js";
+import { brregToLiteCandidate, placesToLiteCandidate } from "../src/lite/places-supplement.js";
+import { assessLiteRecipient, parseAllowedOrgForms } from "../src/lite/recipient-policy.js";
+import {
+  assertLiteCapacity, countLedger, isWithinLiteWindow, loadLiteSendConfig, theoreticalDailyCapacity
+} from "../src/lite/schedule.js";
+import { assertLiteRecipientApproved, liteIdempotencyKey, LiteRefusedError, runLiteSend, type LiteQueueRecord } from "../src/lite/send.js";
+import { assertLiteTemplateCompliant, LITE_TEMPLATE } from "../src/lite/template.js";
+import { SendDeferredError } from "../src/integrations/send-schedule.js";
+
+const SATURDAY_10_OSLO = Date.parse("2026-10-17T08:00:00Z"); // CEST, UTC+2
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+// ---------- 1. Lead intake ----------
+
+test("Brreg unit maps to a Lite candidate with org form, email and status flags", () => {
+  const candidate = toLiteCandidate({
+    organisasjonsnummer: "987661739", navn: "ADAM OG EVA FRISØR AS", organisasjonsform: { kode: "AS" },
+    hjemmeside: "www.adamogeva.example", epostadresse: " Post@AdamogEva.example ", konkurs: false,
+    forretningsadresse: { kommune: "OSLO", kommunenummer: "0301" }, naeringskode1: { kode: "96.021", beskrivelse: "Frisering" }
+  });
+  assert.equal(candidate?.orgForm, "AS");
+  assert.equal(candidate?.email, "post@adamogeva.example");
+  assert.equal(candidate?.websiteUrl, "https://www.adamogeva.example");
+  assert.equal(candidate?.bankrupt, false);
+  assert.equal(toLiteCandidate({ organisasjonsnummer: "123", navn: "X", organisasjonsform: { kode: "AS" } }), undefined);
+  assert.equal(toLiteCandidate({ organisasjonsnummer: "987661739", navn: "X AS" }), undefined, "unknown form is dropped");
+  assert.equal(toLiteCandidate({ organisasjonsnummer: "987661739", navn: "X AS", organisasjonsform: { kode: "AS" }, slettedato: "2020-01-01" }), undefined);
+});
+
+test("Brreg discovery queries only the allowed org form, active companies and SMB size, and stops at the last page", async () => {
+  const urls: URL[] = [];
+  const fetchImpl = (async (input: URL | RequestInfo) => {
+    const url = new URL(String(input));
+    urls.push(url);
+    return json({
+      _embedded: { enheter: [{ organisasjonsnummer: url.searchParams.get("page") === "0" ? "900000001" : "900000002", navn: "A AS", organisasjonsform: { kode: "AS" }, epostadresse: "post@a.example" }] },
+      page: { totalPages: 2 }
+    });
+  }) as typeof fetch;
+  const result = await discoverBrregLiteCandidates({ municipalities: ["0301"], orgForms: ["AS"], industryCodes: ["96.021"], pagesPerQuery: 5, fetchImpl });
+  assert.equal(urls.length, 2, "stops after totalPages");
+  for (const url of urls) {
+    assert.equal(url.searchParams.get("organisasjonsform"), "AS");
+    assert.equal(url.searchParams.get("konkurs"), "false");
+    assert.equal(url.searchParams.get("underAvvikling"), "false");
+    assert.equal(url.searchParams.get("underTvangsavviklingEllerTvangsopplosning"), "false");
+    assert.equal(url.searchParams.get("naeringskode"), "96.021");
+    assert.equal(url.searchParams.get("tilAntallAnsatte"), "249");
+  }
+  assert.equal(result.length, 2);
+});
+
+test("Brreg website lookup accepts only a unique registry match", async () => {
+  const unique = (async () => json({ _embedded: { enheter: [{ organisasjonsnummer: "900000001", navn: "A AS", organisasjonsform: { kode: "AS" } }] } })) as typeof fetch;
+  assert.equal((await lookupBrregByWebsite("https://www.a.example", unique))?.organizationNumber, "900000001");
+  let call = 0;
+  const twoUnits = (async () => json({ _embedded: { enheter: [{ organisasjonsnummer: call++ === 0 ? "900000001" : "900000002", navn: "A", organisasjonsform: { kode: "AS" } }] } })) as typeof fetch;
+  assert.equal(await lookupBrregByWebsite("a.example", twoUnits), undefined);
+  const none = (async () => json({})) as typeof fetch;
+  assert.equal(await lookupBrregByWebsite("a.example", none), undefined);
+});
+
+test("Places supplement needs a registry match and prefers the website's role address", () => {
+  const registry = toLiteCandidate({ organisasjonsnummer: "900000001", navn: "A AS", organisasjonsform: { kode: "AS" }, epostadresse: "post@a.example" })!;
+  const place = { companyName: "A", websiteUrl: "https://a.example", sourceUrl: "https://maps.example/a" };
+  assert.equal(placesToLiteCandidate(place, [], undefined), undefined, "no registry match, no lead");
+  const chosen = placesToLiteCandidate(place, [
+    { email: "ola.nordmann@a.example", sourceUrl: "https://a.example/team", sourceType: "mailto" },
+    { email: "kontakt@a.example", sourceUrl: "https://a.example/kontakt", sourceType: "mailto" }
+  ], registry);
+  assert.equal(chosen?.email, "kontakt@a.example");
+  assert.equal(chosen?.contactSourceUrl, "https://a.example/kontakt");
+  assert.equal(placesToLiteCandidate(place, [], registry)?.email, "post@a.example", "registry address as fallback");
+});
+
+// ---------- 2. ENK and address filtering (markedsføringsloven § 15) ----------
+
+test("recipient policy: ENK, unknown form, named, freemail, mismatching and inactive are all refused", () => {
+  const ok = { orgForm: "AS", email: "post@firma.example", websiteUrl: "https://www.firma.example" };
+  assert.deepEqual(assessLiteRecipient(ok), { ok: true, email: "post@firma.example" });
+  const reason = (input: Parameters<typeof assessLiteRecipient>[0]) => {
+    const decision = assessLiteRecipient(input);
+    return decision.ok ? "OK" : decision.reason;
+  };
+  assert.equal(reason({ ...ok, orgForm: "ENK" }), "ORG_FORM_NOT_ALLOWED");
+  assert.equal(reason({ ...ok, orgForm: "enk" }), "ORG_FORM_NOT_ALLOWED");
+  assert.equal(reason({ ...ok, orgForm: "ANS" }), "ORG_FORM_NOT_ALLOWED");
+  assert.equal(reason({ ...ok, orgForm: undefined }), "ORG_FORM_UNKNOWN");
+  assert.equal(reason({ ...ok, email: "ola.nordmann@firma.example" }), "PERSONAL_OR_NAMED_ADDRESS");
+  assert.equal(reason({ ...ok, email: "kari@firma.example" }), "PERSONAL_OR_NAMED_ADDRESS");
+  assert.equal(reason({ ...ok, email: "post@gmail.com", websiteUrl: undefined }), "FREEMAIL");
+  assert.equal(reason({ ...ok, email: "post@online.no", websiteUrl: undefined }), "FREEMAIL");
+  assert.equal(reason({ ...ok, email: "post@cideamarketing.com", websiteUrl: undefined }), "CIDEA_DOMAIN");
+  assert.equal(reason({ ...ok, email: "post@regnskapsbyraa.example" }), "EMAIL_DOMAIN_MISMATCH");
+  assert.equal(reason({ ...ok, bankrupt: true }), "COMPANY_INACTIVE");
+  assert.equal(reason({ ...ok, windingUp: true }), "COMPANY_INACTIVE");
+  assert.equal(reason({ ...ok, email: "" }), "NO_EMAIL");
+  assert.equal(reason({ ...ok, email: "post@firma" }), "INVALID_EMAIL");
+  assert.equal(reason({ ...ok, websiteUrl: undefined }), "OK", "no website: role address alone is enough");
+});
+
+test("ENK can never be configured as an allowed org form", () => {
+  assert.deepEqual(parseAllowedOrgForms(undefined), ["AS", "ASA"]);
+  assert.deepEqual(parseAllowedOrgForms("as, asa"), ["AS", "ASA"]);
+  assert.throws(() => parseAllowedOrgForms("AS,ENK"), /ENK/);
+});
+
+// ---------- 3. Duplicates ----------
+
+const candidate = (overrides: Partial<LiteSourceCandidate>): LiteSourceCandidate => ({
+  source: "brreg", organizationNumber: "900000001", companyName: "A AS", orgForm: "AS",
+  email: "post@a.example", websiteUrl: "https://a.example", sourceUrl: "https://data.brreg.no/x", ...overrides
+});
+
+test("selection skips businesses already in Airtable by email, domain, org number or duplicate key", () => {
+  const existing = indexFromRecords([
+    { id: "rec1", fields: { Email: "post@known.example", "Lead Status": "Sent" } },
+    { id: "rec2", fields: { Email: "info@domain.example", "Lead Status": "Replied" } },
+    { id: "rec3", fields: { "Research Notes": "[GK-LITE] source=brreg orgnr=900000099 orgform=AS" } },
+    { id: "rec4", fields: { Company: "Old", Website: "https://www.keyed.example" } }
+  ]);
+  const selection = selectLiteLeads([
+    candidate({ organizationNumber: "900000010", email: "post@known.example", websiteUrl: undefined }),
+    candidate({ organizationNumber: "900000011", email: "kontakt@domain.example", websiteUrl: undefined }),
+    candidate({ organizationNumber: "900000099", email: "post@new1.example", websiteUrl: undefined }),
+    candidate({ organizationNumber: "900000012", email: "post@keyed.example", websiteUrl: "https://keyed.example" }),
+    candidate({ organizationNumber: "900000013", email: "post@fresh.example", websiteUrl: "https://fresh.example" })
+  ], existing);
+  assert.equal(selection.alreadyKnown, 4);
+  assert.deepEqual(selection.leads.map(l => l.email), ["post@fresh.example"]);
+});
+
+test("selection de-duplicates within a batch and reports rejections by reason only", () => {
+  const selection = selectLiteLeads([
+    candidate({ organizationNumber: "900000001", email: "post@a.example" }),
+    candidate({ organizationNumber: "900000002", email: "info@a.example" }),
+    candidate({ organizationNumber: "900000003", orgForm: "ENK", email: "post@b.example", websiteUrl: undefined }),
+    candidate({ organizationNumber: "900000004", email: "ola@c.example", websiteUrl: undefined })
+  ], emptyIndex());
+  assert.equal(selection.leads.length, 1);
+  assert.equal(selection.duplicateInBatch, 1);
+  assert.deepEqual(selection.rejected, { ORG_FORM_NOT_ALLOWED: 1, PERSONAL_OR_NAMED_ADDRESS: 1 });
+});
+
+test("Airtable record for a Lite lead carries status, marker, org number and form", () => {
+  const lead = { ...brregToLiteCandidate(toLiteCandidate({ organisasjonsnummer: "900000001", navn: "A AS", organisasjonsform: { kode: "AS" }, hjemmeside: "a.example", epostadresse: "post@a.example" })!), email: "post@a.example" };
+  const fields = liteAirtableFields(lead, new Date("2026-10-14T00:00:00Z"));
+  assert.equal(fields["Lead Status"], LITE_READY_STATUS);
+  assert.match(String(fields["Research Notes"]), /^\[GK-LITE\] source=brreg orgnr=900000001 orgform=AS template=/);
+  assert.equal(fields["Duplicate Key"], "a.example");
+  assert.equal(fields.Email, "post@a.example");
+});
+
+test("Lite intake never writes to Airtable from a pull_request run", async () => {
+  let calls = 0;
+  const fetchImpl = (async () => { calls++; return json({ records: [] }); }) as typeof fetch;
+  await assert.rejects(
+    createLiteRecords([{ ...candidate({}), email: "post@a.example" }], { apiToken: "x", baseId: "appAAAAAAAAAAAAAA", tableName: "Leads", fetchImpl }, { GITHUB_EVENT_NAME: "pull_request" }),
+    /AIRTABLE_WRITES_DISABLED/
+  );
+  assert.equal(calls, 0);
+});
+
+// ---------- 4 + 5. Lite gate, DNC and reply blocking ----------
+
+const liteRecord = (id: string, fields: Record<string, unknown>): LiteQueueRecord => ({
+  id, fields: { "Lead Status": "Lite Ready", "Research Notes": "[GK-LITE] source=brreg orgnr=900000001 orgform=AS", ...fields }
+});
+
+test("Lite gate needs no AI fields but requires Lite Ready, the Lite marker, a legal form and no DNC", () => {
+  const ok = liteRecord("recOk1", { Email: "post@a.example", Website: "https://a.example" });
+  assert.equal(assertLiteRecipientApproved([ok], "post@a.example"), "recOk1");
+  const refused = (records: LiteQueueRecord[]) => assert.throws(() => assertLiteRecipientApproved(records, "post@a.example"), LiteRefusedError);
+  refused([liteRecord("recX", { Email: "post@a.example", "Do Not Contact": true })]);
+  refused([liteRecord("recX", { Email: "post@a.example", "Lead Status": "Draft Ready" })]);
+  refused([liteRecord("recX", { Email: "post@a.example", "Lead Status": "Sent" })]);
+  refused([liteRecord("recX", { Email: "post@a.example", "Research Notes": "advanced pipeline row" })]);
+  refused([liteRecord("recX", { Email: "post@a.example", "Research Notes": "[GK-LITE] orgform=ENK" })]);
+  refused([]);
+  refused([ok, liteRecord("recDup", { Email: "post@a.example" })]);
+});
+
+test("Lite gate refuses when another address at the same business was contacted, replied or is DNC", () => {
+  const ok = liteRecord("recOk1", { Email: "post@a.example" });
+  for (const other of [
+    { Email: "info@a.example", "Lead Status": "Sent" },
+    { Email: "info@a.example", "Lead Status": "Replied" },
+    { Email: "info@a.example", "Lead Status": "Lite Ready", "Do Not Contact": true }
+  ]) {
+    assert.throws(() => assertLiteRecipientApproved([ok, { id: "recOther", fields: other }], "post@a.example"), LiteRefusedError);
+  }
+});
+
+test("runner skips replied businesses and stops on a reply-service outage", async () => {
+  const { deps, outbox } = dryRunDeps(SATURDAY_10_OSLO, [liteRecord("recA", { Email: "post@a.example" })], new Set(["post@a.example"]));
+  const summary = await runLiteSend(deps, dryRunConfig());
+  assert.equal(summary.skipped.replied, 1);
+  assert.equal(outbox.length, 0);
+
+  const outage = dryRunDeps(SATURDAY_10_OSLO, [liteRecord("recA", { Email: "post@a.example" })]);
+  outage.deps.assertNotReplied = async () => { throw new Error("OpenOutSend reply-status check failed with HTTP 503. Refusing to send."); };
+  await assert.rejects(runLiteSend(outage.deps, dryRunConfig()), /503/);
+  assert.equal(outage.outbox.length, 0);
+});
+
+test("runner stops the whole run if Airtable cannot be marked Sent after Resend accepted", async () => {
+  const run = dryRunDeps(SATURDAY_10_OSLO, [liteRecord("recA", { Email: "post@a.example" }), liteRecord("recB", { Email: "post@b.example" })]);
+  run.deps.markSent = async () => { throw new Error("HTTP 500"); };
+  await assert.rejects(runLiteSend(run.deps, dryRunConfig()), /could not be marked Sent/);
+  assert.equal(run.outbox.length, 1, "no second email after a failed bookkeeping step");
+});
+
+test("runner never sends twice to an address already in the 24h Resend ledger", async () => {
+  const run = dryRunDeps(SATURDAY_10_OSLO, [liteRecord("recA", { Email: "post@a.example" })]);
+  run.deps.fetchLedger = async () => [{ created_at: new Date(SATURDAY_10_OSLO - 3 * 3600_000).toISOString(), to: ["post@a.example"] }];
+  const summary = await runLiteSend(run.deps, dryRunConfig());
+  assert.equal(summary.skipped.recentlySent, 1);
+  assert.equal(run.outbox.length, 0);
+});
+
+test("idempotency key is deterministic per record and message", () => {
+  const email = { from: "hello@cideamarketing.com", to: "post@a.example", subject: LITE_TEMPLATE.subject, text: LITE_TEMPLATE.text };
+  assert.equal(liteIdempotencyKey("recA", email), liteIdempotencyKey("recA", email));
+  assert.notEqual(liteIdempotencyKey("recA", email), liteIdempotencyKey("recB", email));
+  assert.match(liteIdempotencyKey("recA", email), /^gullkornet-lite-[0-9a-f]{64}$/);
+});
+
+test("preview runs every gate and never sends or writes", async () => {
+  const run = dryRunDeps(SATURDAY_10_OSLO);
+  run.deps.send = async () => { throw new Error("must not send"); };
+  run.deps.markSent = async () => { throw new Error("must not write"); };
+  const summary = await runLiteSend(run.deps, dryRunConfig(), { preview: true });
+  assert.equal(summary.stoppedBy, "preview");
+  assert.equal(summary.eligibleInPreview, 2);
+});
+
+test("template is the approved text with sender identification and opt-out", () => {
+  assertLiteTemplateCompliant();
+  assert.equal(LITE_TEMPLATE.subject, "Dette la vi merke til hos dere");
+  assert.match(LITE_TEMPLATE.text, /^Hei,\n/);
+  assert.match(LITE_TEMPLATE.text, /Cidea Marketing\n\nGi gjerne beskjed dersom dere ikke ønsker flere henvendelser\.$/);
+  assert.throws(() => assertLiteTemplateCompliant({ subject: "x", text: "Hei. Cidea Marketing" }), /opt-out/);
+});
+
+// ---------- 6. Capacity and window ----------
+
+const baseEnv = { RESEND_DAILY_QUOTA: "100" };
+
+test("defaults give 08-20 every day, 100/day, and enough capacity for 100", () => {
+  const cfg = loadLiteSendConfig(baseEnv);
+  assert.deepEqual([cfg.startHour, cfg.endHour, cfg.dailyLimit, cfg.hourlyLimit, cfg.maxPerRun], [8, 20, 100, 15, 5]);
+  assert.ok(theoreticalDailyCapacity(cfg) >= 100);
+});
+
+test("config refuses to exceed the Resend plan and refuses unreachable targets", () => {
+  assert.throws(() => loadLiteSendConfig({}), /RESEND_DAILY_QUOTA is required/);
+  assert.throws(() => loadLiteSendConfig({ RESEND_DAILY_QUOTA: "50" }), /exceeds RESEND_DAILY_QUOTA/);
+  assert.throws(() => loadLiteSendConfig({ ...baseEnv, RESEND_MONTHLY_QUOTA: "3000" }), /RESEND_MONTHLY_QUOTA/, "free plan cannot carry 100/day");
+  assert.doesNotThrow(() => loadLiteSendConfig({ ...baseEnv, RESEND_MONTHLY_QUOTA: "50000" }));
+  assert.throws(() => loadLiteSendConfig({ ...baseEnv, GULLKORNET_LITE_HOURLY_LIMIT: "5" }), /unreachable/);
+  assert.equal(loadLiteSendConfig({ RESEND_DAILY_QUOTA: "1000", GULLKORNET_LITE_DAILY_LIMIT: "150" }).dailyLimit, 150, "100 is a target, not a ceiling");
+});
+
+test("window covers Saturday and Sunday 08:00-19:59 Oslo, summer and winter time", () => {
+  const cfg = { startHour: 8, endHour: 20 };
+  assert.equal(isWithinLiteWindow(Date.parse("2026-10-17T06:00:00Z"), cfg), true, "Sat 08:00 CEST");
+  assert.equal(isWithinLiteWindow(Date.parse("2026-10-17T05:59:00Z"), cfg), false, "Sat 07:59 CEST");
+  assert.equal(isWithinLiteWindow(Date.parse("2026-10-18T17:59:00Z"), cfg), true, "Sun 19:59 CEST");
+  assert.equal(isWithinLiteWindow(Date.parse("2026-10-18T18:00:00Z"), cfg), false, "Sun 20:00 CEST");
+  assert.equal(isWithinLiteWindow(Date.parse("2026-11-01T07:00:00Z"), cfg), true, "Sun 08:00 CET");
+  assert.equal(isWithinLiteWindow(Date.parse("2026-11-01T19:00:00Z"), cfg), false, "Sun 20:00 CET");
+});
+
+test("capacity check: hourly, daily, quota and spacing", () => {
+  const cfg = loadLiteSendConfig(baseEnv);
+  const now = SATURDAY_10_OSLO;
+  const at = (minutesAgo: number) => ({ created_at: new Date(now - minutesAgo * 60_000).toISOString(), to: ["x@y.example"] });
+  assert.doesNotThrow(() => assertLiteCapacity(countLedger([at(2)], now), cfg, now));
+  assert.throws(() => assertLiteCapacity(countLedger([at(0.5)], now), cfg, now), SendDeferredError);
+  assert.throws(() => assertLiteCapacity(countLedger(Array.from({ length: 15 }, (_, i) => at(3 + i)), now), cfg, now), /Hourly/);
+  assert.throws(() => assertLiteCapacity(countLedger(Array.from({ length: 100 }, (_, i) => at(61 + i * 10)), now), cfg, now), /quota|Daily/);
+  assert.throws(() => countLedger([{ created_at: "bad" }], now), /invalid timestamp/);
+});
+
+test("a full simulated day with a run every 10 minutes sends exactly 100, all inside 08-20 Oslo", async () => {
+  const records = Array.from({ length: 300 }, (_, i) => liteRecord(`recSim${String(i).padStart(4, "0")}`, { Email: `post@sim${i}.example` }));
+  const cfg = loadLiteSendConfig(baseEnv);
+  const dayStart = Date.parse("2026-10-17T22:00:00Z"); // Sunday 00:00 Oslo
+  const run = dryRunDeps(dayStart, records);
+  for (let minute = 0; minute < 24 * 60; minute += 10) {
+    const target = dayStart + minute * 60_000;
+    const current = run.deps.now();
+    if (target > current) run.advance(target - current);
+    await runLiteSend(run.deps, cfg);
+  }
+  assert.equal(run.outbox.length, 100);
+  for (const entry of run.ledger) {
+    assert.ok(isWithinLiteWindow(Date.parse(entry.created_at), cfg), "sent outside the window");
+  }
+  assert.equal(new Set(run.outbox.map(o => o.email.to)).size, 100, "no address twice");
+});
+
+// ---------- 7. Offline dry run with five test leads ----------
+
+test("dry run over five synthetic leads: 2 sent, ENK refused, replied skipped, DNC never queued", async () => {
+  const { deps, outbox, state } = dryRunDeps(SATURDAY_10_OSLO);
+  const summary = await runLiteSend(deps, dryRunConfig());
+  assert.equal(DRY_RUN_RECORDS.length, 5);
+  assert.deepEqual(outbox.map(o => o.email.to), ["post@frisor-a.example", "kontakt@ror-b.example"]);
+  assert.ok(outbox.every(o => o.email.to.endsWith(".example")), "only reserved test domains");
+  assert.ok(outbox.every(o => o.email.from === "hello@cideamarketing.com" && o.email.text === LITE_TEMPLATE.text));
+  assert.deepEqual(summary.skipped, { refused: 1, replied: 1, recentlySent: 0 });
+  assert.equal(summary.scanned, 4);
+  assert.equal(state.get("recLiteDry00001")?.fields["Lead Status"], "Sent");
+  assert.equal(state.get("recLiteDry00004")?.fields["Lead Status"], "Lite Ready");
+});
+
+test("send:lite CLI with the kill switch off makes no provider or CRM call", () => {
+  const result = spawnSync(process.execPath, ["--import", "tsx", "src/cli/send-lite.ts"], {
+    encoding: "utf8",
+    timeout: 15000,
+    env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", RESEND_API_KEY: "re_should_not_be_used", AIRTABLE_API_TOKEN: "x" }
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /kill switch is off/);
+});
+
+// ---------- Workflow safety ----------
+
+import { readFile } from "node:fs/promises";
+
+test("Lite outreach workflow is gated by its own kill switch and has no push/PR trigger", async () => {
+  const wf = (await readFile(new URL("../.github/workflows/lite-outreach.yml", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+  assert.match(wf, /GULLKORNET_LITE_ENABLE_LIVE_SEND: \$\{\{ secrets\.GULLKORNET_LITE_ENABLE_LIVE_SEND \}\}/);
+  assert.doesNotMatch(wf, /GULLKORNET_ENABLE_LIVE_SEND:/, "must not reuse the advanced sender switch");
+  assert.doesNotMatch(wf, /^  (push|pull_request):/m);
+  assert.match(wf, /send:lite -- --preview/);
+  assert.match(wf, /cron: "\*\/10 6-18 \* \* \*"/, "every day; window enforced in code");
+  assert.doesNotMatch(wf, /upload-artifact/);
+});
+
+test("Lite intake workflow is inert without its variable and holds no sending credentials", async () => {
+  const wf = (await readFile(new URL("../.github/workflows/lite-lead-intake.yml", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+  assert.match(wf, /GULLKORNET_LITE_INTAKE_ENABLED/);
+  assert.match(wf, /GULLKORNET_LITE_INTAKE_SYNC/);
+  assert.doesNotMatch(wf, /RESEND|LIVE_SEND|send:(lite|daily|email)|OPENOUTREACH/);
+  assert.doesNotMatch(wf, /^  (push|pull_request):/m);
+  for (const line of wf.split("\n").filter(l => l.includes("${{ inputs."))) {
+    assert.match(line, /^\s+INPUT_[A-Z_]+: \$\{\{ inputs\./, "inputs reach the shell only through env");
+  }
+  assert.doesNotMatch(wf, /upload-artifact/);
+});
+
+test("Brreg discovery can start further into the register and respects the 10 000 result cap", async () => {
+  const pages: string[] = [];
+  const fetchImpl = (async (input: URL | RequestInfo) => {
+    pages.push(new URL(String(input)).searchParams.get("page") ?? "");
+    return json({ _embedded: { enheter: [{ organisasjonsnummer: "900000001", navn: "A AS", organisasjonsform: { kode: "AS" } }] }, page: { totalPages: 1000 } });
+  }) as typeof fetch;
+  await discoverBrregLiteCandidates({ municipalities: ["0301"], pagesPerQuery: 3, startPage: 30, fetchImpl });
+  assert.deepEqual(pages, ["30", "31", "32"]);
+  pages.length = 0;
+  await discoverBrregLiteCandidates({ municipalities: ["0301"], pagesPerQuery: 5, startPage: 500, fetchImpl });
+  assert.deepEqual(pages, ["99"]);
+});

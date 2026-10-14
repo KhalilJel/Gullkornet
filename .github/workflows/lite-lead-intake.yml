@@ -1,0 +1,100 @@
+name: Gullkornet Lite Lead Intake
+
+# Brønnøysund -> legal-recipient filter (AS/ASA only, role address, no freemail, no ENK) ->
+# de-duplication against every Airtable row -> new rows with Lead Status "Lite Ready".
+# INERT on schedule until the repository variable GULLKORNET_LITE_INTAKE_ENABLED is "true", and it
+# writes to Airtable only when GULLKORNET_LITE_INTAKE_SYNC is also "true". It holds no sending
+# credentials and never sends email.
+on:
+  schedule:
+    - cron: "40 4 * * *"
+  workflow_dispatch:
+    inputs:
+      municipalities:
+        description: "Comma-separated municipality numbers (empty = Oslo + Akershus default)"
+        required: false
+        default: ""
+        type: string
+      industries:
+        description: "Comma-separated NACE codes (empty = all industries)"
+        required: false
+        default: ""
+        type: string
+      pages:
+        description: "Brreg pages (100 units) per municipality"
+        required: true
+        default: "3"
+        type: string
+      start_page:
+        description: "First Brreg page (rotate to move through the register)"
+        required: true
+        default: "0"
+        type: string
+      limit:
+        description: "Maximum new Lite Ready rows this run"
+        required: true
+        default: "150"
+        type: string
+      sync_to_airtable:
+        description: "Write new Lite Ready rows to Airtable"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gullkornet-lite-intake
+  cancel-in-progress: false
+
+jobs:
+  intake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
+      GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
+      GULLKORNET_AIRTABLE_TABLE: ${{ vars.GULLKORNET_AIRTABLE_TABLE || 'Leads' }}
+      GULLKORNET_LITE_ORG_FORMS: ${{ vars.GULLKORNET_LITE_ORG_FORMS || 'AS,ASA' }}
+      ENABLED: ${{ vars.GULLKORNET_LITE_INTAKE_ENABLED }}
+      SCHEDULED_SYNC: ${{ vars.GULLKORNET_LITE_INTAKE_SYNC }}
+      INPUT_MUNICIPALITIES: ${{ inputs.municipalities }}
+      INPUT_INDUSTRIES: ${{ inputs.industries }}
+      INPUT_PAGES: ${{ inputs.pages || '3' }}
+      INPUT_START_PAGE: ${{ inputs.start_page }}
+      INPUT_LIMIT: ${{ inputs.limit || vars.GULLKORNET_LITE_INTAKE_LIMIT || '150' }}
+      INPUT_SYNC: ${{ inputs.sync_to_airtable }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run Lite intake
+        run: |
+          umask 077
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$ENABLED" != "true" ]; then
+            echo "Lite intake is disabled (GULLKORNET_LITE_INTAKE_ENABLED is not true). Nothing to do."
+            exit 0
+          fi
+          case "$INPUT_PAGES" in ''|*[!0-9]*) echo "pages must be a number"; exit 1 ;; esac
+          case "$INPUT_LIMIT" in ''|*[!0-9]*) echo "limit must be a number"; exit 1 ;; esac
+          start="$INPUT_START_PAGE"
+          if [ -z "$start" ]; then
+            # Scheduled runs move 3 pages further through the register each day (wraps at page 90).
+            start=$(( ( $(date -u +%j | sed 's/^0*//') * 3 ) % 90 ))
+          fi
+          case "$start" in *[!0-9]*) echo "start_page must be a number"; exit 1 ;; esac
+          sync_flag=""
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$SCHEDULED_SYNC" = "true" ]; then sync_flag="--sync"; fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "$INPUT_SYNC" = "true" ]; then sync_flag="--sync"; fi
+          npm run --silent lite:intake -- --source brreg \
+            --municipalities "$INPUT_MUNICIPALITIES" --industries "$INPUT_INDUSTRIES" \
+            --pages "$INPUT_PAGES" --start-page "$start" --limit "$INPUT_LIMIT" $sync_flag
