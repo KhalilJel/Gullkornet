@@ -56,7 +56,15 @@ export async function checkBrregStillValid(
   return undefined;
 }
 
-/** True when the domain publishes a usable MX record. No domain / no MX / null MX -> false; a DNS outage throws. */
+/** A domain whose MX lookup must always work; used to tell a broken recipient domain from a resolver outage. */
+export const DNS_CONTROL_DOMAIN = "cideamarketing.com";
+
+/**
+ * True when the domain publishes a usable MX record. No domain / no MX / null MX -> false.
+ * Any other DNS error (SERVFAIL, timeout ...) is checked against a control domain: if the control
+ * still resolves, the fault lies with the recipient's domain, which then cannot reliably receive
+ * mail either (false); if the control fails too, the resolver is down and the run stops (throws).
+ */
 export async function hasMailServer(email: string, resolve: FreshnessDeps["resolveMxImpl"] = resolveMx): Promise<boolean> {
   const domain = emailDomain(email);
   if (!domain) return false;
@@ -67,6 +75,13 @@ export async function hasMailServer(email: string, resolve: FreshnessDeps["resol
   } catch (error) {
     const code = (error as { code?: unknown }).code;
     if (code === "ENOTFOUND" || code === "ENODATA" || code === "NXDOMAIN") return false;
+    let controlOk = false;
+    try {
+      controlOk = (await resolve(DNS_CONTROL_DOMAIN)).length > 0;
+    } catch {
+      controlOk = false;
+    }
+    if (controlOk) return false;
     throw new Error(`DNS lookup failed (${typeof code === "string" ? code : "unknown"}). Refusing to send.`);
   }
 }
