@@ -15,17 +15,23 @@ Fixed-template B2B outreach: Brønnøysund -> legal recipient filter -> Airtable
 
 Markedsføringsloven § 15 requires prior consent for electronic marketing to natural persons. Forbrukertilsynet's guidance: a named work address is a natural person even when it is the registered company address; a role address that belongs to no specific person may be used; if it is unclear, the sender carries the risk. E-handelsloven § 9: it must be clear who the sender is and that the message is marketing. Lite therefore uses only role addresses at legal-person companies, the template names Jelassi / Cidea Marketing, and every email carries the opt-out line. Opt-outs: tick `Do Not Contact` on the row (the whole business domain is then blocked).
 
-### Template claims (approved template 2026-10-14.2)
+### Template claims and market research (approved template 2026-10-14.2)
 
-Markedsføringsloven §§ 6-7: claims must be true and documentable when sent. Lite does no per-recipient analysis, so each claim must be backed at segment level (NACE x municipality), before that segment is sent to:
+Markedsføringsloven §§ 6-7: claims must be true and documentable when sent. Lite does no per-recipient analysis, so the claims are backed per **segment = NACE code x region** (today one region, Oslo og Akershus). "Deres marked" is the recipient's trade where they compete for local customers: industry alone would mix regions, a single municipality gives too small a sample.
 
-| Claim | What must exist before sending |
+`npm run lite:research -- --industry 96.210 [--sample 20] --write` (or the manual workflow *Gullkornet Lite Market Research*, which proposes the file as a pull request) takes a spread sample of active AS/ASA in the segment with a registered website, fetches each front page (unreadable pages, pages without a title and repeated sites are not counted) and records in `research/segments/<nace>__<region>.json`: date, every site attempted (unreadable ones marked and not counted), the observed gaps with counts, the opportunities, and the follow-up text to send when someone answers yes. Nothing is inferred beyond the fetched pages; the follow-up says the review was automated and that the recipient's own site was not assessed separately.
+
+| Claim | Backed by |
 |---|---|
-| "Vi har sett på hvordan bedrifter i deres marked presenterer seg digitalt" | A dated, stored review of a sample of businesses' websites/profiles in that segment. Intake should be limited (`--industries`, `--municipalities`) to segments with such a review. |
-| "mener det finnes muligheter for å forbedre hvordan dere tiltrekker dere nye kunder" | An opinion, but phrased about the recipient; keep the segment review showing typical gaps. |
-| "Vi har en konkret idé" | A ready-to-send follow-up explanation per segment, sent to everyone who says yes. |
+| "Vi har sett på hvordan bedrifter i deres marked presenterer seg digitalt" | The segment's research file: >= 8 examined sites, less than 90 days old. The send gate recomputes the evidence from the stored site records. |
+| "mener det finnes muligheter for å forbedre ..." | At least one gap seen on >= 30 % of examined sites, otherwise the file is marked `supportsTemplate: false`. |
+| "Vi har en konkret idé" | `followUp` in the same file, built only from those gaps. Send it by hand to positive replies. |
 
-E-handelsloven § 9: the subject "En idé til forbedring hos dere" is neutral and the sender (Cidea Marketing) and opt-out are in the body. The From header is the bare address `hello@cideamarketing.com` without a display name; consider a display name "Cidea Marketing" (shared sender code, separate change).
+Gates: intake keeps only leads in a documented segment (and without `--industries` it queries exactly those segments); the sender skips any row whose segment has no fresh, sufficient research (`noResearch` in the run log) and writes `research=<id>` on the row when it claims it, so every email is linked to the research it relied on. Research expires after 90 days: re-run it per segment.
+
+NACE codes follow SN2025 (Brreg changed codes in 2025: hairdressers are `96.210`, not the old `96.021`).
+
+E-handelsloven § 9: the subject is neutral; Lite sends as `Cidea Marketing <hello@cideamarketing.com>`; sender and opt-out are in the body.
 
 ## Configuration
 
@@ -43,11 +49,13 @@ E-handelsloven § 9: the subject "En idé til forbedring hos dere" is neutral an
 | `GULLKORNET_LITE_INTAKE_SYNC` | variable | unset | Scheduled intake writes Airtable only when `true`. |
 | `GULLKORNET_LITE_INTAKE_LIMIT` | variable | 150 | New `Lite Ready` rows per scheduled intake. |
 
+Failures in all three Lite workflows open or update the existing *[Gullkornet Pipeline Alert]* issue (`pipeline-failure-alerts.yml`).
+
 Window: every day 08:00-20:00 Europe/Oslo (code; the cron is a superset). Defaults allow 100/day: 12 h x 15/h = 180, spacing allows 720.
 
 ## Go-live order
 
-1. Owner documents the template claims for the first segments (see *Template claims*) and approves the Resend plan; set `RESEND_DAILY_QUOTA` (and `RESEND_MONTHLY_QUOTA`).
+1. Run *Gullkornet Lite Market Research* for the first segments, review and merge the research pull requests (see *Template claims and market research*). Approve the Resend plan; set `RESEND_DAILY_QUOTA` (and `RESEND_MONTHLY_QUOTA`).
 2. Manual *Lite Lead Intake* with `sync_to_airtable=false`; read the counts. Then once with `true` and a small `limit` (10); check the rows in Airtable.
 3. Manual *Lite Outreach* with `preview=true`: counts eligible rows, sends nothing.
 4. Go-live: set secret `GULLKORNET_LITE_ENABLE_LIVE_SEND=true`. Start with `GULLKORNET_LITE_DAILY_LIMIT` 30, then 60, then 100 over the first week (sender reputation).
@@ -58,3 +66,7 @@ Rollback: set `GULLKORNET_LITE_ENABLE_LIVE_SEND` to anything but `true`. Each ro
 ## Offline checks
 
 `npm run lite:dry-run` (five synthetic `.example` leads, fake clock/Resend/Airtable, no network) and `npm test`.
+
+## Volume (measured 14.10.2026)
+
+Brreg, hairdressers (96.210) in Oslo og omegn, 3 pages per municipality: 544 units, 74 with a registered email, 15 qualified (role address, non-freemail, matching domain). About 3 % of fetched units become sendable leads, so 100/day x 7 needs roughly 25 000 Brreg units a week across many documented segments, or the Places supplement.

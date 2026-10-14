@@ -1,8 +1,8 @@
-import { markAirtableRecipientSent } from "../integrations/airtable-send-approval.js";
 import { fetchRecentSendLedger, sendOneEmail } from "../integrations/outbound-email.js";
 import { assertRecipientHasNotReplied } from "../integrations/reply-status.js";
-import { fetchLiteQueue, lookupLiteRecords, markLiteReady } from "../lite/airtable-queue.js";
+import { fetchLiteQueue, lookupLiteRecords, markLiteReady, markLiteSent } from "../lite/airtable-queue.js";
 import { airtableConfigFromEnv } from "../lite/intake.js";
+import { loadResearchIndex } from "../lite/market-research.js";
 import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
 import { loadLiteSendConfig } from "../lite/schedule.js";
 import { runLiteSend } from "../lite/send.js";
@@ -24,6 +24,8 @@ async function main(): Promise<void> {
   const resendKey = env.RESEND_API_KEY?.trim() ?? "";
   if (!preview && !resendKey) throw new Error("RESEND_API_KEY is required for live sending.");
 
+  const research = await loadResearchIndex();
+
   const summary = await runLiteSend({
     now: () => Date.now(),
     sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
@@ -31,13 +33,14 @@ async function main(): Promise<void> {
     fetchQueue: () => fetchLiteQueue(airtable),
     lookupRecords: email => lookupLiteRecords(airtable, email),
     assertNotReplied: email => assertRecipientHasNotReplied(email, env),
+    findResearch: segment => research.get(segment.key),
     send: (email, key) => {
       if (preview) throw new Error("Preview must never send.");
       return sendOneEmail(email, resendKey, key);
     },
-    markSent: recordId => {
+    markSent: (recordId, researchNotes) => {
       if (preview) throw new Error("Preview must never write.");
-      return markAirtableRecipientSent(recordId, env);
+      return markLiteSent(airtable, recordId, researchNotes, env);
     },
     markReady: recordId => {
       if (preview) throw new Error("Preview must never write.");
@@ -49,7 +52,7 @@ async function main(): Promise<void> {
   // Counts only: no addresses or company names in logs.
   console.log(`Gullkornet Lite ${preview ? "preview" : "run"}: scanned=${summary.scanned} sent=${summary.sent} ` +
     `eligible=${summary.eligibleInPreview ?? "-"} refused=${summary.skipped.refused} replied=${summary.skipped.replied} ` +
-    `recentlySent=${summary.skipped.recentlySent} stoppedBy=${summary.stoppedBy}`);
+    `recentlySent=${summary.skipped.recentlySent} noResearch=${summary.skipped.noResearch} documentedSegments=${research.size} stoppedBy=${summary.stoppedBy}`);
 }
 
 main().catch(error => {

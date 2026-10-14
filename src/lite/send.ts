@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
 import { businessDomainOf } from "../domain/email-domain.js";
-import { DEFAULT_SENDER, type PreparedEmail, type SendLedgerEntry } from "../integrations/outbound-email.js";
+import type { PreparedEmail, SendLedgerEntry } from "../integrations/outbound-email.js";
 import { SendDeferredError } from "../integrations/send-schedule.js";
 import { LITE_MARKER, LITE_READY_STATUS } from "./intake.js";
+import { assessResearch, segmentFromNotes, withResearchRef, type LiteSegment, type SegmentResearch } from "./market-research.js";
 import { assessLiteRecipient } from "./recipient-policy.js";
 import { assertLiteCapacity, countLedger, isWithinLiteWindow, type LiteSendConfig } from "./schedule.js";
-import { assertLiteTemplateCompliant, LITE_TEMPLATE } from "./template.js";
+import { assertLiteTemplateCompliant, LITE_FROM, LITE_TEMPLATE } from "./template.js";
 
 export type LiteQueueRecord = { id: string; fields: Record<string, unknown> };
 
@@ -85,8 +86,11 @@ export type LiteSendDeps = {
   lookupRecords: (email: string) => Promise<LiteQueueRecord[]>;
   /** Throws an Error whose message contains "Recipient has replied" when the business answered; any other throw is an outage. */
   assertNotReplied: (email: string) => Promise<void>;
+  /** Stored market research for a segment (research/segments), if any. */
+  findResearch: (segment: LiteSegment) => SegmentResearch | undefined;
   send: (email: PreparedEmail, idempotencyKey: string) => Promise<{ id: string }>;
-  markSent: (recordId: string) => Promise<void>;
+  /** Claims the row: Lead Status Sent and Research Notes with the research reference. */
+  markSent: (recordId: string, researchNotes: string) => Promise<void>;
   /** Puts a claimed row back to Lite Ready after a send that Resend did not accept. */
   markReady: (recordId: string) => Promise<void>;
   log: (message: string) => void;
@@ -95,7 +99,7 @@ export type LiteSendDeps = {
 export type LiteRunSummary = {
   sent: number;
   scanned: number;
-  skipped: { refused: number; replied: number; recentlySent: number };
+  skipped: { refused: number; replied: number; recentlySent: number; noResearch: number };
   stoppedBy: "max_per_run" | "queue_empty" | "outside_window" | "limit" | "preview";
   eligibleInPreview?: number;
 };
@@ -109,7 +113,7 @@ export type LiteRunOptions = { preview?: boolean; allowedOrgForms?: readonly str
  */
 export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, options: LiteRunOptions = {}): Promise<LiteRunSummary> {
   assertLiteTemplateCompliant();
-  const summary: LiteRunSummary = { sent: 0, scanned: 0, skipped: { refused: 0, replied: 0, recentlySent: 0 }, stoppedBy: "queue_empty" };
+  const summary: LiteRunSummary = { sent: 0, scanned: 0, skipped: { refused: 0, replied: 0, recentlySent: 0, noResearch: 0 }, stoppedBy: "queue_empty" };
   if (!options.preview && !isWithinLiteWindow(deps.now(), cfg)) {
     summary.stoppedBy = "outside_window";
     return summary;
@@ -144,14 +148,22 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
     summary.scanned++;
     const email = emailOf(record);
     let recordId: string;
+    let freshNotes: string;
     try {
       if (!email) throw new LiteRefusedError("Record has no email.");
-      recordId = assertLiteRecipientApproved(await deps.lookupRecords(email), email, options.allowedOrgForms);
+      const related = await deps.lookupRecords(email);
+      recordId = assertLiteRecipientApproved(related, email, options.allowedOrgForms);
+      // Notes as they are now, not as they were when the queue was read (a run can wait minutes).
+      freshNotes = notesOf(related.find(r => r.id === recordId)!);
       if (recordId !== record.id) throw new LiteRefusedError("Lookup returned a different record.");
     } catch (error) {
       if (error instanceof LiteRefusedError) { summary.skipped.refused++; continue; }
       throw error;
     }
+    // "Vi har sett på hvordan bedrifter i deres marked ..." must be documented for this lead's segment.
+    const segment = segmentFromNotes(freshNotes);
+    const research = assessResearch(segment, segment && deps.findResearch(segment), deps.now());
+    if (!research.ok) { summary.skipped.noResearch++; continue; }
     try {
       await deps.assertNotReplied(email);
     } catch (error) {
@@ -162,11 +174,11 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
 
     if (options.preview) { eligible++; continue; }
 
-    const prepared: PreparedEmail = { from: DEFAULT_SENDER, to: email, subject: LITE_TEMPLATE.subject, text: LITE_TEMPLATE.text };
+    const prepared: PreparedEmail = { from: LITE_FROM, to: email, subject: LITE_TEMPLATE.subject, text: LITE_TEMPLATE.text };
     // Claim the row (Sent) before sending: a row that is not Lite Ready never re-enters the queue,
     // so a later failure can at worst leave one row marked Sent without an email, never send twice.
     try {
-      await deps.markSent(recordId);
+      await deps.markSent(recordId, withResearchRef(freshNotes, research.research.id));
     } catch {
       throw new Error("Airtable could not mark the row Sent before sending. Nothing was sent. Refusing to continue.");
     }

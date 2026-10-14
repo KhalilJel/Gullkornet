@@ -52,6 +52,24 @@ export async function lookupLiteRecords(cfg: AirtableConfig, email: string): Pro
   return result.records;
 }
 
+/**
+ * The pre-send claim: Lead Status Sent plus the research reference in Research Notes, verified
+ * from Airtable's response. A row that is not Lite Ready never re-enters the Lite queue.
+ */
+export async function markLiteSent(cfg: AirtableConfig, recordId: string, researchNotes: string, env: NodeJS.ProcessEnv = process.env): Promise<void> {
+  assertAirtableWritesAllowed(env);
+  if (!/^rec[A-Za-z0-9]+$/.test(recordId)) throw new Error("Airtable record ID is invalid.");
+  const response = await (cfg.fetchImpl ?? fetch)(`${tableUrl(cfg).toString()}/${recordId}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${cfg.apiToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: { "Lead Status": "Sent", "Research Notes": researchNotes } }),
+    signal: AbortSignal.timeout(15000)
+  });
+  if (!response.ok) throw new Error(`Airtable could not mark the row Sent (HTTP ${response.status}).`);
+  const payload = await response.json().catch(() => null) as { id?: unknown; fields?: Record<string, unknown> } | null;
+  if (payload?.id !== recordId || payload.fields?.["Lead Status"] !== "Sent" || payload.fields?.["Research Notes"] !== researchNotes) throw new Error("Airtable's Sent state could not be verified.");
+}
+
 /** Undoes the pre-send claim (Sent -> Lite Ready) after a send that failed. */
 export async function markLiteReady(cfg: AirtableConfig, recordId: string, env: NodeJS.ProcessEnv = process.env): Promise<void> {
   assertAirtableWritesAllowed(env);

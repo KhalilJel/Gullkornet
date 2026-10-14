@@ -23,7 +23,8 @@
     "gateway:serve": "tsx src/cli/agent-gateway-server.ts",
     "lite:intake": "tsx src/cli/lite-intake.ts",
     "send:lite": "tsx src/cli/send-lite.ts",
-    "lite:dry-run": "tsx src/cli/lite-dry-run.ts"
+    "lite:dry-run": "tsx src/cli/lite-dry-run.ts",
+    "lite:research": "tsx src/cli/lite-research.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

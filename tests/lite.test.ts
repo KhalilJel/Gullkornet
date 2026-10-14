@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { discoverBrregLiteCandidates, lookupBrregByWebsite, toLiteCandidate } from "../src/lite/brreg-lite.js";
-import { DRY_RUN_RECORDS, dryRunConfig, dryRunDeps } from "../src/lite/fixtures.js";
+import { DRY_RUN_RECORDS, dryRunConfig, dryRunDeps, dryRunResearch } from "../src/lite/fixtures.js";
 import {
   createLiteRecords, emptyIndex, indexFromRecords, liteAirtableFields, LITE_READY_STATUS, selectLiteLeads, type LiteSourceCandidate
 } from "../src/lite/intake.js";
@@ -12,7 +12,9 @@ import {
   assertLiteCapacity, countLedger, isWithinLiteWindow, loadLiteSendConfig, theoreticalDailyCapacity
 } from "../src/lite/schedule.js";
 import { assertLiteRecipientApproved, liteIdempotencyKey, LiteRefusedError, runLiteSend, type LiteQueueRecord } from "../src/lite/send.js";
-import { assertLiteTemplateCompliant, LITE_TEMPLATE } from "../src/lite/template.js";
+import { assertLiteTemplateCompliant, LITE_FROM, LITE_TEMPLATE } from "../src/lite/template.js";
+import { assessResearch, buildSegmentResearch, liteSegment, segmentFromNotes, withResearchRef } from "../src/lite/market-research.js";
+import type { WebsiteAudit } from "../src/integrations/website-audit.js";
 import { SendDeferredError } from "../src/integrations/send-schedule.js";
 
 const SATURDAY_10_OSLO = Date.parse("2026-10-17T08:00:00Z"); // CEST, UTC+2
@@ -185,7 +187,7 @@ test("Lite intake never writes to Airtable from a pull_request run", async () =>
 // ---------- 4 + 5. Lite gate, DNC and reply blocking ----------
 
 const liteRecord = (id: string, fields: Record<string, unknown>): LiteQueueRecord => ({
-  id, fields: { "Lead Status": "Lite Ready", "Research Notes": "[GK-LITE] source=brreg orgnr=900000001 orgform=AS", ...fields }
+  id, fields: { "Lead Status": "Lite Ready", "Research Notes": "[GK-LITE] source=brreg orgnr=900000001 orgform=AS nace=96.021 kommune=0301", ...fields }
 });
 
 test("Lite gate needs no AI fields but requires Lite Ready, the Lite marker, a legal form and no DNC", () => {
@@ -389,10 +391,11 @@ test("dry run over five synthetic leads: 2 sent, ENK refused, replied skipped, D
   assert.equal(DRY_RUN_RECORDS.length, 5);
   assert.deepEqual(outbox.map(o => o.email.to), ["post@frisor-a.example", "kontakt@ror-b.example"]);
   assert.ok(outbox.every(o => o.email.to.endsWith(".example")), "only reserved test domains");
-  assert.ok(outbox.every(o => o.email.from === "hello@cideamarketing.com" && o.email.text === LITE_TEMPLATE.text));
-  assert.deepEqual(summary.skipped, { refused: 1, replied: 1, recentlySent: 0 });
+  assert.ok(outbox.every(o => o.email.from === "Cidea Marketing <hello@cideamarketing.com>" && o.email.text === LITE_TEMPLATE.text));
+  assert.deepEqual(summary.skipped, { refused: 1, replied: 1, recentlySent: 0, noResearch: 0 });
   assert.equal(summary.scanned, 4);
   assert.equal(state.get("recLiteDry00001")?.fields["Lead Status"], "Sent");
+  assert.match(String(state.get("recLiteDry00001")?.fields["Research Notes"]), / research=96\.021@oslo-akershus@2026-10-16$/);
   assert.equal(state.get("recLiteDry00004")?.fields["Lead Status"], "Lite Ready");
 });
 
@@ -432,6 +435,23 @@ test("Lite intake workflow is inert without its variable and holds no sending cr
   assert.doesNotMatch(wf, /upload-artifact/);
 });
 
+test("Lite research workflow holds no CRM or sending credentials and is manual only", async () => {
+  const wf = (await readFile(new URL("../.github/workflows/lite-market-research.yml", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+  assert.doesNotMatch(wf, /AIRTABLE|RESEND|LIVE_SEND|send:|OPENOUTREACH/);
+  assert.doesNotMatch(wf, /^  (push|pull_request|schedule):/m);
+  for (const line of wf.split("\n").filter(l => l.includes("${{ inputs."))) {
+    assert.match(line, /^\s+INPUT_[A-Z_]+: \$\{\{ inputs\./, "inputs reach the shell only through env");
+  }
+});
+
+test("failures in every Lite workflow raise the existing pipeline alert", async () => {
+  const alerts = (await readFile(new URL("../.github/workflows/pipeline-failure-alerts.yml", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+  for (const file of ["lite-lead-intake.yml", "lite-outreach.yml", "lite-market-research.yml"]) {
+    const name = /^name: (.+)$/m.exec((await readFile(new URL(`../.github/workflows/${file}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n"))?.[1];
+    assert.ok(name && alerts.includes(`- "${name}"`), `${file} is watched by the alert workflow`);
+  }
+});
+
 test("Brreg discovery can start further into the register and respects the 10 000 result cap", async () => {
   const pages: string[] = [];
   const fetchImpl = (async (input: URL | RequestInfo) => {
@@ -443,4 +463,86 @@ test("Brreg discovery can start further into the register and respects the 10 00
   pages.length = 0;
   await discoverBrregLiteCandidates({ municipalities: ["0301"], pagesPerQuery: 5, startPage: 500, fetchImpl });
   assert.deepEqual(pages, ["99"]);
+});
+
+// ---------- 8. Market research (template claim documentation) ----------
+
+test("segment is NACE x region, read from the intake marker", () => {
+  assert.deepEqual(segmentFromNotes("[GK-LITE] source=brreg nace=96.021 kommune=3201 template=x"), { key: "96.021@oslo-akershus", industryCode: "96.021", region: "oslo-akershus" });
+  assert.equal(segmentFromNotes("[GK-LITE] source=brreg nace=96.021 kommune=5001"), undefined, "region without research coverage");
+  assert.equal(segmentFromNotes("[GK-LITE] source=brreg orgnr=1"), undefined);
+});
+
+test("research records only what was fetched and claims a gap only when common", () => {
+  const research = dryRunResearch(SATURDAY_10_OSLO);
+  assert.equal(research.examined, 10);
+  assert.equal(research.supportsTemplate, true);
+  assert.deepEqual(research.opportunities, [
+    "6 av 10 undersøkte nettsider manglet en beskrivelse som søkemotorer kan vise i søkeresultatet.",
+    "6 av 10 undersøkte nettsider hadde verken en tydelig kontakt- eller bestillingslenke eller en e-postlenke på forsiden."
+  ]);
+  assert.match(research.followUp, /Vi har ikke gjort en egen vurdering av deres nettside/);
+  assert.match(research.followUp, /automatisk gjennomgang/);
+  assert.doesNotMatch(research.followUp, /(?<![\p{L}])(?:du|deg|din|ditt|dine)(?![\p{L}])/iu);
+
+  const segment = liteSegment("96.021", "oslo-akershus")!;
+  const units = Array.from({ length: 10 }, (_, i) => ({ organizationNumber: String(i), companyName: `S${i}` }));
+  const audit = (i: number, over: Partial<WebsiteAudit>): WebsiteAudit => ({ companyName: `S${i}`, checkedAt: "2026-10-16T00:00:00Z", status: "AUDITED", httpStatus: 200, finalUrl: `https://s${i}.example/`, flags: [], ...over });
+  // Unreadable sites are never counted as examined, and their flags are not used.
+  const failed = buildSegmentResearch(segment, units, units.map((_, i) => i < 5
+    ? audit(i, { status: "FETCH_ERROR", httpStatus: undefined, flags: ["FETCH_ERROR"] })
+    : audit(i, { httpStatus: i === 5 ? 404 : 200, flags: i === 5 ? ["HTTP_ERROR", "MISSING_META_DESCRIPTION"] : ["MISSING_META_DESCRIPTION"] })), new Date(SATURDAY_10_OSLO));
+  assert.equal(failed.attempted, 10);
+  assert.equal(failed.examined, 4);
+  assert.equal(failed.supportsTemplate, false);
+  // Pages without a title and repeats of the same site never count; a mailto link is a contact route.
+  const thin = buildSegmentResearch(segment, units, units.map((_, i) => audit(i, {
+    finalUrl: i < 3 ? "https://same.example/" : `https://s${i}.example/`,
+    flags: i === 9 ? ["MISSING_TITLE", "MISSING_META_DESCRIPTION"] : ["NO_OBVIOUS_CONTACT_PATH"]
+  })), new Date(SATURDAY_10_OSLO));
+  assert.equal(thin.examined, 7);
+  assert.deepEqual(thin.sites.map(s => s.excluded ?? "-").filter(x => x !== "-"), ["DUPLICATE_SITE", "DUPLICATE_SITE", "NO_TITLE"]);
+  assert.deepEqual(thin.opportunities, [], "fewer than 8 examined, and no e-mail-less contact gap");
+  // No common gap: nothing to claim, so the template is not supported.
+  const clean = buildSegmentResearch(segment, units, units.map((_, i) => audit(i, { flags: i === 0 ? ["MISSING_TITLE"] : [] })), new Date(SATURDAY_10_OSLO));
+  assert.deepEqual(clean.opportunities, []);
+  assert.equal(clean.supportsTemplate, false);
+});
+
+test("send gate: no, stale, insufficient or mismatched research blocks the lead", () => {
+  const segment = liteSegment("96.021", "oslo-akershus")!;
+  const research = dryRunResearch(SATURDAY_10_OSLO);
+  assert.equal(assessResearch(segment, research, SATURDAY_10_OSLO).ok, true);
+  assert.deepEqual(assessResearch(undefined, research, SATURDAY_10_OSLO), { ok: false, reason: "NO_SEGMENT" });
+  assert.deepEqual(assessResearch(segment, undefined, SATURDAY_10_OSLO), { ok: false, reason: "NO_RESEARCH" });
+  assert.deepEqual(assessResearch(liteSegment("43.221", "oslo-akershus"), research, SATURDAY_10_OSLO), { ok: false, reason: "NO_RESEARCH" });
+  assert.deepEqual(assessResearch(segment, research, SATURDAY_10_OSLO + 91 * 86_400_000), { ok: false, reason: "RESEARCH_STALE" });
+  assert.deepEqual(assessResearch(segment, { ...research, examined: 12 }, SATURDAY_10_OSLO), { ok: false, reason: "RESEARCH_INSUFFICIENT" });
+  // The stored summary is not trusted: inflated claims or doctored site records are caught.
+  assert.deepEqual(assessResearch(segment, { ...research, opportunities: ["10 av 10 undersøkte nettsider manglet alt."] }, SATURDAY_10_OSLO), { ok: false, reason: "RESEARCH_INSUFFICIENT" });
+  assert.deepEqual(assessResearch(segment, { ...research, sites: research.sites.map(s => ({ ...s, status: "FETCH_ERROR" as const })) }, SATURDAY_10_OSLO), { ok: false, reason: "RESEARCH_INSUFFICIENT" });
+});
+
+test("runner skips leads without documented research and sends nothing to them", async () => {
+  const run = dryRunDeps(SATURDAY_10_OSLO, [
+    liteRecord("recA", { Email: "post@a.example" }),
+    liteRecord("recB", { Email: "post@b.example", "Research Notes": "[GK-LITE] source=brreg orgnr=900000002 orgform=AS nace=43.221 kommune=0301" }),
+    liteRecord("recC", { Email: "post@c.example", "Research Notes": "[GK-LITE] source=brreg orgnr=900000003 orgform=AS" })
+  ]);
+  const summary = await runLiteSend(run.deps, dryRunConfig());
+  assert.equal(summary.sent, 1);
+  assert.equal(summary.skipped.noResearch, 2);
+  assert.deepEqual(run.outbox.map(o => o.email.to), ["post@a.example"]);
+
+  const none = dryRunDeps(SATURDAY_10_OSLO, [liteRecord("recA", { Email: "post@a.example" })], new Set(), []);
+  assert.equal((await runLiteSend(none.deps, dryRunConfig())).skipped.noResearch, 1);
+  assert.equal(none.outbox.length, 0);
+});
+
+test("research reference replaces an earlier one on the row", () => {
+  assert.equal(withResearchRef("[GK-LITE] a=1 research=old", "new"), "[GK-LITE] a=1 research=new");
+});
+
+test("Lite sends as Cidea Marketing <hello@cideamarketing.com>", () => {
+  assert.equal(LITE_FROM, "Cidea Marketing <hello@cideamarketing.com>");
 });

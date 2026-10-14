@@ -1,3 +1,5 @@
+import { DEFAULT_SENDER } from "../integrations/outbound-email.js";
+
 // Gullkornet Lite: one fixed, owner-approved message for every recipient.
 // No personalization, no AI, no claims about the recipient's own website.
 // Changing the wording requires a new owner approval; bump LITE_TEMPLATE_VERSION when you do.
@@ -6,6 +8,8 @@ export const LITE_TEMPLATE_VERSION = "2026-10-14.2";
 
 /** Lite sells Cidea Marketing only. Cidea Leads and Cidea Consulting are paused as sales lines. */
 export const LITE_BRAND = "Cidea Marketing";
+/** Display name + the locked sender address. Only Lite uses the display name. */
+export const LITE_FROM = `${LITE_BRAND} <${DEFAULT_SENDER}>`;
 
 export const LITE_TEMPLATE = Object.freeze({
   subject: "En idé til forbedring hos dere",

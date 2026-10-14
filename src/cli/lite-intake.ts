@@ -4,12 +4,15 @@ import { researchContactAndDraft } from "../integrations/contact-research.js";
 import type { GoogleCandidate } from "../integrations/website-audit.js";
 import { discoverBrregLiteCandidates, lookupBrregByWebsite } from "../lite/brreg-lite.js";
 import { airtableConfigFromEnv, createLiteRecords, emptyIndex, fetchExistingIndex, selectLiteLeads, type LiteSourceCandidate } from "../lite/intake.js";
+import { documentedSegments, LITE_REGIONS, liteSegment, loadResearchIndex, regionOfMunicipality } from "../lite/market-research.js";
 import { brregToLiteCandidate, placesToLiteCandidate } from "../lite/places-supplement.js";
 import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
 
 // npm run lite:intake -- --source brreg [--municipalities 0301,3201] [--industries 96.021,56.101] [--pages 3] [--start-page 0] [--limit 300] [--sync] [--out data/lite.json]
 // npm run lite:intake -- --source places --input data/google-candidates.json [--limit 50] [--sync]
 // Without --sync nothing is written to Airtable. Logs contain counts only.
+// Only leads in a segment (NACE x region) with fresh market research in research/segments are kept;
+// without --industries, Brreg is queried for exactly those segments.
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -23,11 +26,20 @@ async function main(): Promise<void> {
   const limit = Math.max(1, Math.min(Number(arg("limit") ?? "300") || 300, 2000));
   const allowedOrgForms = parseAllowedOrgForms(process.env.GULLKORNET_LITE_ORG_FORMS);
   let candidates: LiteSourceCandidate[] = [];
+  const documented = new Set(documentedSegments(await loadResearchIndex(), Date.now()).map(segment => segment.key));
+  if (documented.size === 0) {
+    console.log("No segment has fresh market research (npm run lite:research). Nothing to do.");
+    return;
+  }
 
   if (source === "brreg") {
+    const documentedList = [...documented].map(key => key.split("@"));
+    const industries = list(arg("industries")).length ? list(arg("industries")) : [...new Set(documentedList.map(([nace]) => nace!))];
+    const municipalities = list(arg("municipalities")).length ? list(arg("municipalities"))
+      : [...new Set(documentedList.flatMap(([, region]) => [...(LITE_REGIONS[region!]?.municipalities ?? [])]))];
     const units = await discoverBrregLiteCandidates({
-      municipalities: list(arg("municipalities")),
-      industryCodes: list(arg("industries")),
+      municipalities,
+      industryCodes: industries,
       orgForms: allowedOrgForms,
       pagesPerQuery: Number(arg("pages") ?? "3") || 3,
       startPage: Number(arg("start-page") ?? "0") || 0
@@ -55,7 +67,12 @@ async function main(): Promise<void> {
   const airtable = sync || process.env.AIRTABLE_API_TOKEN ? airtableConfigFromEnv() : undefined;
   const existing = airtable ? await fetchExistingIndex(airtable) : emptyIndex();
   if (!airtable) console.log("No Airtable credentials: de-duplication against Airtable skipped (dry run only).");
-  const selection = selectLiteLeads(candidates, existing, allowedOrgForms);
+  const inSegment = candidates.filter(c => {
+    const segment = liteSegment(c.industryCode, regionOfMunicipality(c.municipalityCode));
+    return segment !== undefined && documented.has(segment.key);
+  });
+  console.log(`Documented segments: ${documented.size}; candidates in a documented segment: ${inSegment.length} of ${candidates.length}`);
+  const selection = selectLiteLeads(inSegment, existing, allowedOrgForms);
   const leads = selection.leads.slice(0, limit);
   console.log(`Lite selection: qualified=${selection.leads.length} usedThisRun=${leads.length} alreadyKnown=${selection.alreadyKnown} ` +
     `duplicateInBatch=${selection.duplicateInBatch} rejected=${JSON.stringify(selection.rejected)}`);

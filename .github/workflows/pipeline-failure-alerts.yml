@@ -8,6 +8,9 @@ on:
       - "Gullkornet Contact Research and Drafts"
       - "Gullkornet Digital Presence Research"
       - "Gullkornet Daily Outreach"
+      - "Gullkornet Lite Lead Intake"
+      - "Gullkornet Lite Outreach"
+      - "Gullkornet Lite Market Research"
     types: [completed]
     branches: [main]
 

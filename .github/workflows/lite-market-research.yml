@@ -1,0 +1,77 @@
+name: Gullkornet Lite Market Research
+
+# Documents the template sentence "Vi har sett på hvordan bedrifter i deres marked presenterer seg
+# digitalt" for one segment (NACE code x region): fetches the front pages of a spread sample of
+# registered AS/ASA websites in Brønnøysund and stores what was observed in research/segments/.
+# The result is proposed as a pull request; Lite sends to a segment only after that file is on main
+# and less than 90 days old. Public data only: no Airtable, no Resend, never sends email.
+on:
+  workflow_dispatch:
+    inputs:
+      industry:
+        description: "NACE code (SN2025), e.g. 96.210"
+        required: true
+        type: string
+      region:
+        description: "Region"
+        required: true
+        default: "oslo-akershus"
+        type: choice
+        options: [oslo-akershus]
+      sample:
+        description: "Sites to examine (8-40)"
+        required: true
+        default: "15"
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: gullkornet-lite-research
+  cancel-in-progress: false
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      INPUT_INDUSTRY: ${{ inputs.industry }}
+      INPUT_REGION: ${{ inputs.region }}
+      INPUT_SAMPLE: ${{ inputs.sample }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Research the segment
+        run: |
+          umask 077
+          case "$INPUT_INDUSTRY" in [0-9][0-9].[0-9]|[0-9][0-9].[0-9][0-9]|[0-9][0-9].[0-9][0-9][0-9]) ;; *) echo "industry must be a NACE code such as 96.210"; exit 1 ;; esac
+          case "$INPUT_SAMPLE" in ''|*[!0-9]*) echo "sample must be a number"; exit 1 ;; esac
+          npm run --silent lite:research -- --industry "$INPUT_INDUSTRY" --region "$INPUT_REGION" --sample "$INPUT_SAMPLE" --write
+
+      - name: Propose the research as a pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          umask 077
+          if [ -z "$(git status --porcelain research/segments)" ]; then echo "No research file changed."; exit 0; fi
+          branch="research/lite-${INPUT_INDUSTRY}-${INPUT_REGION}-$(date -u +%Y%m%d%H%M)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add research/segments
+          git commit -m "research(lite): ${INPUT_INDUSTRY} @ ${INPUT_REGION}"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "Lite market research: ${INPUT_INDUSTRY} @ ${INPUT_REGION}" \
+            --body "Automated front-page review for the Lite template claim. Review the observations, then merge to enable this segment for 90 days."
