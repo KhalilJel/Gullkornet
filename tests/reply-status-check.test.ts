@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { negativeControlAddress, replyStatusOf, runReplyStatusCheck } from "../src/integrations/reply-status-check.js";
 
@@ -39,4 +40,14 @@ test("check passes only when the test sender replied and the negative control di
   assert.equal(missing.positive, "error");
   assert.equal(missing.pass, false);
   assert.equal((await runReplyStatusCheck("tester@example.org", async () => "error")).pass, false);
+});
+
+test("reply-status workflow is manual-only, read-only and has no sending or CRM access", async () => {
+  const workflow = (await readFile(new URL("../.github/workflows/reply-status-check.yml", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+  assert.match(workflow, /^on:\n  workflow_dispatch:\n\n/m);
+  assert.doesNotMatch(workflow, /^  (push|pull_request|pull_request_target|schedule|workflow_run):/m);
+  assert.match(workflow, /^permissions:\n  contents: read\n\n/m);
+  assert.doesNotMatch(workflow, /RESEND_|AIRTABLE_|MIGADU_|ENABLE_LIVE_SEND|send:|secrets: inherit/);
+  assert.doesNotMatch(workflow, /@(?!cideamarketing\.com)[a-z0-9-]+\.[a-z]{2,}/i);
+  assert.match(workflow, /npm run --silent check:reply-status/);
 });
