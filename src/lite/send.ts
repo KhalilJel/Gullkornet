@@ -16,7 +16,7 @@ export class LiteRefusedError extends Error {}
 // Same set as the advanced sender (airtable-send-approval.ts): a business in any of these
 // states has been contacted, has answered, or must not be contacted again through any address.
 const BUSINESS_BLOCKING_STATUSES = new Set([
-  "Sent", "Replied", "Contacted", "Suppressed", "Do Not Contact", "Follow-up", "Meeting", "Won", "Lost"
+  "Sent", "Replied", "Contacted", "Suppressed", "Do Not Contact", "Follow-up", "Interested", "Meeting", "Offer Sent", "Won", "Lost"
 ]);
 
 function emailOf(record: LiteQueueRecord): string {
@@ -88,6 +88,8 @@ export type LiteSendDeps = {
   assertNotReplied: (email: string) => Promise<void>;
   /** Stored market research for a segment (research/segments), if any. */
   findResearch: (segment: LiteSegment) => SegmentResearch | undefined;
+  /** Re-checks the row's facts at their sources (Brreg, DNS). Returns a refusal reason, undefined when still valid; throws on an outage. */
+  checkFreshness: (email: string, notes: string) => Promise<string | undefined>;
   send: (email: PreparedEmail, idempotencyKey: string) => Promise<{ id: string }>;
   /** Claims the row: Lead Status Sent and Research Notes with the research reference. */
   markSent: (recordId: string, researchNotes: string) => Promise<void>;
@@ -99,7 +101,7 @@ export type LiteSendDeps = {
 export type LiteRunSummary = {
   sent: number;
   scanned: number;
-  skipped: { refused: number; replied: number; recentlySent: number; noResearch: number };
+  skipped: { refused: number; replied: number; recentlySent: number; noResearch: number; stale: number };
   stoppedBy: "max_per_run" | "queue_empty" | "outside_window" | "limit" | "preview";
   eligibleInPreview?: number;
 };
@@ -113,7 +115,7 @@ export type LiteRunOptions = { preview?: boolean; allowedOrgForms?: readonly str
  */
 export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, options: LiteRunOptions = {}): Promise<LiteRunSummary> {
   assertLiteTemplateCompliant();
-  const summary: LiteRunSummary = { sent: 0, scanned: 0, skipped: { refused: 0, replied: 0, recentlySent: 0, noResearch: 0 }, stoppedBy: "queue_empty" };
+  const summary: LiteRunSummary = { sent: 0, scanned: 0, skipped: { refused: 0, replied: 0, recentlySent: 0, noResearch: 0, stale: 0 }, stoppedBy: "queue_empty" };
   if (!options.preview && !isWithinLiteWindow(deps.now(), cfg)) {
     summary.stoppedBy = "outside_window";
     return summary;
@@ -164,6 +166,9 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
     const segment = segmentFromNotes(freshNotes);
     const research = assessResearch(segment, segment && deps.findResearch(segment), deps.now());
     if (!research.ok) { summary.skipped.noResearch++; continue; }
+    // The company may have been deleted, gone bankrupt or changed its address since intake.
+    const staleReason = await deps.checkFreshness(email, freshNotes);
+    if (staleReason) { summary.skipped.stale++; deps.log(`Skipped ${recordId}: ${staleReason}`); continue; }
     try {
       await deps.assertNotReplied(email);
     } catch (error) {

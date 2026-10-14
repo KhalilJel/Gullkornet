@@ -4,10 +4,11 @@ export type ReplyStatusResponse = {
   send_triggered: false;
 };
 
-export async function assertRecipientHasNotReplied(
+/** Read-only lookup: true when the business has replied. Throws (fails closed) on any doubt. */
+export async function fetchRecipientReplied(
   recipient: string,
   env: NodeJS.ProcessEnv = process.env
-): Promise<void> {
+): Promise<boolean> {
   const endpoint = env.OPENOUTREACH_REPLY_STATUS_URL?.trim();
   // A dedicated read-only token: the ingest token is deliberately never read here.
   const token = env.OPENOUTREACH_REPLY_STATUS_TOKEN?.trim();
@@ -51,7 +52,14 @@ export async function assertRecipientHasNotReplied(
   ) {
     throw new Error("OpenOutSend returned an invalid reply-status response. Refusing to send.");
   }
-  if ((payload as ReplyStatusResponse).replied) {
+  return (payload as ReplyStatusResponse).replied;
+}
+
+export async function assertRecipientHasNotReplied(
+  recipient: string,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<void> {
+  if (await fetchRecipientReplied(recipient, env)) {
     throw new Error("Recipient has replied. Follow-up/outreach is blocked.");
   }
 }

@@ -51,6 +51,7 @@ export function dryRunDeps(startMs: number, records = DRY_RUN_RECORDS, replied =
     },
     assertNotReplied: async email => { if (replied.has(email)) throw new Error("Recipient has replied. Follow-up/outreach is blocked."); },
     findResearch: segment => research.find(r => r.segment.key === segment.key),
+    checkFreshness: async () => undefined,
     send: async (email, key) => {
       outbox.push({ email, key });
       ledger.push({ created_at: new Date(clock).toISOString(), to: [email.to] });

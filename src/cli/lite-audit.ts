@@ -1,0 +1,99 @@
+import { auditLiteRows, REVENUE_GOAL_NOK, SALES_FIELDS, SALES_STATUSES } from "../lite/audit.js";
+import { checkLiteFreshness } from "../lite/freshness.js";
+import { airtableConfigFromEnv, LITE_READY_STATUS, type AirtableConfig } from "../lite/intake.js";
+import { loadResearchIndex } from "../lite/market-research.js";
+import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
+import type { LiteQueueRecord } from "../lite/send.js";
+
+// npm run lite:audit
+// Read-only. Data quality of every Lite Ready row (recipient policy, duplicates, research, and a
+// fresh Brreg + MX check) and the sales overview (statuses, offers, paid revenue against the goal).
+// Writes nothing, sends nothing. Prints record IDs and counts only (public Actions logs).
+
+async function fetchAllRows(cfg: AirtableConfig): Promise<LiteQueueRecord[]> {
+  const rows: LiteQueueRecord[] = [];
+  let offset: string | undefined;
+  for (let page = 0; page < 500; page++) {
+    const url = new URL(`https://api.airtable.com/v0/${cfg.baseId}/${encodeURIComponent(cfg.tableName)}`);
+    url.searchParams.set("pageSize", "100");
+    if (offset) url.searchParams.set("offset", offset);
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${cfg.apiToken}` }, signal: AbortSignal.timeout(20000) });
+    if (!response.ok) throw new Error(`Airtable read failed (HTTP ${response.status}).`);
+    const payload = await response.json() as { records?: LiteQueueRecord[]; offset?: string };
+    if (!Array.isArray(payload.records)) throw new Error("Airtable returned an invalid list.");
+    rows.push(...payload.records);
+    offset = typeof payload.offset === "string" ? payload.offset : undefined;
+    if (!offset) return rows;
+  }
+  throw new Error("Airtable table exceeded the safe pagination limit.");
+}
+
+/** Field names and Lead Status options, if the token may read the schema. */
+async function readSchema(cfg: AirtableConfig): Promise<{ fields: Set<string>; statuses: Set<string> } | undefined> {
+  const response = await fetch(`https://api.airtable.com/v0/meta/bases/${cfg.baseId}/tables`, {
+    headers: { Authorization: `Bearer ${cfg.apiToken}` }, signal: AbortSignal.timeout(20000)
+  });
+  if (!response.ok) return undefined;
+  const payload = await response.json() as { tables?: Array<{ name?: string; fields?: Array<{ name?: string; options?: { choices?: Array<{ name?: string }> } }> }> };
+  const table = payload.tables?.find(t => t.name === cfg.tableName);
+  if (!table?.fields) return undefined;
+  const status = table.fields.find(f => f.name === "Lead Status");
+  return {
+    fields: new Set(table.fields.map(f => f.name ?? "")),
+    statuses: new Set((status?.options?.choices ?? []).map(c => c.name ?? ""))
+  };
+}
+
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+async function main(): Promise<void> {
+  const env = process.env;
+  const cfg = airtableConfigFromEnv(env);
+  const allowedOrgForms = parseAllowedOrgForms(env.GULLKORNET_LITE_ORG_FORMS);
+  const research = await loadResearchIndex();
+  const rows = await fetchAllRows(cfg);
+  const now = Date.now();
+
+  const freshness = new Map<string, string>();
+  for (const row of rows) {
+    const notes = typeof row.fields["Research Notes"] === "string" ? row.fields["Research Notes"] : "";
+    const email = typeof row.fields.Email === "string" ? row.fields.Email.trim().toLowerCase() : "";
+    if (row.fields["Lead Status"] !== LITE_READY_STATUS || !notes.includes("[GK-LITE]") || !email) continue;
+    try {
+      const reason = await checkLiteFreshness(notes, email, allowedOrgForms);
+      if (reason) freshness.set(row.id, reason);
+    } catch {
+      freshness.set(row.id, "FRESHNESS_CHECK_UNAVAILABLE");
+    }
+    await sleep(200); // gentle on Brreg's open API
+  }
+
+  const report = auditLiteRows(rows, research, now, freshness, allowedOrgForms);
+  const lines: string[] = [];
+  lines.push(`Gullkornet Lite audit (${new Date(now).toISOString()})`);
+  lines.push(`Table rows: ${rows.length}; Lite rows: ${report.liteRows}; documented segments: ${research.size}`);
+  lines.push(`Lite status: ${Object.entries(report.statusCounts).map(([s, n]) => `${s}=${n}`).join(", ") || "-"}`);
+  lines.push(`Lite Ready: ${report.readyRows}; clean (would pass every data check): ${report.readyClean}`);
+  lines.push(`Issues: ${Object.entries(report.issueCounts).map(([s, n]) => `${s}=${n}`).join(", ") || "none"}`);
+  for (const row of report.rowsWithIssues) lines.push(`  ${row.id}: ${row.issues.join(", ")}`);
+  lines.push(`Sales: paid ${report.paidNok} NOK from ${report.payingRows} customer(s); goal ${REVENUE_GOAL_NOK} NOK (${Math.round(100 * report.paidNok / REVENUE_GOAL_NOK)} %); open offers ${report.offeredNok} NOK`);
+  lines.push(`Follow-ups without a future Next Step Date: ${report.overdueFollowUps.length}${report.overdueFollowUps.length ? " (" + report.overdueFollowUps.join(", ") + ")" : ""}`);
+
+  const schema = await readSchema(cfg).catch(() => undefined);
+  if (!schema) lines.push("Schema: not readable with this token (needs schema.bases:read); sales fields not verified.");
+  else {
+    const missingFields = SALES_FIELDS.filter(f => !schema.fields.has(f));
+    const missingStatuses = SALES_STATUSES.filter(s => !schema.statuses.has(s));
+    lines.push(`Schema: missing sales fields: ${missingFields.join(", ") || "none"}; missing Lead Status options: ${missingStatuses.join(", ") || "none"}`);
+  }
+  console.log(lines.join("\n"));
+  if (env.GITHUB_STEP_SUMMARY) {
+    const { appendFile } = await import("node:fs/promises");
+    await appendFile(env.GITHUB_STEP_SUMMARY, "```\n" + lines.join("\n") + "\n```\n");
+  }
+}
+
+main().catch(error => {
+  console.error(error instanceof Error ? error.message : "Gullkornet Lite audit failed.");
+  process.exitCode = 1;
+});

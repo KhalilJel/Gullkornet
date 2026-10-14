@@ -11,6 +11,7 @@ on:
       - "Gullkornet Lite Lead Intake"
       - "Gullkornet Lite Outreach"
       - "Gullkornet Lite Market Research"
+      - "Gullkornet Lite Reply Sync"
     types: [completed]
     branches: [main]
 
