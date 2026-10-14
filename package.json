@@ -20,7 +20,11 @@
     "sales-engine": "tsx src/cli/run-sales-engine.ts",
     "send:preview": "tsx src/cli/preview-send-queue.ts",
     "smoke:agents": "tsx src/cli/agent-smoke.ts",
-    "gateway:serve": "tsx src/cli/agent-gateway-server.ts"
+    "gateway:serve": "tsx src/cli/agent-gateway-server.ts",
+    "lite:intake": "tsx src/cli/lite-intake.ts",
+    "send:lite": "tsx src/cli/send-lite.ts",
+    "lite:dry-run": "tsx src/cli/lite-dry-run.ts",
+    "lite:research": "tsx src/cli/lite-research.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

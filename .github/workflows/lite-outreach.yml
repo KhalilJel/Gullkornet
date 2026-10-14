@@ -1,0 +1,69 @@
+name: Gullkornet Lite Outreach
+
+# Sends the fixed, owner-approved Lite template to "Lite Ready" Airtable rows.
+# Runs every 10 minutes, every day; the 08:00-20:00 Europe/Oslo window (summer and winter),
+# the daily target, hourly limit, spacing and Resend quota are enforced in code
+# (src/lite/schedule.ts). Each run sends at most GULLKORNET_LITE_MAX_PER_RUN emails, so a
+# skipped or delayed GitHub cron run is caught up by the next one.
+# INERT until the repository secret GULLKORNET_LITE_ENABLE_LIVE_SEND is "true" (separate from the
+# advanced sender's GULLKORNET_ENABLE_LIVE_SEND). The manual "preview" run never sends or writes.
+on:
+  schedule:
+    - cron: "*/10 6-18 * * *"
+  workflow_dispatch:
+    inputs:
+      preview:
+        description: "Read-only preview: run every gate, send nothing"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gullkornet-lite-outreach
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GULLKORNET_LITE_ENABLE_LIVE_SEND: ${{ secrets.GULLKORNET_LITE_ENABLE_LIVE_SEND }}
+      GULLKORNET_LITE_DAILY_LIMIT: ${{ vars.GULLKORNET_LITE_DAILY_LIMIT || '100' }}
+      GULLKORNET_LITE_HOURLY_LIMIT: ${{ vars.GULLKORNET_LITE_HOURLY_LIMIT || '15' }}
+      GULLKORNET_LITE_MAX_PER_RUN: ${{ vars.GULLKORNET_LITE_MAX_PER_RUN || '5' }}
+      GULLKORNET_LITE_MIN_SPACING_SECONDS: ${{ vars.GULLKORNET_LITE_MIN_SPACING_SECONDS || '60' }}
+      GULLKORNET_LITE_ORG_FORMS: ${{ vars.GULLKORNET_LITE_ORG_FORMS || 'AS,ASA' }}
+      RESEND_DAILY_QUOTA: ${{ vars.RESEND_DAILY_QUOTA }}
+      RESEND_MONTHLY_QUOTA: ${{ vars.RESEND_MONTHLY_QUOTA }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
+      GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
+      GULLKORNET_AIRTABLE_TABLE: ${{ vars.GULLKORNET_AIRTABLE_TABLE || 'Leads' }}
+      OPENOUTREACH_REPLY_STATUS_URL: ${{ vars.OPENOUTREACH_REPLY_STATUS_URL }}
+      OPENOUTREACH_REPLY_STATUS_TOKEN: ${{ secrets.OPENOUTREACH_REPLY_STATUS_TOKEN }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Read-only preview (manual run)
+        if: github.event_name == 'workflow_dispatch' && inputs.preview
+        run: |
+          umask 077
+          npm run --silent send:lite -- --preview
+
+      - name: Send Lite outreach (no-op while the kill switch is off)
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.preview)
+        run: |
+          umask 077
+          npm run --silent send:lite
