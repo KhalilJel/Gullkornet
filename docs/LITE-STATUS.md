@@ -1,5 +1,15 @@
 # Gullkornet Lite – status
 
+## Oppdatering 14.10.2026, kveld (pipeline og salg)
+
+- **Pipeline:** 67 nye Lite Ready-rader (57 via Brreg + 10 via bedriftens egen nettside, `--source website`). Køen har nå **77** unike Lite Ready: 72 rene og 5 uten MX, som hoppes over. Hele markedet i de to segmentene (frisør og rørlegger, Oslo og Akershus) har 102 kvalifiserte bedrifter. 25 av dem fantes allerede i den avanserte pipelinen og ble ikke lagt inn på nytt.
+- **Topp 20:** ligger lokalt i `private/TOPP-20.md` (ikke i git, fordi repoet er offentlig). Alle 20 er Lite Ready, ikke kontaktet og ikke reservert (sjekket med fingeravtrykk-oppslag i Lite Audit).
+- **Tjenestepakker og plan mot 50 000 NOK:** [CIDEA-TJENESTEPAKKER-OG-SALGSPLAN.md](CIDEA-TJENESTEPAKKER-OG-SALGSPLAN.md).
+- **Juridisk beslutningspakke:** [LITE-JURIDISK-BESLUTNINGSPAKKE.md](LITE-JURIDISK-BESLUTNINGSPAKKE.md).
+
+---
+
+
 Oppdatert 14.10.2026, 17:20 UTC. Live-utsending er **AV**. Ingen e-post er sendt fra Lite.
 
 ## Verifisert
