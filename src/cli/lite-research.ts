@@ -1,11 +1,14 @@
+import "dotenv/config";
 import { auditCandidates } from "../integrations/website-audit.js";
 import { discoverBrregLiteCandidates } from "../lite/brreg-lite.js";
-import { buildSegmentResearch, LITE_REGIONS, LITE_RESEARCH_MIN_EXAMINED, liteSegment, saveResearch, spreadSample } from "../lite/market-research.js";
+import { assessResearch, buildSegmentResearch, LITE_REGIONS, LITE_RESEARCH_MIN_EXAMINED, liteSegment, loadResearchIndex, saveResearch, spreadSample } from "../lite/market-research.js";
 
 // npm run lite:research -- --industry 96.021 [--region oslo-akershus] [--sample 15] [--write]
 // Fetches the front page of a spread sample of registered websites in the segment and stores
 // what was actually observed in research/segments/. Without --write it only prints the summary.
 // Reads public data only (Brønnøysund + the companies' own front pages); no Airtable, no email.
+// npm run lite:research -- --industry 96.210 --show   -> decrypts and prints the stored research for review
+// Research files are encrypted with GULLKORNET_LITE_RESEARCH_KEY (secret / local .env).
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -16,6 +19,14 @@ async function main(): Promise<void> {
   const region = arg("region") ?? "oslo-akershus";
   const segment = liteSegment(arg("industry"), region);
   if (!segment) throw new Error(`--industry must be a NACE code such as 96.021 and --region one of: ${Object.keys(LITE_REGIONS).join(", ")}.`);
+  if (process.argv.includes("--show")) {
+    const research = (await loadResearchIndex()).get(segment.key);
+    if (!research) throw new Error(`No stored research for ${segment.key}.`);
+    console.log(JSON.stringify(research, null, 2));
+    const decision = assessResearch(segment, research, Date.now());
+    console.log(`Send gate: ${decision.ok ? "OK" : decision.reason}`);
+    return;
+  }
   const sampleSize = Math.max(LITE_RESEARCH_MIN_EXAMINED, Math.min(Number(arg("sample") ?? "15") || 15, 40));
 
   const units = (await discoverBrregLiteCandidates({

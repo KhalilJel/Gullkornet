@@ -1,3 +1,4 @@
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { WebsiteAudit } from "../integrations/website-audit.js";
@@ -228,12 +229,44 @@ export function assessResearch(segment: LiteSegment | undefined, research: Segme
   return { ok: true, research };
 }
 
+// The repository is public, but research names companies, their websites and observed gaps.
+// Files are therefore stored AES-256-GCM encrypted; the key (32 bytes, base64) lives only in the
+// GULLKORNET_LITE_RESEARCH_KEY repository secret and the owner's local .env. Git keeps the history.
+
+function researchKey(env: NodeJS.ProcessEnv): Buffer {
+  const raw = env.GULLKORNET_LITE_RESEARCH_KEY?.trim();
+  const key = raw ? Buffer.from(raw, "base64") : Buffer.alloc(0);
+  if (key.length !== 32) throw new Error("GULLKORNET_LITE_RESEARCH_KEY (32 bytes, base64) is required to read or write Lite research.");
+  return key;
+}
+
+export function encryptResearch(research: SegmentResearch, env: NodeJS.ProcessEnv = process.env): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", researchKey(env), iv);
+  // The segment key is authenticated, so a file cannot be renamed to cover another segment.
+  cipher.setAAD(Buffer.from(research.segment.key));
+  const data = Buffer.concat([cipher.update(JSON.stringify(research), "utf8"), cipher.final()]);
+  return JSON.stringify({ v: 1, segment: research.segment.key, researchedAt: research.researchedAt,
+    iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), data: data.toString("base64") }, null, 2) + "\n";
+}
+
+export function decryptResearch(file: string, env: NodeJS.ProcessEnv = process.env): SegmentResearch {
+  const box = JSON.parse(file) as { v?: number; segment?: string; iv?: string; tag?: string; data?: string };
+  if (box.v !== 1 || !box.segment || !box.iv || !box.tag || !box.data) throw new Error("Invalid encrypted research file.");
+  const decipher = createDecipheriv("aes-256-gcm", researchKey(env), Buffer.from(box.iv, "base64"));
+  decipher.setAAD(Buffer.from(box.segment));
+  decipher.setAuthTag(Buffer.from(box.tag, "base64"));
+  const research = JSON.parse(Buffer.concat([decipher.update(Buffer.from(box.data, "base64")), decipher.final()]).toString("utf8")) as SegmentResearch;
+  if (research.segment?.key !== box.segment) throw new Error("Research file segment does not match its content.");
+  return research;
+}
+
 export function researchFileName(segment: LiteSegment): string {
-  return `${segment.industryCode.replace(".", "_")}__${segment.region}.json`;
+  return `${segment.industryCode.replace(".", "_")}__${segment.region}.json.enc`;
 }
 
 /** Newest research per segment key. */
-export async function loadResearchIndex(dir = LITE_RESEARCH_DIR): Promise<Map<string, SegmentResearch>> {
+export async function loadResearchIndex(dir = LITE_RESEARCH_DIR, env: NodeJS.ProcessEnv = process.env): Promise<Map<string, SegmentResearch>> {
   const index = new Map<string, SegmentResearch>();
   let files: string[];
   try {
@@ -241,8 +274,9 @@ export async function loadResearchIndex(dir = LITE_RESEARCH_DIR): Promise<Map<st
   } catch {
     return index;
   }
-  for (const file of files.filter(f => f.endsWith(".json")).sort()) {
-    const research = JSON.parse(await readFile(path.join(dir, file), "utf8")) as SegmentResearch;
+  if (files.some(f => f.endsWith(".json"))) throw new Error("Unencrypted research file in research/segments. Refusing to use it.");
+  for (const file of files.filter(f => f.endsWith(".json.enc")).sort()) {
+    const research = decryptResearch(await readFile(path.join(dir, file), "utf8"), env);
     if (research.schema !== 1 || !research.segment?.key) throw new Error(`Invalid research file ${file}.`);
     const current = index.get(research.segment.key);
     if (!current || current.researchedAt < research.researchedAt) index.set(research.segment.key, research);
@@ -250,10 +284,11 @@ export async function loadResearchIndex(dir = LITE_RESEARCH_DIR): Promise<Map<st
   return index;
 }
 
-export async function saveResearch(research: SegmentResearch, dir = LITE_RESEARCH_DIR): Promise<string> {
+export async function saveResearch(research: SegmentResearch, dir = LITE_RESEARCH_DIR, env: NodeJS.ProcessEnv = process.env): Promise<string> {
+  const encrypted = encryptResearch(research, env);
   await mkdir(dir, { recursive: true });
   const file = path.join(dir, researchFileName(research.segment));
-  await writeFile(file, JSON.stringify(research, null, 2) + "\n", "utf8");
+  await writeFile(file, encrypted, "utf8");
   return file;
 }
 
