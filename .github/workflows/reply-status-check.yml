@@ -1,0 +1,38 @@
+name: Gullkornet Reply-Status Check
+
+# Manual, read-only check that the reply monitor sees mail sent to hello@cideamarketing.com.
+# Positive control: the address in the GULLKORNET_REPLY_TEST_SENDER secret, which has written to hello@
+# (expects replied=true). Negative control: a fresh address under .invalid (expects replied=false).
+# Two reply-status lookups only: no Airtable, Resend or Migadu writes, no email sent.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gullkornet-reply-status-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      OPENOUTREACH_REPLY_STATUS_URL: ${{ vars.OPENOUTREACH_REPLY_STATUS_URL }}
+      OPENOUTREACH_REPLY_STATUS_TOKEN: ${{ secrets.OPENOUTREACH_REPLY_STATUS_TOKEN }}
+      GULLKORNET_REPLY_TEST_SENDER: ${{ secrets.GULLKORNET_REPLY_TEST_SENDER }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Reply-status check (read-only)
+        run: npm run --silent check:reply-status
