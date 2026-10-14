@@ -28,7 +28,7 @@ concurrency:
 jobs:
   send:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     env:
       GULLKORNET_LITE_ENABLE_LIVE_SEND: ${{ secrets.GULLKORNET_LITE_ENABLE_LIVE_SEND }}
       GULLKORNET_LITE_DAILY_LIMIT: ${{ vars.GULLKORNET_LITE_DAILY_LIMIT || '100' }}

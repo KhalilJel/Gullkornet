@@ -5,6 +5,7 @@
 - **Pipeline:** 67 nye Lite Ready-rader (57 via Brreg + 10 via bedriftens egen nettside, `--source website`). Køen har nå **77** unike Lite Ready: 72 rene og 5 uten MX, som hoppes over. Hele markedet i de to segmentene (frisør og rørlegger, Oslo og Akershus) har 102 kvalifiserte bedrifter. 25 av dem fantes allerede i den avanserte pipelinen og ble ikke lagt inn på nytt.
 - **Topp 20:** ligger lokalt i `private/TOPP-20.md` (ikke i git, fordi repoet er offentlig). Alle 20 er Lite Ready, ikke kontaktet og ikke reservert (sjekket med fingeravtrykk-oppslag i Lite Audit).
 - **Tjenestepakker og plan mot 50 000 NOK:** [CIDEA-TJENESTEPAKKER-OG-SALGSPLAN.md](CIDEA-TJENESTEPAKKER-OG-SALGSPLAN.md).
+- **Forhåndsvisning over 77 leads (main, 18:29–18:49 UTC):** scanned=77, eligible=72, stale=5 (ingen MX), refused=0, replied=0, noResearch=0, **sent=0**. Kjøringen brukte ca. 15 sekunder per lead, mest på svaroppslag over IMAP, og nådde jobbens grense på 20 minutter rett etter oppsummeringen. Grensen for Outreach og Reply Sync er hevet til 45 minutter. En vanlig live-kjøring stopper etter 1 e-post og påvirkes ikke.
 - **Juridisk beslutningspakke:** [LITE-JURIDISK-BESLUTNINGSPAKKE.md](LITE-JURIDISK-BESLUTNINGSPAKKE.md).
 
 ---
