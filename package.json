@@ -24,7 +24,8 @@
     "lite:intake": "tsx src/cli/lite-intake.ts",
     "send:lite": "tsx src/cli/send-lite.ts",
     "lite:dry-run": "tsx src/cli/lite-dry-run.ts",
-    "lite:research": "tsx src/cli/lite-research.ts"
+    "lite:research": "tsx src/cli/lite-research.ts",
+    "check:reply-status": "tsx src/cli/check-reply-status.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
