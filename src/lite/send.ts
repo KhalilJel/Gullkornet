@@ -5,6 +5,7 @@ import { SendDeferredError } from "../integrations/send-schedule.js";
 import { LITE_MARKER, LITE_READY_STATUS } from "./intake.js";
 import { assessResearch, segmentFromNotes, withResearchRef, type LiteSegment, type SegmentResearch } from "./market-research.js";
 import { assessLiteRecipient } from "./recipient-policy.js";
+import { withSentDate } from "./retention.js";
 import { assertLiteCapacity, countLedger, isWithinLiteWindow, type LiteSendConfig } from "./schedule.js";
 import { assertLiteTemplateCompliant, LITE_FROM, LITE_TEMPLATE } from "./template.js";
 
@@ -183,7 +184,8 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
     // Claim the row (Sent) before sending: a row that is not Lite Ready never re-enters the queue,
     // so a later failure can at worst leave one row marked Sent without an email, never send twice.
     try {
-      await deps.markSent(recordId, withResearchRef(freshNotes, research.research.id));
+      // sent=<date> is what the 90-day retention counts from (src/lite/retention.ts).
+      await deps.markSent(recordId, withSentDate(withResearchRef(freshNotes, research.research.id), deps.now()));
     } catch {
       throw new Error("Airtable could not mark the row Sent before sending. Nothing was sent. Refusing to continue.");
     }

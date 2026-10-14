@@ -3,30 +3,13 @@ import { checkLiteFreshness } from "../lite/freshness.js";
 import { airtableConfigFromEnv, LITE_READY_STATUS, type AirtableConfig } from "../lite/intake.js";
 import { loadResearchIndex } from "../lite/market-research.js";
 import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
-import type { LiteQueueRecord } from "../lite/send.js";
+import { fetchAllTableRows } from "../lite/airtable-queue.js";
+import { planLiteRetention } from "../lite/retention.js";
 
 // npm run lite:audit
 // Read-only. Data quality of every Lite Ready row (recipient policy, duplicates, research, and a
 // fresh Brreg + MX check) and the sales overview (statuses, offers, paid revenue against the goal).
 // Writes nothing, sends nothing. Prints record IDs and counts only (public Actions logs).
-
-async function fetchAllRows(cfg: AirtableConfig): Promise<LiteQueueRecord[]> {
-  const rows: LiteQueueRecord[] = [];
-  let offset: string | undefined;
-  for (let page = 0; page < 500; page++) {
-    const url = new URL(`https://api.airtable.com/v0/${cfg.baseId}/${encodeURIComponent(cfg.tableName)}`);
-    url.searchParams.set("pageSize", "100");
-    if (offset) url.searchParams.set("offset", offset);
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${cfg.apiToken}` }, signal: AbortSignal.timeout(20000) });
-    if (!response.ok) throw new Error(`Airtable read failed (HTTP ${response.status}).`);
-    const payload = await response.json() as { records?: LiteQueueRecord[]; offset?: string };
-    if (!Array.isArray(payload.records)) throw new Error("Airtable returned an invalid list.");
-    rows.push(...payload.records);
-    offset = typeof payload.offset === "string" ? payload.offset : undefined;
-    if (!offset) return rows;
-  }
-  throw new Error("Airtable table exceeded the safe pagination limit.");
-}
 
 /** Field names and Lead Status options, if the token may read the schema; otherwise the HTTP status. */
 async function readSchema(cfg: AirtableConfig): Promise<{ fields: Set<string>; statuses: Set<string> } | { httpStatus: number }> {
@@ -62,7 +45,7 @@ async function main(): Promise<void> {
   const cfg = airtableConfigFromEnv(env);
   const allowedOrgForms = parseAllowedOrgForms(env.GULLKORNET_LITE_ORG_FORMS);
   const research = await loadResearchIndex();
-  const rows = await fetchAllRows(cfg);
+  const rows = await fetchAllTableRows(cfg);
   const now = Date.now();
 
   const freshness = new Map<string, string>();
@@ -102,6 +85,10 @@ async function main(): Promise<void> {
     const days = Math.floor((Date.parse(r.researchedAt) + 90 * 86_400_000 - now) / 86_400_000);
     lines.push(`Research ${r.id}: ${days} days left of 90`);
   }
+
+  const retention = planLiteRetention(rows, now);
+  const count = (kind: string) => retention.actions.filter(a => a.action === kind).length;
+  lines.push(`Retention (dry-run, 90 days): delete=${count("delete")} minimize=${count("minimize")} keptActive=${retention.keptActive.length} undated=${retention.undated.length} alreadyMinimized=${retention.alreadyMinimized}`);
 
   const schema = await readSchema(cfg).catch(() => ({ httpStatus: 0 }));
   if ("httpStatus" in schema) {

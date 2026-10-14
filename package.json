@@ -27,7 +27,8 @@
     "lite:research": "tsx src/cli/lite-research.ts",
     "check:reply-status": "tsx src/cli/check-reply-status.ts",
     "lite:replies": "tsx src/cli/lite-replies.ts",
-    "lite:audit": "tsx src/cli/lite-audit.ts"
+    "lite:audit": "tsx src/cli/lite-audit.ts",
+    "lite:retention": "tsx src/cli/lite-retention.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
