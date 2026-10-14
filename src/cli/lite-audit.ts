@@ -73,8 +73,10 @@ async function main(): Promise<void> {
     try {
       const reason = await checkLiteFreshness(notes, email, allowedOrgForms);
       if (reason) freshness.set(row.id, reason);
-    } catch {
-      freshness.set(row.id, "FRESHNESS_CHECK_UNAVAILABLE");
+    } catch (error) {
+      // Only the error category (e.g. "DNS lookup failed (ETIMEOUT)"), never an address.
+      const category = error instanceof Error ? /^(DNS lookup|Brreg lookup) failed \(([A-Z0-9 ]+)\)/.exec(error.message) : null;
+      freshness.set(row.id, "FRESHNESS_CHECK_UNAVAILABLE" + (category ? `:${category[1].split(" ")[0].toUpperCase()}_${category[2].replace(/\s+/g, "_")}` : ""));
     }
     await sleep(200); // gentle on Brreg's open API
   }

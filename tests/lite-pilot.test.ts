@@ -45,7 +45,13 @@ test("MX check: no domain, no MX or null MX refuses; a DNS outage throws", async
   assert.equal(await hasMailServer("post@a.example", async () => []), false);
   assert.equal(await hasMailServer("post@a.example", fail("ENOTFOUND")), false);
   assert.equal(await hasMailServer("post@a.example", fail("ENODATA")), false);
-  await assert.rejects(hasMailServer("post@a.example", fail("ETIMEOUT")), /Refusing to send/);
+  await assert.rejects(hasMailServer("post@a.example", fail("ETIMEOUT")), /Refusing to send/, "resolver down: control fails too");
+  // A broken recipient domain (SERVFAIL) while the control domain resolves: skip the row, keep the run going.
+  const brokenDomain = async (domain: string) => {
+    if (domain === "a.example") throw Object.assign(new Error("ESERVFAIL"), { code: "ESERVFAIL" });
+    return [{ exchange: "mx.control.example", priority: 10 }];
+  };
+  assert.equal(await hasMailServer("post@a.example", brokenDomain), false);
   assert.equal(await checkLiteFreshness(NOTES, "post@a.example", undefined, {
     fetchImpl: brreg(unit()), resolveMxImpl: async () => []
   }), "NO_MAIL_SERVER");
