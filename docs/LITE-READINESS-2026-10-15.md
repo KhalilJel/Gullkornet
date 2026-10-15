@@ -1,13 +1,14 @@
 # Gjeldende readiness — Gullkornet
 
-Se LITE-LANSERINGSFASER.md for samlet plan. Dette er dagens grunnlag, ikke en stabel av gamle malforslag.
+Oppdatert 16.10.2026. Se LITE-LANSERINGSFASER.md for detaljert faseoversikt.
 
-- Godkjent mal 2026-10-15.6: «Dette la vi merke til hos dere». Alltid vi/dere. Siste setning fjernet. Ingen .3/.4-forslag skal gjenbrukes eller etterspørres godkjenning av.
-- Avtaler er bekreftet i orden av eier. CIDEA AS er ansvarlig. Ekstern jurist brukes ikke; konkrete krav ivaretas i egenvurderingen og faktiske kontroller.
-- Lagringspolicy er dokumentert. Køens 90-dagersplanlegger har behovsgjennomgang for gammel/tapt dialog og eksplisitte utførelsessperrer. Simulering viste ingen planlagte endringer. Ingen produksjonssletting er utført.
-- Meldingskopier i Railway er en egen database. Ny skrivebeskyttet /v1/retention-status teller innkommende kopier og om ferdigbehandlet/ubehandlet innhold er eldre enn policyen. Den håndhever ikke en TTL, endrer ikke data og har ingen utførelsesmulighet. Produksjonsresultat føres i PR-en etter utrulling.
-- /personvern er ved siste lokale kontroll ikke implementert i nettstedskilden. Korrekt offentlig tekst må samsvare med faktisk drift og verifiserte leverandør-/backupfrister. Overvåket kontaktpostkasse finnes allerede; ingen ny adresse eller DNS trengs.
-- Opprettelsesdato må ikke fornyes ved ny innlesing. Før faktisk sletting må nødvendig vern mot automatisk gjeninnsamling, gjentatt kontakt, tap av original eller svar-/sperrebevis være ivaretatt.
-- Før pilot: konkret mottaker-/informasjonsvurdering, fersk audit/preview, svar-/reservasjonskontroll og restkvote. 700 i buffer er ikke en pilotforutsetning; sist var 505 teknisk klare av 530 Lite Ready.
-- Resends gjeldende vilk�r forbyr den beskrevne uoppfordrede piloten. Se LITE-LEVERANDORKONTROLL-2026-10-15.md. Dette m� l�ses f�r pilot, uavhengig av kvote og lovvurdering.
-- Pilot er ikke aktivert. Maks 5/dag og 1/kjøring etter særskilt uttrykkelig live-klarsignal. Senere tak 95 krever egen kontroll/beslutning. Ingen endring av live-brytere, produksjonsdata, DNS/secrets eller kostnader i denne leveransen.
+- Godkjent mal 2026-10-15.6: «Dette la vi merke til hos dere», alltid vi/dere. Ingen malendringer i denne leveransen.
+- Resends vilkår forbyr det beskrevne uoppfordrede løpet. Lite-live avvises derfor i denne kodeleveransen før konfigurasjon, nøkler, nettverk eller CRM-skriving. Ingen ny omgåelsesvariabel. Avslått flagg er fortsatt no-op.
+- Teknisk preview er tilgjengelig og skriver/sender ingenting. Produksjonskjøring 38815216613: scanned=5, eligible=5, sent=0. Dette beviser ikke påmelding eller leverandørtillatelse. Ny fullaudit 38815220436 må leses før oppdatering av fullkøtall.
+- Sist fullførte fullaudit: 530 Lite Ready, 505 teknisk klare, 25 uten MX. 700 er et videre påfyllingsmål, ikke et pilotkrav.
+- Avtaler og CIDEA AS er eierbekreftet. Ekstern jurist er ikke et arbeidskrav. Lovlig grunnlag og aktuelle informasjonskrav må dokumenteres konkret.
+- Lagringspolicy er valgt og køens planlegger simulert uten endringer. Ingen produksjonssletting er gjennomført eller autorisert.
+- Produksjonens skrivebeskyttede meldingskopikontroll i PR #134 fant 0 innkommende kopier i svarmonitoren. TTL av; ingen dataendringer. Dette omfatter ikke originalinnboks/backup.
+- /personvern er et implementert, testet utkast i Cidea-Marketing PR #14. Den er ikke publisert på hovednettstedet. Faktisk bevaring og praktisk oppfølging må avstemmes før publisering.
+- Før eventuell pilot: passende kanalgrunnlag, ferdig fase 3, ferske mottakerkontroller og batch-svarsjekk, restkvote og særskilt uttrykkelig live-klarsignal. Pilotramme 5/dag og 1/kjøring. Senere 95/dag krever egen beslutning.
+- Ingen nye kostnader, leverandørtilkobling, DNS-/secrets-/volumendringer eller utsending er utført.

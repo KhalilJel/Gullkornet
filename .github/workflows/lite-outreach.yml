@@ -5,15 +5,16 @@ name: Gullkornet Lite Outreach
 # the daily target, hourly limit, spacing and Resend quota are enforced in code
 # (src/lite/schedule.ts). Each run sends at most GULLKORNET_LITE_MAX_PER_RUN emails, so a
 # skipped or delayed GitHub cron run is caught up by the next one.
-# INERT until the repository secret GULLKORNET_LITE_ENABLE_LIVE_SEND is "true" (separate from the
-# advanced sender's GULLKORNET_ENABLE_LIVE_SEND). The manual "preview" run never sends or writes.
+# With the switch off this is a no-op. Even with it on, the CLI refuses the current
+# unsupported Resend cold-outreach use case before network or CRM access. A live flag
+# cannot resolve that provider restriction. Manual preview never sends or writes.
 on:
   schedule:
     - cron: "*/10 6-18 * * *"
   workflow_dispatch:
     inputs:
       preview:
-        description: "Read-only preview: run every gate, send nothing"
+        description: "Technical preview only; not provider permission; never sends or writes"
         required: true
         default: true
         type: boolean

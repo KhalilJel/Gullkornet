@@ -22,3 +22,14 @@ Migadus personvernside fungerer også som DPA. Den beskriver sletting etter avsl
 Gullkornet PR 134 / main 5977039 er deployet og grønn. Skrivebeskyttet autentisert kontroll viste 0 innkommende meldingskopier i svarmonitorens database; data_changed=false, send_triggered=false, ttl_enabled=false. Originalinnboksen og sikkerhetskopier er ikke omfattet av denne tellingen.
 
 Ingen e-poster, produksjonssletting, leverandørbytte, nye kostnader eller secrets-/DNS-endringer er gjennomført.
+
+## Oppfølging 16.10.2026 — kanalvalg før kjøp
+SMTP2GO sier uttrykkelig nei til cold email og krever 100 prosent opt-in. Mailgun forbyr innsamlede tredjepartslister og krever uttrykkelig, dokumenterbar tillatelse for markedsføring. De er derfor ikke dokumenterte erstatninger for denne køen. Kilder: https://support.smtp2go.com/hc/en-gb/articles/12922807451289-Migrating-to-SMTP2GO-FAQ og https://www.mailgun.com/legal/aup/
+
+Maildoso beskriver cold outreach som produkt, men vilkår oppdatert 01.10.2026 krever synlig fungerende avmeldingslenke i hver e-post, minst 14 dagers oppvarming og deretter gradvis opptrapping til maksimalt 15 per postkasse per dag. Standard månedsplan er 30 postkasser for USD 75; domener kjøpes separat. Det finnes ikke et verifisert kundespesifikt småtilbud her. Leverandøren passer derfor ikke umiddelbar pilot med uendret mal uten avmeldingslenke. Avtale-/overførings-/lagringsgrunnlag er heller ikke ferdig kontrollert for CIDEA. Ingen konto eller kjøp. Kilder: https://maildoso.ai/resources/terms-of-service og https://maildoso.ai/pricing
+
+Instantlys sending policy krever en tydelig avmeldingsmetode i hver kampanje, via lenke eller eksplisitt svarinstruks. En kampanjeplattform alene bekrefter heller ikke at den underliggende postkasseleverandøren tillater oppsøket. Den er ikke valgt som en omvei. Kilde: https://instantly.ai/instantly-sending-policy
+
+Mailreef beskriver cold email som tjenestens formål i egne vilkår. Offentlig månedspris uten årsforpliktelse er USD 249 pluss USD 0,001 per sending. Ved 2945 sendinger blir det USD 251,945 før eventuelle domener, avgifter og øvrige tjenester. Dette er en konkret mulig infrastrukturkandidat, ikke et ferdig godkjent valg: kundespesifikk DPA/overføring, bevaring, avsenderdomene, retur/sperrehåndtering og krav til faktisk mal må avklares før tilkobling. Prisnivået er høyt for femmottakerpilot. Ingen binding, demoforespørsel, dataoverføring eller kjøp er utført. Kilder: https://www.mailreef.com/terms-of-service og https://www.mailreef.com/pricing
+
+Konklusjon for denne kodeleveransen: ikke koble til en tilfeldig SMTP-tjeneste. Behold godkjent .6-mal og alle live-sperrer. Teknisk preview er tilgjengelig, men gir ikke påmelding, leverandørtillatelse eller lovlig grunnlag. Ingen ny utsendingskanal er ferdig verifisert innenfor eksisterende godkjenning om null nye kostnader/DNS/secrets-endringer.

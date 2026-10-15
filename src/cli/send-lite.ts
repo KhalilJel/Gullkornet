@@ -8,7 +8,7 @@ import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
 import { loadLiteSendConfig } from "../lite/schedule.js";
 import { runLiteSend, withTransientRetry } from "../lite/send.js";
 
-// npm run send:lite            -> live run (no-op unless GULLKORNET_LITE_ENABLE_LIVE_SEND=true)
+// npm run send:lite            -> no-op with switch off; otherwise refuses the unsupported Resend outreach use case.
 // npm run send:lite -- --preview [--limit 100] -> read-only: runs every gate over (the first N of) the queue, never sends or writes
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
@@ -24,6 +24,13 @@ async function main(): Promise<void> {
     console.log("Gullkornet Lite: live sending kill switch is off. Nothing sent.");
     return;
   }
+  // The current Lite queue is public-source prospecting, without recorded opt-in. Resend's
+  // AUP explicitly prohibits this use. A live flag cannot resolve a provider restriction.
+  // Refuse before config, credentials, provider/CRM access or claiming a row. No env bypass.
+  if (!preview) {
+    throw new Error("Lite live sending is blocked: Resend requires opt-in and prohibits cold outreach. Resolve the delivery use case before enabling live sending. See docs/LITE-LEVERANDORKONTROLL-2026-10-15.md.");
+  }
+  console.log("Technical preview only: counts do not establish opt-in, provider permission or legal readiness. Nothing will be sent or written.");
   const cfg = loadLiteSendConfig(preview && !env.RESEND_DAILY_QUOTA ? { ...env, RESEND_DAILY_QUOTA: "1000" } : env);
   const airtable = airtableConfigFromEnv(env);
   const allowedOrgForms = parseAllowedOrgForms(env.GULLKORNET_LITE_ORG_FORMS);
