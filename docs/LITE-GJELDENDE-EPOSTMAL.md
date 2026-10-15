@@ -1,6 +1,6 @@
 # Gjenopprettet lagret mal 2026-10-15.6
 
-Gjenopprettet fra 2026-10-14.1, commit 9eff908, med to uttrykkelige eierendringer: siste setning fjernet og spørsmålet endret til «Er dere interessert i at jeg sender dere en kort forklaring?». Alltid dere, aldri du. Ingen øvrig omskriving. Live-send er av.
+Lagret emne og tekst er gjenopprettet med siste setning fjernet og spørsmålet «Er dere interessert i at vi sender dere en kort forklaring?». Alltid vi og dere; aldri jeg og du. Live-send er av.
 
 Emne: Dette la vi merke til hos dere
 
@@ -10,7 +10,7 @@ Vi har sett på hvordan bedrifter presenterer seg digitalt, og fant noen område
 
 Det fikk oss til å tenke på dere, og vi har en idé vi tror kan være relevant.
 
-Er dere interessert i at jeg sender dere en kort forklaring?
+Er dere interessert i at vi sender dere en kort forklaring?
 
 Mvh
 Jelassi

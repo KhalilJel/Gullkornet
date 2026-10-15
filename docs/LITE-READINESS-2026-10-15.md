@@ -1,4 +1,6 @@
-> Gjeldende eierbeslutning: Gjenopprett lagret emne «Dette la vi merke til hos dere» og opprinnelig tekst fra 2026-10-14.1. Behold to uttrykkelige endringer: siste setning fjernet; spørsmålet er «Er dere interessert i at jeg sender dere en kort forklaring?». Alltid dere, aldri du. Gjeldende sporingsversjon er 2026-10-15.6. Se LITE-GJELDENDE-EPOSTMAL.md. Eldre emner og instrukser nedenfor er historikk. Live-send er av.
+> Nyeste språkregel: Alltid «vi» og «dere», aldri «jeg» eller «du».
+
+> Gjeldende eierbeslutning: Gjenopprett lagret emne «Dette la vi merke til hos dere» og opprinnelig tekst fra 2026-10-14.1. Behold to uttrykkelige endringer: siste setning fjernet; spørsmålet er «Er dere interessert i at vi sender dere en kort forklaring?». Alltid dere, aldri du. Gjeldende sporingsversjon er 2026-10-15.6. Se LITE-GJELDENDE-EPOSTMAL.md. Eldre emner og instrukser nedenfor er historikk. Live-send er av.
 
 > Nyeste godkjente tekst: 2026-10-15.5. Eier ba uttrykkelig om å fjerne setningen «Gi gjerne beskjed dersom dere ikke ønsker flere henvendelser.» Emne og øvrig tekst fra .2 er bevart. Se LITE-GJELDENDE-EPOSTMAL.md. Eldre instruks om uendret .2 er erstattet bare for denne konkrete tekstendringen. Live-send er fortsatt av.
 

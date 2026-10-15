@@ -307,7 +307,7 @@ test("template is the owner-approved text after removing the final sentence", ()
     "",
     "Det fikk oss til å tenke på dere, og vi har en idé vi tror kan være relevant.",
     "",
-    "Er dere interessert i at jeg sender dere en kort forklaring?",
+    "Er dere interessert i at vi sender dere en kort forklaring?",
     "",
     "Mvh",
     "Jelassi",
@@ -322,6 +322,7 @@ test("template guard refuses singular 'du' and other Cidea sales lines", () => {
   assert.throws(() => assertLiteTemplateCompliant({ subject: "x", text: `Er du åpen?\n${optOut}` }), /dere/);
   assert.throws(() => assertLiteTemplateCompliant({ subject: "x", text: `Din bedrift.\n${optOut}` }), /dere/);
   assert.throws(() => assertLiteTemplateCompliant({ subject: "x", text: `Cidea Leads\n${optOut}` }), /Cidea Marketing only/);
+  assert.throws(() => assertLiteTemplateCompliant({ subject: "x", text: `Jeg hjelper dere.\n${optOut}` }), /never jeg/);
   // Words that merely contain the letters are fine.
   assertLiteTemplateCompliant({ subject: "Dugnad og middager", text: `Duen og dinosauren.\n${optOut}` });
 });

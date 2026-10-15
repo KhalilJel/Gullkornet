@@ -20,7 +20,7 @@ export const LITE_TEMPLATE = Object.freeze({
     "",
     "Det fikk oss til å tenke på dere, og vi har en idé vi tror kan være relevant.",
     "",
-    "Er dere interessert i at jeg sender dere en kort forklaring?",
+    "Er dere interessert i at vi sender dere en kort forklaring?",
     "",
     "Mvh",
     "Jelassi",
@@ -32,6 +32,7 @@ export const LITE_TEMPLATE = Object.freeze({
 const OPT_OUT = /(?:nei takk|ikke ønsker flere|stoppe henvendelser)/i;
 // Owner requirement: always address the business as "dere", never "du", "deg" or possessive singular.
 const SINGULAR_YOU = /(?<![\p{L}])(?:du|deg|din|ditt|dine)(?![\p{L}])/iu;
+const FIRST_PERSON_SINGULAR = /(?<![\p{L}])(?:jeg|meg|min|mitt|mine)(?![\p{L}])/iu;
 const OTHER_BRANDS = /cidea\s+(?:leads|consulting)/i;
 
 /** Structural checks only, not a legal approval. Owner explicitly removed the final line on 15 October.
@@ -44,6 +45,9 @@ export function assertLiteTemplateCompliant(template: { subject: string; text: s
   if (!template.text.includes(LITE_BRAND)) throw new Error(`Lite template must identify the sender (${LITE_BRAND}). Refusing to send.`);
   if (SINGULAR_YOU.test(template.subject) || SINGULAR_YOU.test(template.text)) {
     throw new Error("Lite template must address the business as \"dere\", never \"du\". Refusing to send.");
+  }
+  if (FIRST_PERSON_SINGULAR.test(template.subject) || FIRST_PERSON_SINGULAR.test(template.text)) {
+    throw new Error("Lite template must speak as vi, never jeg. Refusing to send.");
   }
   if (OTHER_BRANDS.test(template.subject) || OTHER_BRANDS.test(template.text)) {
     throw new Error(`Lite sells ${LITE_BRAND} only. Refusing to send.`);
