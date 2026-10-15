@@ -35,6 +35,8 @@ Alle kommuner i Østfold (12), Buskerud (18) og Vestfold (6) er lagt til med reg
 
 Påfylling fra sprintgren ba1f955, kjøring #10: https://github.com/KhalilJel/Gullkornet/actions/runs/38724180140 . SUCCESS. Startbuffer 423, rom mot 700 var 277. Hentet 8900 registerenheter, 2064 med registrert e-post; 150 nettsidekandidater undersøkt, 102 entydig koblet til registerenheten. 13 dokumenterte segmenter totalt (8 tidligere + 5 nye). Etter alle filtre og deduplisering: 96 nye, 469 allerede kjente hoppet over, 3 duplikater i utvalget fjernet. Airtable bekreftet opprettelse av 96 rader; buffer 519. Målet 700 er ikke nådd. Dette er ett avgrenset nettsideutvalg, ikke bevis for at alle nettsidekilder er uttømt. Ingen udokumenterte segmenter er brukt for å fylle resten.
 
+Lesende audit etter påfylling, fullført 15.10 kl. 13:20 Europe/Oslo: https://github.com/KhalilJel/Gullkornet/actions/runs/38725920132 . SUCCESS. **519 Lite Ready, 494 teknisk klare, 25 uten MX**. Ingen andre køproblemer eller duplikater rapportert. MX-radene hoppes over ved sending; ingen er slettet. Alle 519 Lite-rader er fortsatt Lite Ready, ingen Lite Sent/Replied/DNC. Hele Airtable-tabellen har 1910 rader fra flere pipelines; Sent=182 gjelder øvrige rader og er ikke sendinger fra denne sprinten. Auditens «documented segments: 34» teller alle krypterte researchfiler, også utilstrekkelige; bare 13 består evidensporten. Retensjon ble kun simulert, 0 delete og 0 minimize.
+
 ## Kapasitet uten oppgradering
 
 Resend API 15.10: 0/100 brukt i dag; 214/3000 brukt i perioden; 2786 igjen. Månedlig reset 23.10.2026 kl. 08:51:31 Europe/Oslo. Daglig reset 16.10 kl. 01:59:59 Europe/Oslo (UTC-basert kvote). 95 × 31 = 2945, bare 55 i reserve per full 31-dagersperiode. Kvoten deles med alle kontoens domener, også smartsvar.no. 95 er et maksimum og krever reduksjon/stopp ved annet forbruk; det er ingen garanti om 95 hver dag.
@@ -61,5 +63,9 @@ Når innholdet er avklart: implementer `/personvern` i nettstedets eksisterende 
 PR: https://github.com/KhalilJel/Gullkornet/pull/128
 
 Lokal typecheck PASS. 388 tester: 386 bestått, 2 hoppet over, 0 feil. Ny regionisolasjon og 95-per-dag-simulering inkluderer unike mottakere og idempotensnøkler. Produksjonsdeploy ved start er ac57a8d, Railway SUCCESS. Sluttstatus for CI, buffer og preview føres inn etter kjøringene.
+
+Produksjons-preview av 95 kandidater på main ac57a8d: https://github.com/KhalilJel/Gullkornet/actions/runs/38723964105 . SUCCESS, fullført 15.10 kl. 13:24 Europe/Oslo etter 26 minutter. scanned=95, eligible=90, stale=5 (MX), refused=0, replied=0, recentlySent=0, noResearch=0, **sent=0**. Dette tester 95 undersøkte kandidater, ikke 95 faktiske sendinger. De nye regionene er kontrollert av auditen på sprintgrenen; 95/dag er også simulert lokalt. Resend-forbruk etter kontrollarbeidet er uendret: 0 i dag og 214 i perioden.
+
+Alle fem CI-kontroller besto på 58fee2a: enhetstester/typecheck, Phase 10, Phase 11, Phase 12 og KeeLead Live Acceptance. To tidligere eksterne tidsavbrudd ble undersøkt i logger; ingen tidsgrenser eller sikkerhetsporter ble svekket. Sluttcommit med denne rapporten må også bestå før merge. PR-ens merge- og Railway-deploystatus dokumenteres i PR-en etter gjennomføring, slik at verifikasjonen ikke endrer den commiten som ble testet.
 
 Batch reply-status: PASS 15.10.2026. Positiv replied=true og negativ replied=false, også i batch. Kjøring: https://github.com/KhalilJel/Gullkornet/actions/runs/38724299860 . Railway CLI bekrefter OPENOUTREACH_ALLOW_SEND=false og OPENOUTREACH_STARTUP_ACCEPTANCE_TEST=false. Planlagt Lite-kjøring #15 bekrefter tom live-bryter og ingen sending.
