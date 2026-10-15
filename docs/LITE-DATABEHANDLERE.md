@@ -1,5 +1,7 @@
 # Databehandlere og overføringer – Gullkornet Lite
 
+**Ny kontroll 15.10.2026:** Kontoenes signerte avtaler er fortsatt ikke dokumentert. Airtables offentlige DPA er nå datert **08.09.2026** og krever gyldig signering av partene; datoen i den eldre kartleggingen under er historisk. Railway krever utfylt DocuSign og Railways signering. Resend beskriver aksept av hovedavtalen eller separat signering, med utført avtale tilgjengelig i dashbordet. Ingen avtaler er signert i sprinten. Se [lanseringsrapporten](LITE-LANSERINGSSPRINT-2026-10-15.md) for kontrollerte kilder og eierens handlinger.
+
 Kartlagt 14.10.2026 fra koden, Railway-konfigurasjonen, Resend-API-et (lesing) og leverandørenes offentlige vilkår. **«Akseptert» betyr at vilkårene finnes og hvordan de inngås. Det er ikke kontrollert at de er inngått i hver av Cideas kontoer.** Eieren må bekrefte dette i hver konto (kolonnen «Eierens handling»).
 
 | Leverandør | Rolle i Lite | Data | Hvor | DPA | Overføringsgrunnlag | Eierens handling |
