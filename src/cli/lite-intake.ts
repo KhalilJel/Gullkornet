@@ -5,8 +5,8 @@ import type { GoogleCandidate } from "../integrations/website-audit.js";
 import { discoverBrregLiteCandidates, lookupBrregByWebsite } from "../lite/brreg-lite.js";
 import { airtableConfigFromEnv, createLiteRecords, emptyIndex, fetchExistingIndex, selectLiteLeads, type LiteSourceCandidate } from "../lite/intake.js";
 import { documentedSegments, LITE_REGIONS, liteSegment, loadResearchIndex, regionOfMunicipality } from "../lite/market-research.js";
-import { brregToLiteCandidate, placesToLiteCandidate } from "../lite/places-supplement.js";
-import { assessLiteRecipient, parseAllowedOrgForms } from "../lite/recipient-policy.js";
+import { brregToLiteCandidate, placesToLiteCandidate, websiteSupplementPool } from "../lite/places-supplement.js";
+import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
 
 // npm run lite:intake -- --source brreg [--municipalities 0301,3201] [--industries 96.021,56.101] [--pages 3] [--start-page 0] [--limit 300] [--sync] [--out data/lite.json]
 // npm run lite:intake -- --source website [same Brreg options]   (units whose registered address does not
@@ -67,7 +67,8 @@ async function main(): Promise<void> {
       // Only units the Brreg path cannot use and that are not already in Airtable; the website must
       // map back to exactly this unit. The list is rotated by day so a capped run moves through it.
       const cap = Math.max(1, Math.min(Number(arg("website-cap") ?? "150") || 150, 1000));
-      const pool = units.filter(u => u.websiteUrl && !assessLiteRecipient(u, allowedOrgForms).ok && !existing.organizationNumbers.has(u.organizationNumber));
+      const pool = websiteSupplementPool(units, existing.organizationNumbers, documented, allowedOrgForms);
+      console.log(`Website candidates in documented segments, not already known: ${pool.length}; cap: ${cap}`);
       const offset = pool.length ? (Math.floor(Date.now() / 86_400_000) * cap) % pool.length : 0;
       const websiteOnly = [...pool.slice(offset), ...pool.slice(0, offset)].slice(0, cap);
       let matched = 0;
