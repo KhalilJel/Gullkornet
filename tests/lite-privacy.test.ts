@@ -7,7 +7,7 @@ import {
 } from "../src/lite/retention.js";
 import { runLiteSend, type LiteQueueRecord } from "../src/lite/send.js";
 import { assertLiteTemplateCompliant, LITE_TEMPLATE, LITE_TEMPLATE_VERSION } from "../src/lite/template.js";
-import { LITE_TEMPLATE_PROPOSAL } from "../src/lite/template-proposal.js";
+import { LITE_TEMPLATE_PROPOSAL, liteTemplateProposalForSource } from "../src/lite/template-proposal.js";
 
 const NOW = Date.parse("2026-10-14T12:00:00Z");
 const DAY = 86_400_000;
@@ -68,6 +68,40 @@ test("retention changes nothing without the owner switch, and minimises before d
   const result = await executeLiteRetention(plan, writer, { GULLKORNET_LITE_RETENTION_EXECUTE: "true" });
   assert.deepEqual(calls, ["minimize:recDnc", "delete:recOld"]);
   assert.deepEqual(result, { deleted: 1, minimized: 1 });
+});
+
+test("retention flags stale/lost dialogue without automatically erasing customer or financial evidence", () => {
+  const plan = planLiteRetention([
+    row("recMissing", { "Lead Status": "Replied", "Next Step Date": iso(NOW + 30 * DAY) }),
+    row("recStale", { "Lead Status": "Interested", "Research Notes": `${NOTES} reviewed=2026-07-01` }),
+    row("recLost", { "Lead Status": "Lost", "Research Notes": `${NOTES} closed=2026-07-01 reviewed=2026-10-13` }),
+    row("recLostUndated", { "Lead Status": "Lost", "Research Notes": `${NOTES} reviewed=2026-10-13` }),
+    row("recCurrent", { "Lead Status": "Won", "Research Notes": `${NOTES} reviewed=2026-10-13`, "Paid NOK": 10000 }),
+    row("recInvalid", { "Lead Status": "Meeting", "Research Notes": `${NOTES} reviewed=2026-02-30` }),
+    row("recAmbiguous", { "Lead Status": "Meeting", "Research Notes": `${NOTES} reviewed=2026-07-01 reviewed=2026-10-13` }),
+    row("recFuture", { "Lead Status": "Meeting", "Research Notes": `${NOTES} reviewed=2099-01-01` })
+  ], NOW);
+  assert.deepEqual(plan.actions, []);
+  assert.deepEqual(plan.reviewRequired.map(r => [r.id, r.reason]), [
+    ["recMissing", "NO_REVIEW_DATE"], ["recStale", "REVIEW_EXPIRED"], ["recLost", "CLOSED_DIALOGUE_EXPIRED"],
+    ["recLostUndated", "NO_CLOSURE_DATE"],
+    ["recInvalid", "NO_REVIEW_DATE"], ["recAmbiguous", "NO_REVIEW_DATE"], ["recFuture", "NO_REVIEW_DATE"]
+  ]);
+});
+
+test("retention expiry includes the 90-day boundary and invalid periods cannot plan destruction", () => {
+  const records = [row("recBoundary", { "Lead Status": "Lite Ready", "First Seen": iso(NOW - 90 * DAY) })];
+  assert.equal(planLiteRetention(records, NOW).actions.length, 1);
+  for (const days of [0, -1, NaN, Infinity, 1.5]) assert.throws(() => planLiteRetention(records, NOW, days), /Invalid retention/);
+});
+
+test("proposal source matches provenance and unknown sources fail closed", () => {
+  assert.match(liteTemplateProposalForSource("brreg").text, /i Enhetsregisteret\./);
+  const website = liteTemplateProposalForSource("website");
+  assert.match(website.text, /på bedriftens egen nettside\./);
+  assert.doesNotMatch(website.text, /i Enhetsregisteret\./);
+  assertLiteTemplateCompliant(website);
+  assert.throws(() => liteTemplateProposalForSource("places" as "website"), /Unknown contact source/);
 });
 
 test("Airtable writer: minimise keeps Email, Lead Status, DNC and Duplicate Key; delete batches by ID", async () => {

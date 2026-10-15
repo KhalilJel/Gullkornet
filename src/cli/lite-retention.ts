@@ -13,9 +13,10 @@ async function main(): Promise<void> {
   const deletes = plan.actions.filter(a => a.action === "delete");
   const minimizes = plan.actions.filter(a => a.action === "minimize");
   console.log(`Gullkornet Lite retention ${execute ? "EXECUTE" : "dry-run"}: delete=${deletes.length} minimize=${minimizes.length} ` +
-    `keptActive=${plan.keptActive.length} undated=${plan.undated.length} alreadyMinimized=${plan.alreadyMinimized}`);
+    `keptActive=${plan.keptActive.length} reviewRequired=${plan.reviewRequired.length} undated=${plan.undated.length} alreadyMinimized=${plan.alreadyMinimized}`);
   for (const action of plan.actions) console.log(`  ${action.id}: ${action.action} (${action.reason})`);
   if (plan.undated.length) console.log(`  undated (never touched): ${plan.undated.join(", ")}`);
+  for (const review of plan.reviewRequired) console.log(`  ${review.id}: review (${review.reason}); no automatic change`);
   if (!execute) return;
   if (!retentionExecutionAllowed()) throw new Error("GULLKORNET_LITE_RETENTION_EXECUTE is not true. Nothing was changed.");
   const result = await executeLiteRetention(plan, airtableRetentionWriter(cfg));
