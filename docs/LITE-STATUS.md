@@ -1,5 +1,7 @@
 # Gullkornet Lite – status
 
+**15.10.2026:** 423 Lite Ready i 8 dokumenterte segmenter, daglig automatisk påfylling er på, og kapasitetstesten for 100 per dag er bestått (med forbehold om Resend-kvoten). Se [LITE-SKALA-100.md](LITE-SKALA-100.md). Live-utsending er AV.
+
 ## Oppdatering 14.10.2026, kveld (pipeline og salg)
 
 - **Pipeline:** 67 nye Lite Ready-rader (57 via Brreg + 10 via bedriftens egen nettside, `--source website`). Køen har nå **77** unike Lite Ready: 72 rene og 5 uten MX, som hoppes over. Hele markedet i de to segmentene (frisør og rørlegger, Oslo og Akershus) har 102 kvalifiserte bedrifter. 25 av dem fantes allerede i den avanserte pipelinen og ble ikke lagt inn på nytt.
