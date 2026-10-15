@@ -17,18 +17,15 @@ Dette dokumentet fastsetter interne frister ut fra nødvendighet og dataminimeri
 - Tekniske logger: mål maksimalt 30 dager, uten e-postinnhold eller unødvendige personidentifikatorer. Faktiske plattformgrenser kontrolleres før dette beskrives som iverksatt.
 - Sikkerhetskopier og leverandørhistorikk: faktisk bevaring og gjenoppretting må kartlegges per leverandør. Ingen bestemt utløpsfrist påstås uten kontroll. Slettede opplysninger må ikke tas tilbake i aktiv bruk ved gjenoppretting; slettemarkeringer/reservasjoner må gjenanvendes. Hvis faktisk bevaring overstiger behovet, må oppsett eller oppbevaring vurderes før publisering av en bestemt frist.
 
-## Teknisk status — ikke en påstand om gjennomført sletting
-Ingen produksjonsdata er slettet eller minimert. Tidligere forbud mot produksjonssletting gjelder fortsatt. Valg av policy er ikke autorisasjon til en slettejobb. Eksisterende Lite-kode dekker deler av 90-dagersreglene, men må oppdateres: Lost holdes i dag uten utløp, aktiv dialog mangler periodisk behovskontroll, og innboks/svarmonitor/logg/backup er ikke dekket av samme jobb. Oppdatert kode, tester og en ren simulering må foreligge før særskilt godkjent utførelse. Personvernsiden må beskrive faktisk drift og kan ikke love at alle disse fristene allerede håndheves automatisk.
+## Teknisk status — oppdatert etter PR 134
+Køens 90-dagersplanlegger er oppdatert med behovsgjennomgang for gammel/tapt dialog. Produksjonssimulering 38775945217: delete=0, minimize=0, reviewRequired=0. Ingen produksjonssletting er autorisert eller gjennomført.
 
-## Egenvurdering av kontaktgrunnlag — foreløpig, ikke ferdig godkjenning
-Forbrukertilsynets veiledning skiller adresser til en fysisk person fra reelle fellesadresser. Det støtter den avgrensede AS/ASA-/rolleadressemodellen, men registerføring alene beviser ikke at en adresse ikke tilhører en bestemt person. Tvil skal gi avvisning/manuell kontroll. GDPR-vurderingen er separat dersom opplysningene identifiserer personer; det må dokumenteres interesse, nødvendighet, avveining og protesthåndtering.
+Svarmonitorens nye autentiserte skrivebeskyttede kontroll er deployet i PR 134/main 5977039. Produksjon: 0 innkommende meldingskopier, 0 med innhold, 0 gamle behandlet/ubehandlet, 0 ugyldige datoer. TTL er av; data_changed=false, send_triggered=false. Dette er bare svarmonitorens database, ikke originalinnboks eller sikkerhetskopier. Nødvendig originaldialog og svar-/sperrebevis må sikres før eventuell separat godkjent opprydding. Praktisk oppfølging av innboks/logg/historikk/backup gjenstår.
 
-Konkret inspisert mal 2026-10-14.2 har emnet «En idé til forbedring hos dere», avsendernavnet Cidea Marketing og ingen kilde-/personvernlenke. Ehandelsloven § 9 krever at markedsføringskarakteren fremgår ved mottak. Min vurdering er at emnet/avsenderkombinasjonen ikke er tilstrekkelig trygg å godkjenne uendret uten tydeligere merking. Art. 14-informasjon må gis når den gjelder; tidsfrist er normalt senest én måned og tidligere ved første kommunikasjon/utlevering etter reglene, ikke vilkårlig ved utsending etter 90 dager. Opplysningenes karakter og eventuell anvendelig unntaksregel må vurderes konkret. En nettside alene gir ikke automatisk oppfylt informasjonsplikt.
+## Gjeldende mal og egenvurdering
+Godkjent mal er 2026-10-15.6, emne «Dette la vi merke til hos dere». Eier har uttrykkelig valgt vi/dere, fjernet siste setning og avvist reklameprefiks. Ingen tidligere .2/.4-forslag eller instruks om ny automatisk malendring gjelder. Full tekst finnes i EPOSTMAL-TIL-GODKJENNING.md, som tross filnavnet inneholder godkjent tekst.
 
-Malen er ikke endret; tidligere instruks om at .2 skal beholdes gjelder. En konkret revidert mal må klargjøres for ny uttrykkelig malgodkjenning dersom de nødvendige opplysningene ikke kan ivaretas innenfor gjeldende godkjenning. Ekstern jurist er ikke lenger arbeidskrav; uavklarte konkrete krav blir ikke borte av den grunn. Live-send forblir av og krever særskilt klarsignal.
+Malgodkjenningen er ikke i seg selv dokumentasjon på at alle rettslige krav er oppfylt. Egenvurdering for konkrete mottakere, reelle fellesadresser, relevans og aktuell informasjons-/markedsføringsplikt skal ferdigstilles før pilot. En personvernsides eksistens alene beviser ikke at nødvendig informasjon er gitt. Ekstern jurist er ikke et arbeidskrav. Live-send krever særskilt uttrykkelig klarsignal og avklart lovlig grunnlag.
 
-## Offentlige kilder kontrollert
-- GDPR art. 5, 6, 14, 17, 21 og 28: https://eur-lex.europa.eu/eli/reg/2016/679
-- EDPB om informasjonsfrister: https://www.edpb.europa.eu/system/files/2023-09/wp260rev01_en.pdf
-- Forbrukertilsynets veiledning, fellesadresser kontra fysiske personer: https://www.forbrukertilsynet.no/wp-content/uploads/2018/04/veiledning-om-markedsf%C3%B8ring-via-mail-sms.pdf
-- Ehandelsloven, særlig § 9: https://lovdata.no/dokument/NL/lov/2003-05-23-35
+## Dokumentasjonsstatus
+CIDEA AS og avtalene er eierbekreftet. Avtalekopier og overføringsvedlegg er ikke uavhengig inspisert her. Ingen bestemt backupfrist eller overføringsmekanisme påstås som verifisert uten underlag. 90/30 dager er nødvendighetsbasert intern policy, ikke generelle lovbestemte frister.
