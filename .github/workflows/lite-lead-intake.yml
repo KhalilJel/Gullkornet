@@ -11,11 +11,11 @@ on:
   workflow_dispatch:
     inputs:
       source:
-        description: "brreg (registered address) or website (role address on the registered website)"
+        description: "auto (brreg + website, tops up to the buffer target), brreg or website"
         required: true
         default: "brreg"
         type: choice
-        options: ["brreg", "website"]
+        options: ["auto", "brreg", "website"]
       municipalities:
         description: "Comma-separated municipality numbers (empty = Oslo + Akershus default)"
         required: false
@@ -29,7 +29,7 @@ on:
       pages:
         description: "Brreg pages (100 units) per municipality"
         required: true
-        default: "3"
+        default: "20"
         type: string
       start_page:
         description: "First Brreg page (rotate to move through the register)"
@@ -57,7 +57,7 @@ concurrency:
 jobs:
   intake:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     env:
       AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
       GULLKORNET_LITE_RESEARCH_KEY: ${{ secrets.GULLKORNET_LITE_RESEARCH_KEY }}
@@ -68,11 +68,12 @@ jobs:
       SCHEDULED_SYNC: ${{ vars.GULLKORNET_LITE_INTAKE_SYNC }}
       INPUT_MUNICIPALITIES: ${{ inputs.municipalities }}
       INPUT_INDUSTRIES: ${{ inputs.industries }}
-      INPUT_PAGES: ${{ inputs.pages || '3' }}
+      INPUT_PAGES: ${{ inputs.pages || '20' }}
       INPUT_START_PAGE: ${{ inputs.start_page }}
       INPUT_LIMIT: ${{ inputs.limit || vars.GULLKORNET_LITE_INTAKE_LIMIT || '150' }}
       INPUT_SYNC: ${{ inputs.sync_to_airtable }}
-      INPUT_SOURCE: ${{ inputs.source || 'brreg' }}
+      INPUT_SOURCE: ${{ inputs.source || 'auto' }}
+      BUFFER_TARGET: ${{ vars.GULLKORNET_LITE_BUFFER_TARGET || '700' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -95,15 +96,16 @@ jobs:
           case "$INPUT_PAGES" in ''|*[!0-9]*) echo "pages must be a number"; exit 1 ;; esac
           case "$INPUT_LIMIT" in ''|*[!0-9]*) echo "limit must be a number"; exit 1 ;; esac
           start="$INPUT_START_PAGE"
-          if [ -z "$start" ]; then
-            # Scheduled runs move 3 pages further through the register each day (wraps at page 90).
-            start=$(( ( $(date -u +%j | sed 's/^0*//') * 3 ) % 90 ))
-          fi
+          # Scheduled runs read every documented segment from page 0 (de-duplication skips what is
+          # already in Airtable), so one exhausted segment never stops the refill.
+          if [ -z "$start" ]; then start=0; fi
           case "$start" in *[!0-9]*) echo "start_page must be a number"; exit 1 ;; esac
           sync_flag=""
           if [ "${{ github.event_name }}" = "schedule" ] && [ "$SCHEDULED_SYNC" = "true" ]; then sync_flag="--sync"; fi
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "$INPUT_SYNC" = "true" ]; then sync_flag="--sync"; fi
-          case "$INPUT_SOURCE" in brreg|website) ;; *) echo "source must be brreg or website"; exit 1 ;; esac
+          case "$INPUT_SOURCE" in auto|brreg|website) ;; *) echo "source must be auto, brreg or website"; exit 1 ;; esac
+          buffer_flag=""
+          if [ "$INPUT_SOURCE" = "auto" ]; then buffer_flag="--target-buffer $BUFFER_TARGET"; fi
           npm run --silent lite:intake -- --source "$INPUT_SOURCE" \
             --municipalities "$INPUT_MUNICIPALITIES" --industries "$INPUT_INDUSTRIES" \
-            --pages "$INPUT_PAGES" --start-page "$start" --limit "$INPUT_LIMIT" $sync_flag
+            --pages "$INPUT_PAGES" --start-page "$start" --limit "$INPUT_LIMIT" $sync_flag $buffer_flag

@@ -107,7 +107,12 @@ export type LiteRunSummary = {
   eligibleInPreview?: number;
 };
 
-export type LiteRunOptions = { preview?: boolean; allowedOrgForms?: readonly string[] };
+export type LiteRunOptions = {
+  preview?: boolean;
+  allowedOrgForms?: readonly string[];
+  /** Preview only: stop after this many scanned rows (keeps a large queue inside the job time limit). */
+  previewLimit?: number;
+};
 
 /**
  * Sends up to cfg.maxPerRun template emails. Every record passes the Lite gate, the reply check
@@ -127,6 +132,7 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
 
   for (const record of queue) {
     if (!options.preview && summary.sent >= cfg.maxPerRun) { summary.stoppedBy = "max_per_run"; break; }
+    if (options.preview && options.previewLimit !== undefined && summary.scanned >= options.previewLimit) break;
     if (!options.preview) {
       if (!isWithinLiteWindow(deps.now(), cfg)) { summary.stoppedBy = "outside_window"; break; }
       try {

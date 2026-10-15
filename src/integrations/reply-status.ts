@@ -63,3 +63,47 @@ export async function assertRecipientHasNotReplied(
     throw new Error("Recipient has replied. Follow-up/outreach is blocked.");
   }
 }
+
+/** Max addresses per batch request (REPLY_STATUS_BATCH_MAX in openoutsend_ingest_api.py). */
+export const REPLY_STATUS_BATCH_MAX = 500;
+
+/**
+ * Read-only batch lookup: one mailbox read on the reply service for many addresses.
+ * Returns replied=true/false for every requested address; throws (fails closed) on any doubt,
+ * including a response that leaves out an address.
+ */
+export async function fetchRepliedBatch(
+  recipients: string[],
+  env: NodeJS.ProcessEnv = process.env,
+  fetchImpl: typeof fetch = fetch
+): Promise<Map<string, boolean>> {
+  const emails = [...new Set(recipients.map(r => r.trim().toLowerCase()).filter(Boolean))];
+  if (emails.length === 0) return new Map();
+  if (emails.length > REPLY_STATUS_BATCH_MAX) throw new Error(`At most ${REPLY_STATUS_BATCH_MAX} addresses per reply-status batch.`);
+  const endpoint = env.OPENOUTREACH_REPLY_STATUS_URL?.trim();
+  const token = env.OPENOUTREACH_REPLY_STATUS_TOKEN?.trim();
+  if (!endpoint || !token) throw new Error("Authenticated OpenOutSend reply-status URL and token are required.");
+  const url = new URL(endpoint);
+  if (url.protocol !== "https:" || !url.pathname.endsWith("/v1/reply-status")) {
+    throw new Error("OpenOutSend reply-status URL must use HTTPS and end in /v1/reply-status.");
+  }
+  const response = await fetchImpl(url.toString(), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ emails }),
+    signal: AbortSignal.timeout(120000)
+  });
+  if (!response.ok) throw new Error(`OpenOutSend reply-status batch failed with HTTP ${response.status}.`);
+  const payload = await response.json().catch(() => null) as { replied_by_email?: unknown; mode?: unknown; send_triggered?: unknown } | null;
+  if (!payload || payload.mode !== "read_only_reply_check" || payload.send_triggered !== false ||
+      typeof payload.replied_by_email !== "object" || payload.replied_by_email === null) {
+    throw new Error("OpenOutSend returned an invalid reply-status batch.");
+  }
+  const answers = payload.replied_by_email as Record<string, unknown>;
+  const result = new Map<string, boolean>();
+  for (const email of emails) {
+    if (typeof answers[email] !== "boolean") throw new Error("OpenOutSend reply-status batch left out an address.");
+    result.set(email, answers[email] as boolean);
+  }
+  return result;
+}

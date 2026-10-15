@@ -99,24 +99,81 @@ test("Interested and Offer Sent block other addresses at the same business", () 
 
 // ---------- Reply sync ----------
 
-test("reply sync moves answered rows to Replied and stops on an outage", async () => {
-  const rows = [row("recA", { Email: "post@a.example", "Lead Status": "Sent" }), row("recB", { Email: "post@b.example", "Lead Status": "Sent" }), row("recC", { "Lead Status": "Sent" })];
+test("reply sync looks addresses up in batches, moves answered rows to Replied and stops on an outage", async () => {
+  const rows = Array.from({ length: 450 }, (_, i) => row(`rec${i}`, { Email: `post@b${i}.example`, "Lead Status": "Sent" }));
+  rows.push(row("recNoEmail", { "Lead Status": "Sent" }));
   const marked: string[] = [];
+  const batchSizes: number[] = [];
   const summary = await runLiteReplySync({
     fetchSent: async () => rows,
-    hasReplied: async email => email === "post@b.example",
+    hasRepliedBatch: async emails => { batchSizes.push(emails.length); return new Map(emails.map(e => [e, e === "post@b7.example"])); },
     markReplied: async id => { marked.push(id); }
   });
-  assert.deepEqual(summary, { checked: 2, replied: 1, noEmail: 1 });
-  assert.deepEqual(marked, ["recB"]);
+  assert.deepEqual(summary, { checked: 450, replied: 1, noEmail: 1, batches: 3 });
+  assert.deepEqual(batchSizes, [200, 200, 50]);
+  assert.deepEqual(marked, ["rec7"]);
 
   const partial: string[] = [];
   await assert.rejects(runLiteReplySync({
     fetchSent: async () => rows,
-    hasReplied: async () => { throw new Error("OpenOutSend reply-status check failed with HTTP 503."); },
+    hasRepliedBatch: async () => { throw new Error("OpenOutSend reply-status batch failed with HTTP 503."); },
     markReplied: async id => { partial.push(id); }
   }), /503/);
   assert.equal(partial.length, 0);
+  await assert.rejects(runLiteReplySync({
+    fetchSent: async () => rows.slice(0, 2),
+    hasRepliedBatch: async () => new Map([["post@b0.example", false]]),
+    markReplied: async () => undefined
+  }), /left out/);
+});
+
+test("batch reply client fails closed on an incomplete or invalid answer", async () => {
+  const { fetchRepliedBatch } = await import("../src/integrations/reply-status.js");
+  const env = { OPENOUTREACH_REPLY_STATUS_URL: "https://r.example/v1/reply-status", OPENOUTREACH_REPLY_STATUS_TOKEN: "t" };
+  const answer = (body: unknown, status = 200) => (async () => json(body, status)) as unknown as typeof fetch;
+  const ok = await fetchRepliedBatch(["Post@A.example", "post@b.example"], env,
+    answer({ replied_by_email: { "post@a.example": true, "post@b.example": false }, mode: "read_only_reply_check", send_triggered: false }));
+  assert.deepEqual([...ok], [["post@a.example", true], ["post@b.example", false]]);
+  await assert.rejects(fetchRepliedBatch(["post@a.example", "post@b.example"], env,
+    answer({ replied_by_email: { "post@a.example": false }, mode: "read_only_reply_check", send_triggered: false })), /left out/);
+  await assert.rejects(fetchRepliedBatch(["post@a.example"], env,
+    answer({ replied_by_email: { "post@a.example": false }, mode: "x", send_triggered: false })), /invalid/);
+  await assert.rejects(fetchRepliedBatch(["post@a.example"], env, answer({}, 503)), /503/);
+  await assert.rejects(fetchRepliedBatch(["post@a.example"], { ...env, OPENOUTREACH_REPLY_STATUS_URL: "http://r.example/v1/reply-status" }, answer({})), /HTTPS/);
+});
+
+test("preview limit: a large queue is checked oldest-first up to the limit, nothing sent", async () => {
+  const records = Array.from({ length: 150 }, (_, i) => row(`recQ${i}`, { Email: `post@q${i}.example` }));
+  const run = dryRunDeps(SATURDAY_10_OSLO, records);
+  const summary = await runLiteSend(run.deps, dryRunConfig(), { preview: true, previewLimit: 100 });
+  assert.equal(summary.scanned, 100);
+  assert.equal(summary.eligibleInPreview, 100);
+  assert.equal(run.outbox.length, 0);
+});
+
+test("capacity: 100/day passes config only when the monthly quota covers 31 days", async () => {
+  const { loadLiteSendConfig, theoreticalDailyCapacity } = await import("../src/lite/schedule.js");
+  const base = { GULLKORNET_LITE_DAILY_LIMIT: "100", GULLKORNET_LITE_HOURLY_LIMIT: "15", GULLKORNET_LITE_MAX_PER_RUN: "5", RESEND_DAILY_QUOTA: "100" };
+  assert.throws(() => loadLiteSendConfig({ ...base, RESEND_MONTHLY_QUOTA: "3000" }), /x 31 exceeds RESEND_MONTHLY_QUOTA/);
+  const cfg = loadLiteSendConfig({ ...base, RESEND_MONTHLY_QUOTA: "50000" });
+  assert.equal(theoreticalDailyCapacity(cfg), 100);
+  // Today's plan allows at most 96/day (96 x 31 = 2976 <= 3000).
+  assert.equal(theoreticalDailyCapacity(loadLiteSendConfig({ ...base, GULLKORNET_LITE_DAILY_LIMIT: "96", RESEND_MONTHLY_QUOTA: "3000" })), 96);
+});
+
+test("capacity: 100 sends in one day across 10-minute runs, never twice to a business, none outside 08-20", async () => {
+  const records = Array.from({ length: 140 }, (_, i) => row(`recC${i}`, { Email: `post@c${i}.example`, "Research Notes": NOTES.replace("900000001", String(900001000 + i)) }));
+  const start = Date.parse("2026-10-17T05:00:00Z"); // 07:00 Oslo
+  const run = dryRunDeps(start, records);
+  const cfg = { ...dryRunConfig(), dailyLimit: 100, hourlyLimit: 15, maxPerRun: 5, resendDailyQuota: 100 };
+  for (let tick = 0; tick < 6 * 16; tick++) { await runLiteSend(run.deps, cfg); run.advance(10 * 60_000); }
+  assert.equal(run.outbox.length, 100);
+  assert.equal(new Set(run.outbox.map(o => o.email.to)).size, 100, "one email per business");
+  assert.equal(new Set(run.outbox.map(o => o.key)).size, 100, "unique idempotency keys");
+  const hours = run.ledger.map(e => new Date(e.created_at).getUTCHours() + 2);
+  assert.ok(hours.every(h => h >= 8 && h < 20), "inside the Oslo window");
+  const sentRows = [...run.state.values()].filter(r => r.fields["Lead Status"] === "Sent");
+  assert.equal(sentRows.length, 100);
 });
 
 // ---------- Audit ----------
@@ -180,4 +237,16 @@ test("domain fingerprints: keyed, stable, and a lookup returns only status for t
   assert.deepEqual(result[1].statuses, []);
   assert.ok(!JSON.stringify(result).includes("example"), "no domain in the output");
   assert.throws(() => domainFingerprint("a.example", ""), /key/);
+});
+
+test("refill buffer: only Lite Ready rows without DNC count toward the buffer target", async () => {
+  const { indexFromRecords } = await import("../src/lite/intake.js");
+  const index = indexFromRecords([
+    { id: "r1", fields: { Email: "post@a.example", "Lead Status": "Lite Ready" } },
+    { id: "r2", fields: { Email: "post@b.example", "Lead Status": "Lite Ready", "Do Not Contact": true } },
+    { id: "r3", fields: { Email: "post@c.example", "Lead Status": "Sent" } },
+    { id: "r4", fields: { Email: "post@d.example", "Lead Status": "Lite Ready", "Research Notes": "[GK-LITE] orgnr=900000009" } }
+  ]);
+  assert.equal(index.readyCount, 2);
+  assert.ok(index.organizationNumbers.has("900000009"), "known org numbers are skipped by the website path");
 });
