@@ -3,6 +3,21 @@ import type { PublicEmail } from "../integrations/contact-research.js";
 import type { BrregLiteCandidate } from "./brreg-lite.js";
 import type { LiteSourceCandidate } from "./intake.js";
 import { assessLiteRecipient } from "./recipient-policy.js";
+import { liteSegment, regionOfMunicipality } from "./market-research.js";
+
+/** Only spend the bounded website budget on usable segments and businesses not already known. */
+export function websiteSupplementPool(
+  units: BrregLiteCandidate[],
+  knownOrganizations: ReadonlySet<string>,
+  documented: ReadonlySet<string>,
+  allowedOrgForms?: readonly string[]
+): BrregLiteCandidate[] {
+  return units.filter(unit => {
+    const segment = liteSegment(unit.industryCode, regionOfMunicipality(unit.municipalityCode));
+    return Boolean(unit.websiteUrl && segment && documented.has(segment.key) &&
+      !knownOrganizations.has(unit.organizationNumber) && !assessLiteRecipient(unit, allowedOrgForms).ok);
+  });
+}
 
 /**
  * Turns one Places candidate into a Lite candidate. The organisation form must come from

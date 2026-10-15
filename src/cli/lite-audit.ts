@@ -1,7 +1,7 @@
 import { auditLiteRows, REVENUE_GOAL_NOK, SALES_FIELDS, SALES_STATUSES } from "../lite/audit.js";
 import { checkLiteFreshness } from "../lite/freshness.js";
 import { airtableConfigFromEnv, LITE_READY_STATUS, type AirtableConfig } from "../lite/intake.js";
-import { loadResearchIndex } from "../lite/market-research.js";
+import { documentedSegments, loadResearchIndex } from "../lite/market-research.js";
 import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
 import { fetchAllTableRows } from "../lite/airtable-queue.js";
 import { planLiteRetention } from "../lite/retention.js";
@@ -68,7 +68,7 @@ async function main(): Promise<void> {
   const report = auditLiteRows(rows, research, now, freshness, allowedOrgForms);
   const lines: string[] = [];
   lines.push(`Gullkornet Lite audit (${new Date(now).toISOString()})`);
-  lines.push(`Table rows: ${rows.length}; Lite rows: ${report.liteRows}; documented segments: ${research.size}`);
+  lines.push(`Table rows: ${rows.length}; Lite rows: ${report.liteRows}; research files: ${research.size}; documented segments: ${documentedSegments(research, now).length}`);
   lines.push(`Lite status: ${Object.entries(report.statusCounts).map(([s, n]) => `${s}=${n}`).join(", ") || "-"}`);
   lines.push(`Lite Ready: ${report.readyRows}; clean (would pass every data check): ${report.readyClean}`);
   lines.push(`Issues: ${Object.entries(report.issueCounts).map(([s, n]) => `${s}=${n}`).join(", ") || "none"}`);

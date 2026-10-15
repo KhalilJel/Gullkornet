@@ -46,6 +46,11 @@ on:
         required: true
         default: false
         type: boolean
+      website_cap:
+        description: "Maximum documented website candidates to inspect (1-1000)"
+        required: true
+        default: "150"
+        type: string
 
 permissions:
   contents: read
@@ -74,6 +79,7 @@ jobs:
       INPUT_SYNC: ${{ inputs.sync_to_airtable }}
       INPUT_SOURCE: ${{ inputs.source || 'auto' }}
       BUFFER_TARGET: ${{ vars.GULLKORNET_LITE_BUFFER_TARGET || '700' }}
+      INPUT_WEBSITE_CAP: ${{ inputs.website_cap || '150' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -95,6 +101,8 @@ jobs:
           fi
           case "$INPUT_PAGES" in ''|*[!0-9]*) echo "pages must be a number"; exit 1 ;; esac
           case "$INPUT_LIMIT" in ''|*[!0-9]*) echo "limit must be a number"; exit 1 ;; esac
+          case "$INPUT_WEBSITE_CAP" in ''|*[!0-9]*) echo "website_cap must be a number"; exit 1 ;; esac
+          if (( INPUT_WEBSITE_CAP < 1 || INPUT_WEBSITE_CAP > 1000 )); then echo "website_cap must be 1-1000"; exit 1; fi
           start="$INPUT_START_PAGE"
           # Scheduled runs read every documented segment from page 0 (de-duplication skips what is
           # already in Airtable), so one exhausted segment never stops the refill.
@@ -108,4 +116,4 @@ jobs:
           if [ "$INPUT_SOURCE" = "auto" ]; then buffer_flag="--target-buffer $BUFFER_TARGET"; fi
           npm run --silent lite:intake -- --source "$INPUT_SOURCE" \
             --municipalities "$INPUT_MUNICIPALITIES" --industries "$INPUT_INDUSTRIES" \
-            --pages "$INPUT_PAGES" --start-page "$start" --limit "$INPUT_LIMIT" $sync_flag $buffer_flag
+            --pages "$INPUT_PAGES" --start-page "$start" --limit "$INPUT_LIMIT" --website-cap "$INPUT_WEBSITE_CAP" $sync_flag $buffer_flag

@@ -4,6 +4,20 @@ import { assessResearch, LITE_REGIONS, liteSegment, regionOfMunicipality } from 
 import { dryRunConfig, dryRunDeps } from "../src/lite/fixtures.js";
 import { runLiteSend } from "../src/lite/send.js";
 import { loadLiteSendConfig } from "../src/lite/schedule.js";
+import { websiteSupplementPool } from "../src/lite/places-supplement.js";
+import { toLiteCandidate } from "../src/lite/brreg-lite.js";
+
+test("website budget excludes undocumented, known and already usable register candidates", () => {
+  const unit = (id: string, municipality = "3107", email?: string) => toLiteCandidate({
+    organisasjonsnummer: id, navn: "Test AS", organisasjonsform: { kode: "AS" },
+    hjemmeside: "example.no", epostadresse: email,
+    forretningsadresse: { kommunenummer: municipality }, naeringskode1: { kode: "43.221" }
+  })!;
+  const candidates = [unit("900000001"), unit("900000002", "3905"), unit("900000003"), unit("900000004", "3107", "post@example.no")];
+  const pool = websiteSupplementPool(candidates, new Set(["900000003"]), new Set(["43.221@ostfold"]));
+  assert.deepEqual(pool.map(u => u.organizationNumber), ["900000001"]);
+  assert.deepEqual(websiteSupplementPool(candidates, new Set(), new Set()), []);
+});
 
 test("new regions have unique municipality codes and require their own research", () => {
   const codes = Object.values(LITE_REGIONS).flatMap(r => [...r.municipalities]);
