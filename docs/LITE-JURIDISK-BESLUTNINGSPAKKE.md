@@ -1,3 +1,4 @@
+> Oppdatert eierbeslutning 15.10.2026: Avtalene er bekreftet i orden av eier, valg av lagringstid er delegert og ekstern jurist skal ikke brukes. Eldre krav om juristgodkjenning nedenfor er historikk, ikke gjeldende arbeidskrav. Les LITE-READINESS-2026-10-15.md og LITE-LAGRINGSPOLICY-2026-10-15.md for gjeldende vurdering og konkrete gjenstående kontroller. Dette er ikke live-klarsignal. Mal .2 er uendret, sletting er av.
 # Beslutningspakke for juridisk gjennomgang – Gullkornet Lite
 
 14.10.2026. Kort pakke til advokaten. **Systemet er ikke erklært lovlig. Utsending er av.** Bakgrunn i [LITE-JURIDISK-KONTROLL.md](LITE-JURIDISK-KONTROLL.md), [LITE-INTERESSEAVVEINING.md](LITE-INTERESSEAVVEINING.md), [PERSONVERNERKLAERING-UTKAST.md](PERSONVERNERKLAERING-UTKAST.md), [LITE-EPOSTMAL-FORSLAG.md](LITE-EPOSTMAL-FORSLAG.md) og [LITE-DATABEHANDLERE.md](LITE-DATABEHANDLERE.md).

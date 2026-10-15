@@ -29,6 +29,7 @@ jobs:
       GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
       GULLKORNET_AIRTABLE_TABLE: ${{ vars.GULLKORNET_AIRTABLE_TABLE || 'Leads' }}
       GULLKORNET_LITE_RETENTION_EXECUTE: ${{ inputs.execute && vars.GULLKORNET_LITE_RETENTION_ENABLED == 'true' && 'true' || 'false' }}
+      GULLKORNET_AIRTABLE_WRITES: ${{ inputs.execute && vars.GULLKORNET_LITE_RETENTION_ENABLED == 'true' && 'enabled' || 'disabled' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

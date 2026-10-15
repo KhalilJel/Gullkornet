@@ -1,83 +1,21 @@
-# Utkast: Personvernerklæring for Cidea Marketing
+# Personvernerklæring for Gullkornet — publiseringsutkast 15.10.2026
 
-**Publiseringskontroll 15.10.2026: IKKE KLAR.** Brreg bekrefter selskapsnavn, organisasjonsnummer og adresse. Eier har nå bekreftet at CIDEA AS driver Cidea Marketing og er behandlingsansvarlig for Gullkornet. Retensjonsløftene nedenfor er ikke verifisert i drift, innboksens lagringstid og kontoenes DPA/overføringsgrunnlag er uavklart. `/personvern` viser fortsatt forsiden. Dette er konkrete innholdshindringer for den betingede publiseringsgodkjenningen. Se [lanseringsrapporten](LITE-LANSERINGSSPRINT-2026-10-15.md). Mal `.2` er uendret.
+**Ikke publisert.** Avtaler er bekreftet i orden av eier; ekstern jurist brukes ikke. Dette utkastet gjelder bedriftshenvendelser og tilhørende dialog, ikke en full kartlegging av nettstedets skjemaer, cookies og analyse. Fristene er vedtatt som intern policy, men må ikke presenteres som automatisk gjennomført. Før publisering: kontroller kontaktkanal, faktiske leverandør-/backupfrister og sikker manuell eller teknisk håndheving, særlig innboks og svarmonitor. Ingen produksjonssletting er autorisert.
 
-**Status: UTKAST 14.10.2026. Ikke publisert, ikke juridisk kontrollert.** Teksten bygger på den faktiske databehandlingen i Gullkornet Lite slik den er kartlagt i koden og i [LITE-DATABEHANDLERE.md](LITE-DATABEHANDLERE.md). Punkter merket **[BEKREFT]** må eieren bekrefte, og hele teksten bør kontrolleres av en jurist før den publiseres på `https://cideamarketing.com/personvern`.
+## Hvem er ansvarlig?
+CIDEA AS, org.nr. 927 394 391, Gunnar Schjelderups vei 13A, 0485 Oslo, driver Cidea Marketing. Kontakt om personvern: hello@cideamarketing.com. Denne kontaktkanalen må kontrolleres før publisering.
 
----
+## Opplysninger, kilder og formål
+Vi bruker selskapsnavn, organisasjonsnummer, organisasjonsform, bransje, kommune, nettsted og offentlig publisert fellesadresse. Kildene er Enhetsregisteret og bedriftens egen nettside. Vi registrerer kilde, tidspunkt, om vi har kontaktet bedriften, svar og reservasjoner. Svar kan inneholde personnavn, kontaktinformasjon og korrespondanse. Vi bruker dette til én relevant bedriftshenvendelse, ønsket videre dialog og å hindre ny kontakt med dem som allerede er kontaktet eller har reservert seg. Vi retter ikke dette løpet mot navngitte personadresser eller enkeltpersonforetak. Vi bruker ikke åpnings-/klikksporing i dette løpet og fatter ikke automatiserte avgjørelser med rettslig eller tilsvarende betydelig virkning.
 
-## Personvernerklæring – Cidea Marketing
+## Behandlingsgrunnlag
+Der opplysningene gjelder personer, vurderer vi konkret berettiget interesse etter GDPR art. 6(1)(f) for avgrenset bedriftshenvendelse, oppfølging av bedriftens kontaktperson og nødvendig sperre-/svarhåndtering. Dette erstatter ikke et eventuelt samtykkekrav etter markedsføringsloven. Henvendelser til en bestemt person uten dokumentert tillatelse avvises i dette løpet. Interesseavveiningen omfatter relevans, nødvendighet, manglende tidligere relasjon, rimelige forventninger, én kontakt, ingen sporing og enkel protest. Dersom en person selv er avtalepart, kan nødvendig avtaleoppfølging ha grunnlag i art. 6(1)(b). En bedriftsansatt er ikke automatisk selv avtalepart. Regnskapsopplysninger behandles etter relevante rettslige plikter.
 
-Sist oppdatert: [DATO]
+## Lagring og reservasjoner
+Ukontaktede prospekter: intern maksimumsfrist 90 dager fra opprinnelig innsamling. Kontakt uten svar: maksimum 90 dager fra utsending for full prospektpost/research, deretter bare nødvendig sperreinformasjon. Aktiv dialog beholdes så lenge det finnes et konkret dokumentert behov og vurderes minst hver 90. dag. Avsluttet dialog ryddes innen 90 dager; egne avtale-/regnskapsbehov vurderes separat. Originalinnboksen følger dialogens behov. Ferdigbehandlede meldingskopier i svarmonitoren har intern maksimumsfrist 30 dager når nødvendig dialog er sikret i originalsystemet. Reservasjoner og nødvendig vern mot ny kontakt begrenses til nødvendige opplysninger og vurderes årlig. Sikkerhetskopier og historikk må beskrives etter de faktisk kontrollerte leverandørfristene før denne teksten publiseres.
 
-### 1. Hvem er ansvarlig
+## Leverandører og overføringer
+Vi bruker Airtable til kø/kundeoversikt, Resend til utsending, Migadu til innboks, Railway til svarmonitor og GitHub til kjøringer. Drift på Railway er kartlagt i USA; EU-avsenderregion i Resend innebærer ikke i seg selv at all behandling er i EØS. Eier har bekreftet at avtalene er i orden. Den offentlige teksten om konkrete overføringsmekanismer må samsvare med de arkiverte avtalene og leverandørenes faktiske status; vi påstår ikke DPF/SCC-status for en leverandør uten kontroll. Opplysningene selges ikke.
 
-Behandlingsansvarlig er CIDEA AS, org.nr. 927 394 391, Gunnar Schjelderups vei 13A, 0485 Oslo, som driver Cidea Marketing. Eier bekreftet ansvaret 15.10.2026; selskapsopplysningene er kontrollert mot Brreg.
-Kontakt om personvern: hello@cideamarketing.com.
-
-### 2. Hvilke opplysninger vi behandler når vi kontakter bedrifter
-
-Vi kontakter aksjeselskaper (AS og ASA) med tilbud om markedsføringstjenester. Vi bruker bare bedriftens felles e-postadresse (for eksempel post@ eller info@), ikke adresser til navngitte ansatte, og vi kontakter ikke enkeltpersonforetak.
-
-Om hver bedrift lagrer vi:
-- firmanavn, organisasjonsnummer, organisasjonsform, næringskode og kommune
-- bedriftens felles e-postadresse og nettadresse
-- hvor og når vi fant opplysningene
-- om og når vi har sendt én e-post, og om bedriften har svart eller reservert seg
-- ved videre dialog: hva neste steg er, og eventuelle tilbud og betalinger
-
-Selskapsopplysninger er som regel ikke personopplysninger. En felles e-postadresse kan likevel leses av én bestemt person, og svar vi mottar kan inneholde navn og kontaktopplysninger til den som skriver. Vi behandler derfor disse opplysningene i tråd med personvernregelverket.
-
-### 3. Hvor opplysningene kommer fra
-
-Fra Enhetsregisteret i Brønnøysundregistrene (åpne data), fra bedriftens egen nettside, og fra e-poster bedriften sender oss.
-
-### 4. Formål og rettslig grunnlag
-
-| Formål | Grunnlag |
-|---|---|
-| Sende én henvendelse om våre tjenester til bedrifter vi mener kan ha nytte av dem | Berettiget interesse (GDPR art. 6 nr. 1 bokstav f): å markedsføre egne tjenester overfor næringsdrivende. Se interesseavveiningen [LENKE/på forespørsel] |
-| Registrere svar og reservasjoner, og sørge for at vi ikke tar kontakt igjen | Berettiget interesse og rettslig forpliktelse til å respektere reservasjoner (GDPR art. 21, markedsføringsloven) |
-| Følge opp bedrifter som ønsker dialog, tilbud og avtale | Tiltak før avtaleinngåelse og avtaleoppfyllelse (GDPR art. 6 nr. 1 bokstav b) |
-| Regnskap ved kundeforhold | Rettslig forpliktelse (bokføringsloven) |
-
-Vi bruker ikke opplysningene til profilering eller automatiserte avgjørelser. Henvendelsen er den samme for alle mottakere.
-
-### 5. Hvor lenge vi lagrer opplysningene
-
-- Bedrifter vi ikke har kontaktet: slettes 90 dager etter at de ble registrert.
-- Bedrifter vi har kontaktet uten å få svar: etter 90 dager beholder vi bare e-postadressen, organisasjonsnummeret og at vi har sendt én e-post, slik at vi ikke kontakter dere på nytt.
-- Reservasjoner: vi beholder bare det som trengs for å respektere reservasjonen, så lenge det er nødvendig. Vi vurderer dette årlig.
-- Pågående dialog og kunder: så lenge dialogen eller kundeforholdet varer, og deretter så lenge loven krever (regnskap).
-- Mottatte e-poster: **[BEKREFT lagringstid for innboksen og for kopien i svarmonitoren]**
-
-### 6. Hvem som behandler opplysningene for oss
-
-Vi bruker disse leverandørene som databehandlere:
-- Airtable (kundeoversikt, USA)
-- Resend (utsending av e-post, USA)
-- Migadu (e-postinnboks, Sveits)
-- Railway (svarmonitor, USA)
-- GitHub (drift og kjøring av systemet, USA; inneholder ikke e-postadresser i klartekst)
-
-Overføring til USA skjer med grunnlag i EUs standardavtaler (SCC) og/eller EU–US Data Privacy Framework, se [LITE-DATABEHANDLERE.md](LITE-DATABEHANDLERE.md). **[BEKREFT for hver leverandør]** Vi selger ikke opplysninger og gir dem ikke videre til andre.
-
-### 7. Dine rettigheter
-
-Du kan be om innsyn, retting, sletting og begrensning, og du kan protestere mot behandlingen. **Du kan når som helst reservere deg mot markedsføring.** Svar på e-posten eller skriv til hello@cideamarketing.com, så registrerer vi reservasjonen samme virkedag og kontakter dere ikke igjen. Du kan klage til Datatilsynet (datatilsynet.no).
-
-### 8. Endringer
-
-Vi oppdaterer erklæringen når behandlingen endres. Datoen øverst viser siste endring.
-
----
-
-## Grunnlag for utkastet (fra koden)
-
-| Påstand i erklæringen | Hvor det gjelder i systemet |
-|---|---|
-| Bare AS/ASA og felles adresser | `src/lite/recipient-policy.ts` |
-| Én e-post per bedrift, aldri to | Raden settes `Sent` før sending, og hele domenet blokkeres (`src/lite/send.ts`) |
-| Ingen profilering og samme tekst til alle | Fast mal (`src/lite/template.ts`) |
-| Svar og reservasjoner registreres | Reply Sync (`src/lite/replies.ts`) og `Do Not Contact` |
-| 90 dager / minimering | `src/lite/retention.ts`. **Ikke aktivert i produksjon ennå** |
+## Rettigheter
+Du kan be om innsyn, retting, sletting eller begrensning der vilkårene er oppfylt. Du kan når som helst og gratis protestere mot direkte markedsføring ved å svare på henvendelsen eller kontakte oss. Da stopper markedsføringen; minimale sperreopplysninger kan beholdes for å respektere protesten. Du kan klage til Datatilsynet. Henvendelser håndteres uten ugrunnet opphold og normalt innen én måned. Fullstendig informasjon etter art. 14 må gis der den gjelder; en nettside alene er ikke dokumentasjon på at den er gitt innen fristene.

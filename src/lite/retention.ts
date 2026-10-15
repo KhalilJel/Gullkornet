@@ -11,8 +11,8 @@ import type { LiteQueueRecord } from "./send.js";
 //                                                              second email (address, org number,
 //                                                              duplicate key, status)
 //   Do Not Contact / Suppressed (any age)                   -> minimise; the reservation is kept
-//   Replied, Interested, Meeting, Offer Sent, Won, Lost     -> keep (active sales or customer
-//                                                              record); listed for manual review
+//   Dialogue/customer/lost rows                           -> require dated, periodic review;
+//                                                              never auto-delete financial/dialogue evidence
 //
 // Nothing is changed unless the caller passes execute=true AND GULLKORNET_LITE_RETENTION_EXECUTE
 // is "true" (owner approval). The plan itself is pure and reads nothing but the rows.
@@ -37,6 +37,8 @@ export type RetentionPlan = {
   /** Rows the rule cannot date (no First Seen / sent date): never touched, reported. */
   undated: string[];
   alreadyMinimized: number;
+  /** Review is read-only: these rows must not silently become permanent retention exceptions. */
+  reviewRequired: Array<{ id: string; reason: "NO_REVIEW_DATE" | "REVIEW_EXPIRED" | "CLOSED_DIALOGUE_EXPIRED" | "NO_CLOSURE_DATE" }>;
 };
 
 function text(row: LiteQueueRecord, field: string): string {
@@ -63,7 +65,8 @@ export function minimizedNotes(notes: string, reason: string, nowMs: number): st
 }
 
 export function planLiteRetention(rows: LiteQueueRecord[], nowMs: number, days = LITE_RETENTION_DAYS): RetentionPlan {
-  const plan: RetentionPlan = { actions: [], keptActive: [], undated: [], alreadyMinimized: 0 };
+  if (!Number.isFinite(nowMs) || !Number.isInteger(days) || days < 1 || days > 365) throw new Error("Invalid retention clock or period.");
+  const plan: RetentionPlan = { actions: [], keptActive: [], undated: [], alreadyMinimized: 0, reviewRequired: [] };
   const cutoff = nowMs - days * DAY_MS;
   for (const row of rows) {
     const notes = text(row, "Research Notes");
@@ -75,22 +78,47 @@ export function planLiteRetention(rows: LiteQueueRecord[], nowMs: number, days =
       plan.actions.push({ id: row.id, action: "minimize", reason: "RESERVATION", notes: minimizedNotes(notes, "RESERVATION", nowMs) });
       continue;
     }
-    if (KEEP_STATUSES.has(status)) { plan.keptActive.push(row.id); continue; }
+    if (KEEP_STATUSES.has(status)) {
+      plan.keptActive.push(row.id);
+      // reviewed= is a documented human needs assessment, NOT First Seen, a record edit,
+      // an outbound message, or a future Next Step Date. Missing/future dates cannot justify keeping.
+      const reviewed = retentionDate(notes, "reviewed");
+      const closed = retentionDate(notes, "closed");
+      if (status === "Lost" && (closed === undefined || closed > nowMs)) {
+        plan.reviewRequired.push({ id: row.id, reason: "NO_CLOSURE_DATE" });
+      } else if (status === "Lost" && closed !== undefined && closed <= cutoff) {
+        plan.reviewRequired.push({ id: row.id, reason: "CLOSED_DIALOGUE_EXPIRED" });
+      } else if (reviewed === undefined || reviewed > nowMs) {
+        plan.reviewRequired.push({ id: row.id, reason: "NO_REVIEW_DATE" });
+      } else if (reviewed <= cutoff) {
+        plan.reviewRequired.push({ id: row.id, reason: "REVIEW_EXPIRED" });
+      }
+      continue;
+    }
     if (status === LITE_READY_STATUS) {
       const firstSeen = Date.parse(text(row, "First Seen"));
       if (!Number.isFinite(firstSeen)) { plan.undated.push(row.id); continue; }
-      if (firstSeen < cutoff) plan.actions.push({ id: row.id, action: "delete", reason: "NEVER_CONTACTED_EXPIRED" });
+      if (firstSeen <= cutoff) plan.actions.push({ id: row.id, action: "delete", reason: "NEVER_CONTACTED_EXPIRED" });
       continue;
     }
     if (status === "Sent") {
       const sent = sentDateFromNotes(notes);
       if (sent === undefined) { plan.undated.push(row.id); continue; }
-      if (sent < cutoff) {
+      if (sent <= cutoff) {
         plan.actions.push({ id: row.id, action: "minimize", reason: "SENT_NO_REPLY_EXPIRED", notes: minimizedNotes(notes, "SENT_NO_REPLY_EXPIRED", nowMs) });
       }
     }
   }
   return plan;
+}
+
+function retentionDate(notes: string, key: "reviewed" | "closed"): number | undefined {
+  const matches = [...notes.matchAll(new RegExp(`(?:^|\\s)${key}=(\\S+)`, "g"))];
+  // Ambiguous or invalid evidence requires review, never a convenient newest-date selection.
+  if (matches.length !== 1 || !/^\d{4}-\d{2}-\d{2}$/.test(matches[0]![1]!)) return undefined;
+  const day = matches[0]![1]!;
+  const ms = Date.parse(`${day}T00:00:00Z`);
+  return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === day ? ms : undefined;
 }
 
 export function retentionExecutionAllowed(env: NodeJS.ProcessEnv = process.env): boolean {

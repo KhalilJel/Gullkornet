@@ -1,3 +1,4 @@
+> Oppdatert eierbeslutning 15.10.2026: Avtalene er bekreftet i orden av eier, valg av lagringstid er delegert og ekstern jurist skal ikke brukes. Eldre krav om juristgodkjenning nedenfor er historikk, ikke gjeldende arbeidskrav. Les LITE-READINESS-2026-10-15.md og LITE-LAGRINGSPOLICY-2026-10-15.md for gjeldende vurdering og konkrete gjenstående kontroller. Dette er ikke live-klarsignal. Mal .2 er uendret, sletting er av.
 # Lanseringssprint 15.10.2026
 
 Live-utsending skal forbli av. Denne sprinten godkjenner ingen utsending, juridisk grunnlag, avtalesignering, sletting, DNS/secrets-endring eller kostnad.

@@ -91,7 +91,8 @@ async function main(): Promise<void> {
 
   const retention = planLiteRetention(rows, now);
   const count = (kind: string) => retention.actions.filter(a => a.action === kind).length;
-  lines.push(`Retention (dry-run, 90 days): delete=${count("delete")} minimize=${count("minimize")} keptActive=${retention.keptActive.length} undated=${retention.undated.length} alreadyMinimized=${retention.alreadyMinimized}`);
+  lines.push(`Retention (dry-run, 90 days): delete=${count("delete")} minimize=${count("minimize")} keptActive=${retention.keptActive.length} reviewRequired=${retention.reviewRequired.length} undated=${retention.undated.length} alreadyMinimized=${retention.alreadyMinimized}`);
+  for (const review of retention.reviewRequired) lines.push(`Retention review ${review.id}: ${review.reason}; no automatic change`);
 
   const schema = await readSchema(cfg).catch(() => ({ httpStatus: 0 }));
   if ("httpStatus" in schema) {

@@ -1,3 +1,4 @@
+> Oppdatert eierbeslutning 15.10.2026: Avtalene er bekreftet i orden av eier, valg av lagringstid er delegert og ekstern jurist skal ikke brukes. Eldre krav om juristgodkjenning nedenfor er historikk, ikke gjeldende arbeidskrav. Les LITE-READINESS-2026-10-15.md og LITE-LAGRINGSPOLICY-2026-10-15.md for gjeldende vurdering og konkrete gjenstående kontroller. Dette er ikke live-klarsignal. Mal .2 er uendret, sletting er av.
 # Lagring og sletting – Gullkornet Lite (90 dager)
 
 **Status: BYGGET OG TESTET, IKKE AKTIVERT.** Dette gjennomfører de interne standardene i [PROSPECT-DATA-RETENTION-POLICY.md](PROSPECT-DATA-RETENTION-POLICY.md) for Lite-rader (`[GK-LITE]`). Rader fra den avanserte pipelinen omfattes ikke.

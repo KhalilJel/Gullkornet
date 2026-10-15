@@ -1,58 +1,28 @@
-# Interesseavveining (LIA) – Gullkornet Lite
+# Dokumentert egenvurdering — Gullkornet Lite
 
-**Status: UTKAST 14.10.2026 til eierens og en jurists vurdering.** Grunnlag: GDPR art. 6 nr. 1 bokstav f (personopplysningsloven § 1). Avveiningen er bare nødvendig i den grad Lite behandler personopplysninger (se punkt 0). Den forutsetter at markedsføringsloven § 15 ikke krever samtykke for mottakerne (se punkt 5). Hvis loven krever samtykke, kan berettiget interesse ikke brukes i stedet.
+15.10.2026. Eier bruker ikke ekstern jurist og har bekreftet avtalene i orden. Dette er en betinget egenvurdering, ikke en ekstern godkjenning. Mal .2 og live-send er uendret. Se LITE-READINESS-2026-10-15.md for konkrete sperrer.
 
-## 0. Er det personopplysninger?
+## Formål og omfang
+Formålet er å tilby Cidea Marketings egne tjenester i én kort, relevant henvendelse til en verifisert fellesadresse hos AS/ASA innenfor et dokumentert segment. Dette er en konkret kommersiell interesse. En ren inntektsmålsetting eller et ønske om høyere volum beviser ikke nødvendighet. Ingen oppfølging uten svar og ingen åpnings-/klikksporing i Lite-løpet.
 
-| Data | Vurdering |
-|---|---|
-| Firmanavn, org.nr., org.form, NACE, kommune, nettside | Opplysninger om et AS, ikke om en fysisk person |
-| Felles e-postadresse (post@, info@ …) | Som regel ikke en personopplysning. **Usikkert** i små AS der adressen i praksis leses av én identifiserbar person |
-| Svar fra bedriften (navn, signatur, innhold) | Personopplysninger |
-| Notater om dialog, tilbud og betaling | Kan være personopplysninger (kontaktperson) |
+Selskapsopplysninger er ikke automatisk personopplysninger, men adresser eller opplysninger som gjelder en identifiserbar person, og innkommende svar, kan være det. En rolleadresse er en teknisk indikator, ikke sikkert bevis på at den tilhører virksomheten fremfor en bestemt person. AS/ASA, registerføring og få ansatte avgjør ikke dette alene. Tvil om en konkret mottaker gir avvisning/manuell kontroll, ikke automatisk tillatelse.
 
-Konklusjon: Lite behandler personopplysninger i begrenset omfang. Avveiningen gjøres derfor for hele behandlingen.
+## Nødvendighet
+Én målrettet e-post er en mulig begrenset måte å nå en relevant bedriftsfunksjon på. Alternativer omfatter innkommende salg, offentlig annonsering, telefon og post. De er ikke generelt mer inngripende eller utilstrekkelige bare fordi de gir mindre volum. For den lille piloten må det dokumenteres hvorfor den konkrete mottakeren og tjenesten er relevante, hvorfor bare nødvendige bedrifts-/kontaktopplysninger brukes, og hvorfor inngrepet er forholdsmessig. Manglende relevans eller behov skal stoppe den kandidaten.
 
-## 1. Formålstest: berettiget interesse
+## Avveining
+Mot behandlingen taler fravær av tidligere relasjon, uønsket kommersielt innhold, mottakerens tidsbruk, mulige små virksomheter/personadresser og overføringer utenfor EØS. Offentlig tilgjengelighet innebærer ikke samtykke eller at markedsføring forventes. I positiv retning teller verifisert bedriftsfunksjon, relevant tjeneste, én kort kontakt, liten pilot, tydelig merking, kildeinformasjon, lett protest, ingen sporing og begrenset lagring.
 
-Cidea Marketing har en kommersiell interesse i å tilby egne markedsføringstjenester til bedrifter som kan ha nytte av dem. Direkte markedsføring nevnes som en mulig berettiget interesse i fortalepunkt 47. Interessen er reell, konkret og nåværende: målet er de første 50 000 NOK i omsetning.
+Når alle tiltak nedenfor faktisk er på plass, vurderer vi en snever pilot som forsvarlig etter art. 6(1)(f) der dette er nødvendig for personopplysningene. Det er en konkret, betinget vurdering; den kan ikke overstyre et samtykkekrav etter markedsføringsloven eller andre uoppfylte krav. Virksomhetskontakt etter en bedriftsavtale er heller ikke automatisk art. 6(1)(b) for en ansatt som ikke selv er avtalepart.
 
-## 2. Nødvendighetstest
+## Vilkår før pilot
+1. De fem mottakerne kontrolleres konkret som reelle bedriftsfunksjoner; teknisk køstatus er ikke nok. Ingen navneadresser, ENK, freemail eller tvilstilfeller.
+2. Malen må vise markedsføringsformålet ved mottak og gi korrekt kilde, identitet, protestinformasjon og en fungerende personvernlenke. Forslag 2026-10-15.4 er klargjort, men ikke godkjent eller koblet til senderen. .2 har fortsatt konkrete informasjonsavvik.
+3. Hvis art. 14 gjelder, oppfylles informasjonsplikten innen relevante frister: normalt senest én måned fra innsamling, og tidligere ved første kommunikasjon/utlevering der dette gjelder. Første e-post etter 90 dager er ikke tilstrekkelig som generell løsning. For køen må opplysningenes karakter, datoer og eventuell faktisk gitt informasjon vurderes før kontakt; ikke send separate markedsføringsmeldinger for å reparere dette automatisk.
+4. Personvernside, kontaktkanal, avtaler/overføringsdokumentasjon, lagringsrutiner og rettighetsbehandling skal være konsistente og kontrollerte. Eierbekreftet DPA er ikke det samme som en uavhengig kontroll av hvert overføringsvedlegg.
+5. Maks 5/dag og 1/kjøring. Én e-post per virksomhet/domene. Reservasjon eller klage stanser kontakt straks; ingen ny kontakt for å spørre om samtykke til markedsføring. Ingen sporing.
+6. Bare rene, ferske kandidater, fungerende MX, dokumentert segmentresearch og tilstrekkelig restkvote. Gamle og tapte dialoger må gjennom periodisk behovsvurdering i stedet for automatisk evig bevaring.
 
-- **Minimering:** Lite lagrer ingen navn på personer og ingen personlige adresser. Det sendes én e-post per bedrift, uten oppfølging og uten sporing (ingen åpnings- eller klikkpiksler i den faste malen; **[BEKREFT at sporing er av i Resend]**).
-- **Mindre inngripende alternativer:** Telefon og brev er mer inngripende eller dyrere for begge parter. Å kontakte bare de som selv har bedt om det (innkommende henvendelser) er et alternativ, men det gir ikke volum nok for formålet.
-- **Kilde:** Enhetsregisteret, der bedriften selv har registrert e-postadressen for å være kontaktbar.
+Konklusjon: selve modellen med reelle fellesadresser støttes av Forbrukertilsynets veiledning, men konkrete mottakere og kravene ovenfor må være oppfylt. Lansering er fortsatt ikke frigitt. Ny vurdering ved klage, endret målgruppe/formål, før økt volum eller senest om ett år. Ekstern jurist er ikke et arbeidskrav.
 
-## 3. Avveiningstest
-
-| Faktor | Vurdering |
-|---|---|
-| Forholdet til den registrerte | Ingen forutgående relasjon (negativt) |
-| Rimelige forventninger | En næringsdrivende som registrerer en felles adresse i et offentlig register, kan forvente relevante B2B-henvendelser i rimelig omfang (positivt) |
-| Konsekvens for den registrerte | Én kort e-post. Lav belastning |
-| Sårbare grupper / særlige kategorier | Ingen |
-| Kontroll | Tydelig reservasjonslinje. Reservasjonen gjelder hele domenet og respekteres for alltid |
-| Åpenhet | **Svakt i dagens mal.** Den mangler informasjon om kilde og en lenke til personvernerklæringen. Dette rettes i forslaget [LITE-EPOSTMAL-FORSLAG.md](LITE-EPOSTMAL-FORSLAG.md) |
-
-## 4. Tiltak som tipper avveiningen
-
-1. Bare AS/ASA og felles adresser. Ikke ENK, ikke navngitte adresser (kode).
-2. Én e-post per bedrift, sjekk mot svar og reservasjon før sending (kode).
-3. Pilot med maks 5 per dag, og stopp ved klage eller tegn på privatperson (drift).
-4. Lagring i 90 dager med minimering, og reservasjoner beholdes (kode, ikke aktivert).
-5. Personvernerklæring og art. 14-informasjon i e-posten (utkast).
-6. Ingen opplysninger om mottakere i offentlige logger. Researchen er kryptert (kode).
-
-## 5. Usikkerhet som krever juridisk vurdering
-
-1. **Markedsføringsloven § 15:** Er en felles adresse i et AS med 1–2 ansatte en «fysisk person»? Er svaret ja, trengs samtykke, og art. 6 nr. 1 bokstav f kan ikke brukes. Forarbeidene (Innst. O. nr. 22 (2004–2005)) støtter at felles adresser som ikke er rettet mot en bestemt person faller utenfor, men grensen er ikke avklart.
-2. Er art. 14-informasjon i selve e-posten tilstrekkelig, eller må den gis før første kontakt? Art. 14 nr. 3 bokstav b tillater første kontakt som tidspunkt.
-3. Kopiene av e-post på Railway (USA) og lagringstiden for dem.
-
-## 6. Konklusjon (foreløpig)
-
-Med tiltakene i punkt 4 gjennomført, særlig punkt 5, vurderes Cidea Marketings interesse å veie tyngre enn ulempen for mottakeren, **forutsatt** at § 15 ikke krever samtykke for mottakergruppen. Den forutsetningen er ikke juridisk avklart.
-
-Ny vurdering: før volumet økes ut over piloten, og senest 14.10.2027.
-
-Godkjent av: __________ Dato: __________
+Kilder: GDPR art. 5, 6, 14, 17 og 21 (https://eur-lex.europa.eu/eli/reg/2016/679); Datatilsynets oppdaterte veiledning 06.05.2026 (https://www.datatilsynet.no/personvern-pa-ulike-omrader/kundehandtering-handel-og-medlemskap/nyhetsbrev-epostlister-og-sms/); Forbrukertilsynets veiledning (https://www.forbrukertilsynet.no/wp-content/uploads/2018/04/veiledning-om-markedsf%C3%B8ring-via-mail-sms.pdf); ehandelsloven § 9 (https://lovdata.no/dokument/NL/lov/2003-05-23-35).
