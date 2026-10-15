@@ -297,7 +297,7 @@ test("preview runs every gate and never sends or writes", async () => {
   assert.equal(summary.eligibleInPreview, 2);
 });
 
-test("template is the approved text with sender identification and opt-out", () => {
+test("template is the owner-approved text after removing the final sentence", () => {
   assertLiteTemplateCompliant();
   assert.equal(LITE_TEMPLATE.subject, "En idé til forbedring hos dere");
   assert.equal(LITE_TEMPLATE.text, [
@@ -311,9 +311,7 @@ test("template is the approved text with sender identification and opt-out", () 
     "",
     "Mvh",
     "Jelassi",
-    "Cidea Marketing",
-    "",
-    "Gi gjerne beskjed dersom dere ikke ønsker flere henvendelser."
+    "Cidea Marketing"
   ].join("\n"));
   assert.throws(() => assertLiteTemplateCompliant({ subject: "x", text: "Hei. Cidea Marketing" }), /opt-out/);
 });

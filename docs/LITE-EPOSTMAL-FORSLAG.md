@@ -1,3 +1,5 @@
+> Nyeste godkjente tekst: 2026-10-15.5. Eier ba uttrykkelig om å fjerne setningen «Gi gjerne beskjed dersom dere ikke ønsker flere henvendelser.» Emne og øvrig tekst fra .2 er bevart. Se LITE-GJELDENDE-EPOSTMAL.md. Eldre instruks om uendret .2 er erstattet bare for denne konkrete tekstendringen. Live-send er fortsatt av.
+
 # Malforslag trukket tilbake
 
 Eier avviste 15.10.2026 forslaget med «Reklame fra Cidea Marketing» i emnet. Forslaget er ikke godkjent, skal ikke gjenbrukes og er fjernet fra kildekoden.
