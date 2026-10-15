@@ -299,15 +299,15 @@ test("preview runs every gate and never sends or writes", async () => {
 
 test("template is the owner-approved text after removing the final sentence", () => {
   assertLiteTemplateCompliant();
-  assert.equal(LITE_TEMPLATE.subject, "En idé til forbedring hos dere");
+  assert.equal(LITE_TEMPLATE.subject, "Dette la vi merke til hos dere");
   assert.equal(LITE_TEMPLATE.text, [
     "Hei,",
     "",
-    "Vi har sett på hvordan bedrifter i deres marked presenterer seg digitalt, og mener det finnes muligheter for å forbedre hvordan dere tiltrekker dere nye kunder.",
+    "Vi har sett på hvordan bedrifter presenterer seg digitalt, og fant noen områder hvor små forbedringer kan gjøre det enklere å tiltrekke seg nye kunder og få flere til å ta kontakt.",
     "",
-    "Vi har en konkret idé som vi tror kan gjøre det enklere for potensielle kunder å finne dere og ta kontakt.",
+    "Det fikk oss til å tenke på dere, og vi har en idé vi tror kan være relevant.",
     "",
-    "Er dere åpne for at vi sender dere en kort forklaring?",
+    "Er dere interessert i at jeg sender dere en kort forklaring?",
     "",
     "Mvh",
     "Jelassi",

@@ -4,7 +4,7 @@ import { DEFAULT_SENDER } from "../integrations/outbound-email.js";
 // No personalization, no AI, no claims about the recipient's own website.
 // Changing the wording requires a new owner approval; bump LITE_TEMPLATE_VERSION when you do.
 
-export const LITE_TEMPLATE_VERSION = "2026-10-15.5";
+export const LITE_TEMPLATE_VERSION = "2026-10-15.6";
 
 /** Lite sells Cidea Marketing only. Cidea Leads and Cidea Consulting are paused as sales lines. */
 export const LITE_BRAND = "Cidea Marketing";
@@ -12,15 +12,15 @@ export const LITE_BRAND = "Cidea Marketing";
 export const LITE_FROM = `${LITE_BRAND} <${DEFAULT_SENDER}>`;
 
 export const LITE_TEMPLATE = Object.freeze({
-  subject: "En idé til forbedring hos dere",
+  subject: "Dette la vi merke til hos dere",
   text: [
     "Hei,",
     "",
-    "Vi har sett på hvordan bedrifter i deres marked presenterer seg digitalt, og mener det finnes muligheter for å forbedre hvordan dere tiltrekker dere nye kunder.",
+    "Vi har sett på hvordan bedrifter presenterer seg digitalt, og fant noen områder hvor små forbedringer kan gjøre det enklere å tiltrekke seg nye kunder og få flere til å ta kontakt.",
     "",
-    "Vi har en konkret idé som vi tror kan gjøre det enklere for potensielle kunder å finne dere og ta kontakt.",
+    "Det fikk oss til å tenke på dere, og vi har en idé vi tror kan være relevant.",
     "",
-    "Er dere åpne for at vi sender dere en kort forklaring?",
+    "Er dere interessert i at jeg sender dere en kort forklaring?",
     "",
     "Mvh",
     "Jelassi",
@@ -30,7 +30,7 @@ export const LITE_TEMPLATE = Object.freeze({
 
 // Same opt-out phrases the advanced sender requires (airtable-send-approval.ts).
 const OPT_OUT = /(?:nei takk|ikke ønsker flere|stoppe henvendelser)/i;
-// The recipient is always the business ("dere"), never a single person ("du").
+// Owner requirement: always address the business as "dere", never "du", "deg" or possessive singular.
 const SINGULAR_YOU = /(?<![\p{L}])(?:du|deg|din|ditt|dine)(?![\p{L}])/iu;
 const OTHER_BRANDS = /cidea\s+(?:leads|consulting)/i;
 
