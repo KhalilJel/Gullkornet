@@ -125,8 +125,8 @@ test("the sender writes sent=<date> on the claimed row, which retention counts f
 // ---------- Template proposal ----------
 
 test("approved template remains locked after the rejected proposal is withdrawn", () => {
-  assert.equal(LITE_TEMPLATE_VERSION, "2026-10-15.5");
-  assert.equal(LITE_TEMPLATE.subject, "En idé til forbedring hos dere");
+  assert.equal(LITE_TEMPLATE_VERSION, "2026-10-15.6");
+  assert.equal(LITE_TEMPLATE.subject, "Dette la vi merke til hos dere");
   assertLiteTemplateCompliant(LITE_TEMPLATE);
   for (const file of ["src/lite/send.ts", "src/cli/send-lite.ts", "src/lite/template.ts"]) {
     assert.ok(!readFileSync(file, "utf8").includes("template-proposal"), `${file} must not use the proposal`);
