@@ -3,12 +3,12 @@
 Oppdatert 16.10.2026, Europe/Oslo. Dette er gjeldende oversikt; eldre sprintnotater er historikk.
 
 ## Fase 1 — stabil drift (verifisert)
-KeeLead-reparasjonen og Gullkornet er deployet. PR #135/main 617cd39 og Railway 57f49b31-864b-492c-b598-d91a61006f54 var grønne ved siste sluttkontroll. Svarmonitoren kjørte uten feil. Nye kodeendringer teller ikke som deployet før egne tester, CI og utrulling er bekreftet.
+KeeLead-reparasjonen og Gullkornet er deployet. PR #136/main 3750c08 og Railway 652a7cac-d771-449b-b151-5da9f61979c2 var grønne ved siste sluttkontroll. Svarmonitoren kjørte uten feil. Typekontroll og 394 TypeScript-tester var kjørt, 392 besto og 2 ble hoppet over. Nye kodeendringer teller ikke som deployet før egne tester, CI og utrulling er bekreftet.
 
 ## Fase 2 — mottakere og godkjent kommunikasjon
 Godkjent mal er 2026-10-15.6, emne «Dette la vi merke til hos dere». Alltid vi/dere, aldri jeg/du. Siste setning er fjernet etter uttrykkelig instruks. Full tekst i LITE-GJELDENDE-EPOSTMAL.md. Ingen nye tekstendringer.
 
-Sist fullførte fullaudit 38764033223: 530 Lite Ready, 505 teknisk klare, 25 uten MX, ingen andre køfeil/duplikater. Ny fullaudit 38815220436 er startet 16.10 norsk tid; utfallet må kontrolleres før tallene oppdateres. Teknisk femmottaker-preview 38815216613 besto: scanned=5, eligible=5, sent=0, ingen avviste/svar/tidligere utsendinger/utdaterte kandidater i dette utvalget. Dette dokumenterer ikke påmelding, leverandørtillatelse eller samlet lovlig grunnlag.
+Fullaudit 38815220436 er fullført 16.10 kl. 00:15:56 Europe/Oslo: 530 Lite Ready, 505 teknisk klare, 25 uten MX, ingen andre køfeil. Lagringssimulering delete=0, minimize=0, reviewRequired=0, undated=0. Teknisk femmottaker-preview 38815216613 besto: scanned=5, eligible=5, sent=0, ingen avviste/svar/tidligere utsendinger/utdaterte kandidater i dette utvalget. Dette dokumenterer ikke påmelding, leverandørtillatelse eller samlet lovlig grunnlag.
 
 Full dokumentert pool er gjennomgått: 8 898 registerenheter, 316 nettsidekandidater, 0 ytterligere nye. Målet 700 er ikke nådd og er ikke et pilotkrav. Flere leads krever nye dokumenterbare kandidater, ikke svakere filtre eller samme pool på nytt. Første planlagte påfyll 16.10 er kl. 06:40 Europe/Oslo (04:40 UTC) og var ennå ikke forfalt ved kontroll rundt 00:10. Ingen automatisk oppfølging er opprettet i denne leveransen.
 
@@ -17,7 +17,11 @@ CIDEA AS og avtalene er eierbekreftet; avtalekopier er ikke uavhengig inspisert 
 
 Køens produksjonssimulering 38775945217 viste delete=0, minimize=0, reviewRequired=0. PR #134 innførte autentisert skrivebeskyttet oversikt over svarmonitorens database. Produksjonskontroll: 0 innkommende meldingskopier, alle øvrige tellinger 0, ttl_enabled=false, data_changed=false, send_triggered=false. Dette omfatter ikke originalinnboksen eller sikkerhetskopier.
 
-/personvern er implementert som separat utkast i Cidea-Marketing PR #14, med grønn bygging, nettlesertest og Netlify-forhåndsvisning. Hovednettstedet er ikke endret. Faktisk innboks-/historikk-/backupbevaring, trygg praktisk oppfølging og konkret informasjonsvurdering gjenstår før offentlig publisering. Eksisterende overvåket personvernkontakt er jelassi@cideamarketing.com.
+/personvern er publisert og offentlig verifisert: https://cideamarketing.com/personvern. Cidea-Marketing PR #14 er merget som 46433a830d713526986ed576635092fe97b5c885 etter grønn bygging, desktop-/mobiltest og forhåndsvisning. Hovedgrenens bygg besto. Riktig side og kontakt vises offentlig, ikke lenger forsidefallback. Publisering lå innenfor opprinnelig godkjenning etter faktakontroll. Den andre cinematic-designgrenen er bevart.
+
+Original INBOX ble kontrollert med IMAP EXAMINE: 2 meldinger, ingen før kalendergrensen beregnet fra 90 dager UTC. Ingen hoder/innhold hentet, ingen endring. Railway-API bekrefter HOBBY-plan og ingen brukeropprettede backuper/backupplaner for svarmonitorens volum. Dette dokumenterer ikke fravær av leverandørinterne kopier. Offentlig tekst skiller derfor prospektpolicy, loggtilgang og kriterier for historikk/backup, uten oppdiktet felles slettefrist. Se LITE-PERSONVERN-PUBLISERT-2026-10-16.md.
+
+Personvernpublisering er ferdig. Praktisk løpende behovsgjennomgang og den konkrete informasjons-/mottakervurderingen før pilot gjenstår; en nettside alene beviser ikke at alle mottakere har fått nødvendig informasjon. Kontakt er eksisterende overvåket jelassi@cideamarketing.com. Ingen automatisk sletting eller opprydding er aktivert.
 
 ## Leverandørgrunnlag — bekreftet blokkering
 Resends AUP, oppdatert 13.10.2026, forbyr det beskrevne uoppfordrede løpet og krever uttrykkelig påmelding. Se LITE-LEVERANDORKONTROLL-2026-10-15.md. Kvote, malgodkjenning, lavt volum eller et generelt live-klarsignal løser ikke dette.
