@@ -19,7 +19,11 @@ export const LITE_RESEARCH_MIN_EXAMINED = 8;
 export const LITE_RESEARCH_MIN_SHARE = 0.3;
 
 export const LITE_REGIONS: Readonly<Record<string, { name: string; municipalities: readonly string[] }>> = Object.freeze({
-  "oslo-akershus": { name: "Oslo og omegn", municipalities: LITE_DEFAULT_MUNICIPALITIES }
+  "oslo-akershus": { name: "Oslo og omegn", municipalities: LITE_DEFAULT_MUNICIPALITIES },
+  // Enhetsregisteret /api/kommuner?size=1000, verified 2026-10-15.
+  ostfold: { name: "Østfold", municipalities: ["3101", "3103", "3105", "3107", "3110", "3112", "3114", "3116", "3118", "3120", "3122", "3124"] },
+  buskerud: { name: "Buskerud", municipalities: ["3301", "3303", "3305", "3310", "3312", "3314", "3316", "3318", "3320", "3322", "3324", "3326", "3328", "3330", "3332", "3334", "3336", "3338"] },
+  vestfold: { name: "Vestfold", municipalities: ["3901", "3903", "3905", "3907", "3909", "3911"] }
 });
 
 export type LiteSegment = { key: string; industryCode: string; region: string };

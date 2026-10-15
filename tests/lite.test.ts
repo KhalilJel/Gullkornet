@@ -332,16 +332,16 @@ test("template guard refuses singular 'du' and other Cidea sales lines", () => {
 
 const baseEnv = { RESEND_DAILY_QUOTA: "100" };
 
-test("defaults give 08-20 every day, 100/day, and enough capacity for 100", () => {
+test("defaults give 08-20 every day, 95/day, within the 3000/month plan", () => {
   const cfg = loadLiteSendConfig(baseEnv);
-  assert.deepEqual([cfg.startHour, cfg.endHour, cfg.dailyLimit, cfg.hourlyLimit, cfg.maxPerRun], [8, 20, 100, 15, 5]);
-  assert.ok(theoreticalDailyCapacity(cfg) >= 100);
+  assert.deepEqual([cfg.startHour, cfg.endHour, cfg.dailyLimit, cfg.hourlyLimit, cfg.maxPerRun], [8, 20, 95, 15, 5]);
+  assert.ok(theoreticalDailyCapacity(cfg) === 95);
 });
 
 test("config refuses to exceed the Resend plan and refuses unreachable targets", () => {
   assert.throws(() => loadLiteSendConfig({}), /RESEND_DAILY_QUOTA is required/);
   assert.throws(() => loadLiteSendConfig({ RESEND_DAILY_QUOTA: "50" }), /exceeds RESEND_DAILY_QUOTA/);
-  assert.throws(() => loadLiteSendConfig({ ...baseEnv, RESEND_MONTHLY_QUOTA: "3000" }), /RESEND_MONTHLY_QUOTA/, "free plan cannot carry 100/day");
+  assert.throws(() => loadLiteSendConfig({ ...baseEnv, GULLKORNET_LITE_DAILY_LIMIT: "100", RESEND_MONTHLY_QUOTA: "3000" }), /RESEND_MONTHLY_QUOTA/, "free plan cannot carry 100/day");
   assert.doesNotThrow(() => loadLiteSendConfig({ ...baseEnv, RESEND_MONTHLY_QUOTA: "50000" }));
   assert.throws(() => loadLiteSendConfig({ ...baseEnv, GULLKORNET_LITE_HOURLY_LIMIT: "5" }), /unreachable/);
   assert.equal(loadLiteSendConfig({ RESEND_DAILY_QUOTA: "1000", GULLKORNET_LITE_DAILY_LIMIT: "150" }).dailyLimit, 150, "100 is a target, not a ceiling");
@@ -368,7 +368,7 @@ test("capacity check: hourly, daily, quota and spacing", () => {
   assert.throws(() => countLedger([{ created_at: "bad" }], now), /invalid timestamp/);
 });
 
-test("a full simulated day with a run every 10 minutes sends exactly 100, all inside 08-20 Oslo", async () => {
+test("a full simulated day with a run every 10 minutes sends exactly 95, all inside 08-20 Oslo", async () => {
   const records = Array.from({ length: 300 }, (_, i) => liteRecord(`recSim${String(i).padStart(4, "0")}`, { Email: `post@sim${i}.example` }));
   const cfg = loadLiteSendConfig(baseEnv);
   const dayStart = Date.parse("2026-10-17T22:00:00Z"); // Sunday 00:00 Oslo
@@ -379,11 +379,11 @@ test("a full simulated day with a run every 10 minutes sends exactly 100, all in
     if (target > current) run.advance(target - current);
     await runLiteSend(run.deps, cfg);
   }
-  assert.equal(run.outbox.length, 100);
+  assert.equal(run.outbox.length, 95);
   for (const entry of run.ledger) {
     assert.ok(isWithinLiteWindow(Date.parse(entry.created_at), cfg), "sent outside the window");
   }
-  assert.equal(new Set(run.outbox.map(o => o.email.to)).size, 100, "no address twice");
+  assert.equal(new Set(run.outbox.map(o => o.email.to)).size, 95, "no address twice");
 });
 
 // ---------- 7. Offline dry run with five test leads ----------
