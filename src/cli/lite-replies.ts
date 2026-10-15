@@ -1,4 +1,4 @@
-import { fetchRecipientReplied } from "../integrations/reply-status.js";
+import { fetchRepliedBatch } from "../integrations/reply-status.js";
 import { fetchLiteRowsByStatus, markLiteReplied } from "../lite/airtable-queue.js";
 import { airtableConfigFromEnv } from "../lite/intake.js";
 import { runLiteReplySync } from "../lite/replies.js";
@@ -13,11 +13,11 @@ const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, m
 async function main(): Promise<void> {
   const airtable = airtableConfigFromEnv(process.env);
   const summary = await runLiteReplySync({
-    fetchSent: () => fetchLiteRowsByStatus(airtable, "Sent"),
-    hasReplied: email => withTransientRetry(() => fetchRecipientReplied(email, process.env), sleep),
+    fetchSent: () => fetchLiteRowsByStatus(airtable, "Sent", 100),
+    hasRepliedBatch: emails => withTransientRetry(() => fetchRepliedBatch(emails, process.env), sleep),
     markReplied: recordId => markLiteReplied(airtable, recordId, process.env)
   });
-  console.log(`Gullkornet Lite reply sync: checked=${summary.checked} replied=${summary.replied} noEmail=${summary.noEmail}`);
+  console.log(`Gullkornet Lite reply sync: checked=${summary.checked} replied=${summary.replied} noEmail=${summary.noEmail} batches=${summary.batches}`);
 }
 
 main().catch(error => {

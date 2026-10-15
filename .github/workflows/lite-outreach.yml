@@ -17,6 +17,11 @@ on:
         required: true
         default: true
         type: boolean
+      preview_limit:
+        description: "Preview: rows to check (oldest first)"
+        required: false
+        default: "100"
+        type: string
 
 permissions:
   contents: read
@@ -61,7 +66,8 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.preview
         run: |
           umask 077
-          npm run --silent send:lite -- --preview
+          case "${{ inputs.preview_limit }}" in ''|*[!0-9]*) echo "preview_limit must be a number"; exit 1 ;; esac
+          npm run --silent send:lite -- --preview --limit "${{ inputs.preview_limit }}"
 
       - name: Send Lite outreach (no-op while the kill switch is off)
         if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.preview)

@@ -9,12 +9,15 @@ import { loadLiteSendConfig } from "../lite/schedule.js";
 import { runLiteSend, withTransientRetry } from "../lite/send.js";
 
 // npm run send:lite            -> live run (no-op unless GULLKORNET_LITE_ENABLE_LIVE_SEND=true)
-// npm run send:lite -- --preview -> read-only: runs every gate over the queue, never sends or writes
+// npm run send:lite -- --preview [--limit 100] -> read-only: runs every gate over (the first N of) the queue, never sends or writes
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
 async function main(): Promise<void> {
   const preview = process.argv.includes("--preview");
+  const limitIndex = process.argv.indexOf("--limit");
+  const previewLimit = limitIndex >= 0 ? Number(process.argv[limitIndex + 1]) : undefined;
+  if (previewLimit !== undefined && !(Number.isInteger(previewLimit) && previewLimit > 0)) throw new Error("--limit must be a positive integer.");
   const env = process.env;
   if (!preview && env.GULLKORNET_LITE_ENABLE_LIVE_SEND !== "true") {
     // Checked before any provider or CRM call.
@@ -51,7 +54,7 @@ async function main(): Promise<void> {
       return markLiteReady(airtable, recordId, env);
     },
     log: message => console.log(message)
-  }, cfg, { preview, allowedOrgForms });
+  }, cfg, { preview, allowedOrgForms, previewLimit });
 
   // Counts only: no addresses or company names in logs.
   console.log(`Gullkornet Lite ${preview ? "preview" : "run"}: scanned=${summary.scanned} sent=${summary.sent} ` +

@@ -214,12 +214,99 @@ def reply_monitor_healthy(state: dict[str, Any], now: datetime | None = None) ->
     return -30 <= age_seconds <= interval * 3
 
 
+REPLY_STATUS_BATCH_MAX = 500
+
+
+def _address_text(address: Any) -> str | None:
+    mailbox = getattr(address, "mailbox", None)
+    host = getattr(address, "host", None)
+    if not mailbox or not host:
+        return None
+    if isinstance(mailbox, bytes):
+        mailbox = mailbox.decode("utf-8", errors="ignore")
+    if isinstance(host, bytes):
+        host = host.decode("utf-8", errors="ignore")
+    return f"{mailbox}@{host}".strip().lower().rstrip(".")
+
+
+def collect_mailbox_senders(client: Any) -> tuple[set[str], set[str]]:
+    """Every From/Sender address (and its domain) in every selectable folder, read-only.
+
+    One pass per folder instead of one IMAP search per recipient, so many recipients can be
+    checked with one connection. Any folder or fetch error raises (fails closed).
+    """
+    folders = client.list_folders()
+    if not folders:
+        raise RuntimeError("REPLY_MAILBOX_HAS_NO_FOLDERS")
+    addresses: set[str] = set()
+    domains: set[str] = set()
+    checked = 0
+    for flags, _delimiter, name in folders:
+        flag_values = {
+            flag.decode("utf-8", errors="ignore").lower() if isinstance(flag, bytes)
+            else str(flag).lower()
+            for flag in (flags or [])
+        }
+        if "\\noselect" in flag_values or not name:
+            continue
+        client.select_folder(name, readonly=True)
+        checked += 1
+        ids = list(client.search(["ALL"]))
+        for start in range(0, len(ids), 500):
+            for data in client.fetch(ids[start:start + 500], ["ENVELOPE"]).values():
+                envelope = data.get(b"ENVELOPE") if isinstance(data, dict) else None
+                if envelope is None:
+                    raise RuntimeError("REPLY_ENVELOPE_MISSING")
+                for address in tuple(getattr(envelope, "from_", None) or ()) + tuple(getattr(envelope, "sender", None) or ()):
+                    text = _address_text(address)
+                    if text and "@" in text:
+                        addresses.add(text)
+                        domains.add(text.rsplit("@", 1)[1])
+    if checked == 0:
+        raise RuntimeError("REPLY_MAILBOX_HAS_NO_SELECTABLE_FOLDERS")
+    return addresses, domains
+
+
+def replied_from_senders(emails: list[str], addresses: set[str], domains: set[str], expected_address: str) -> dict[str, bool]:
+    """Same rule as search_folders_for_sender: the address itself, or another address at the business domain."""
+    result: dict[str, bool] = {}
+    for email in emails:
+        normalized = email.strip().lower()
+        domain = business_reply_domain(normalized, expected_address)
+        result[normalized] = normalized in addresses or (domain is not None and domain in domains)
+    return result
+
+
+def recipients_have_replied(emails: list[str], expected_address: str) -> dict[str, bool]:
+    """Batch variant of recipient_has_replied: one connection, one read of the senders."""
+    for email in emails:
+        if not EMAIL_PATTERN.fullmatch(email.strip()):
+            raise ValueError("VALID_EMAIL_REQUIRED")
+    import django
+
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "cold_outreach.settings")
+    django.setup()
+    from cold_outreach.emails.models import Mailbox
+    from cold_outreach.emails.sync import _connect
+
+    mailbox = Mailbox.objects.filter(from_address__iexact=expected_address).first()
+    if mailbox is None:
+        raise RuntimeError("REPLY_MONITOR_MAILBOX_NOT_CONFIGURED")
+    with _connect(mailbox) as client:
+        addresses, domains = collect_mailbox_senders(client)
+    return replied_from_senders(emails, addresses, domains, expected_address)
+
+
 def _handle_reply_status(handler: "IngestHandler", body: bytes) -> None:
     """Authenticated reply check. Any monitor/IMAP failure returns unavailable, never false."""
     try:
         payload = json.loads(body.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
         handler._respond(400, {"error": "INVALID_JSON"})
+        return
+    batch = payload.get("emails") if isinstance(payload, dict) else None
+    if isinstance(batch, list):
+        _handle_reply_status_batch(handler, batch)
         return
     if not isinstance(payload, dict) or not isinstance(payload.get("email"), str):
         handler._respond(400, {"error": "VALID_EMAIL_REQUIRED"})
@@ -246,6 +333,41 @@ def _handle_reply_status(handler: "IngestHandler", body: bytes) -> None:
         handler._respond(503, {"error": "REPLY_LOOKUP_FAILED", "failure_type": type(exc).__name__})
         return
     handler._respond(200, {"replied": replied, "mode": "read_only_reply_check", "send_triggered": False})
+
+
+def _reply_monitor_ready(handler: "IngestHandler") -> str | None:
+    """The configured mailbox when lookups may run; otherwise responds 503 and returns None."""
+    if os.environ.get(REPLY_MONITOR_ENABLED_ENV, "").strip().lower() != "true":
+        handler._respond(503, {"error": "REPLY_MONITOR_DISABLED"})
+        return None
+    configured = os.environ.get(REPLY_MONITOR_MAILBOX_ENV, "").strip().lower()
+    actual = os.environ.get("OUTSEND_MAILBOX_ADDRESS", "").strip().lower()
+    if not configured or configured != actual or configured != "jelassi@cideamarketing.com":
+        handler._respond(503, {"error": "REPLY_MONITOR_MAILBOX_MISMATCH"})
+        return None
+    if not reply_monitor_healthy(reply_monitor_state()):
+        handler._respond(503, {"error": "REPLY_MONITOR_UNHEALTHY"})
+        return None
+    return configured
+
+
+def _handle_reply_status_batch(handler: "IngestHandler", batch: list[Any]) -> None:
+    """{"emails": [...]} -> {"replied_by_email": {email: bool}}. Any failure answers 503, never a partial false."""
+    if not batch or len(batch) > REPLY_STATUS_BATCH_MAX:
+        handler._respond(400, {"error": "BATCH_SIZE_INVALID", "max": REPLY_STATUS_BATCH_MAX})
+        return
+    if not all(isinstance(item, str) and EMAIL_PATTERN.fullmatch(item.strip()) for item in batch):
+        handler._respond(400, {"error": "VALID_EMAIL_REQUIRED"})
+        return
+    configured = _reply_monitor_ready(handler)
+    if configured is None:
+        return
+    try:
+        replied = recipients_have_replied([item.strip() for item in batch], configured)
+    except Exception as exc:
+        handler._respond(503, {"error": "REPLY_LOOKUP_FAILED", "failure_type": type(exc).__name__})
+        return
+    handler._respond(200, {"replied_by_email": replied, "mode": "read_only_reply_check", "send_triggered": False})
 
 
 def _probe_reply_mailbox(expected_address: str) -> None:

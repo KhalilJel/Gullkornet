@@ -11,6 +11,8 @@ import { assessLiteRecipient, parseAllowedOrgForms } from "../lite/recipient-pol
 // npm run lite:intake -- --source brreg [--municipalities 0301,3201] [--industries 96.021,56.101] [--pages 3] [--start-page 0] [--limit 300] [--sync] [--out data/lite.json]
 // npm run lite:intake -- --source website [same Brreg options]   (units whose registered address does not
 //   qualify but who registered a website: a role address is looked for on that website; no Google calls)
+// npm run lite:intake -- --source auto --target-buffer 700 [--website-cap 150] --sync   (daily refill: brreg + website
+//   over every documented segment, stops when the Lite Ready buffer is full; an exhausted segment just adds 0)
 // npm run lite:intake -- --source places --input data/google-candidates.json [--limit 50] [--sync]
 // Without --sync nothing is written to Airtable. Logs contain counts only.
 // Only leads in a segment (NACE x region) with fresh market research in research/segments are kept;
@@ -34,7 +36,20 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (source === "brreg" || source === "website") {
+  const airtable = sync || process.env.AIRTABLE_API_TOKEN ? airtableConfigFromEnv() : undefined;
+  const existing = airtable ? await fetchExistingIndex(airtable) : emptyIndex();
+  if (!airtable) console.log("No Airtable credentials: de-duplication against Airtable skipped (dry run only).");
+  let room = limit;
+  const targetBuffer = arg("target-buffer");
+  if (targetBuffer !== undefined) {
+    const target = Number(targetBuffer);
+    if (!Number.isInteger(target) || target < 0 || target > 5000) throw new Error("--target-buffer must be 0-5000.");
+    room = Math.min(limit, Math.max(0, target - existing.readyCount));
+    console.log(`Lite Ready buffer: ${existing.readyCount} of ${target}; room this run: ${room}`);
+    if (room === 0) { console.log("Buffer is full. Nothing to do."); return; }
+  }
+
+  if (source === "brreg" || source === "website" || source === "auto") {
     const documentedList = [...documented].map(key => key.split("@"));
     const industries = list(arg("industries")).length ? list(arg("industries")) : [...new Set(documentedList.map(([nace]) => nace!))];
     const municipalities = list(arg("municipalities")).length ? list(arg("municipalities"))
@@ -47,11 +62,14 @@ async function main(): Promise<void> {
       startPage: Number(arg("start-page") ?? "0") || 0
     });
     console.log(`Brreg units fetched: ${units.length}; with registered email: ${units.filter(u => u.email).length}`);
-    if (source === "brreg") {
-      candidates = units.map(brregToLiteCandidate);
-    } else {
-      // Only units the Brreg path cannot use; the website must map back to exactly this unit.
-      const websiteOnly = units.filter(u => u.websiteUrl && !assessLiteRecipient(u, allowedOrgForms).ok).slice(0, limit);
+    if (source !== "website") candidates = units.map(brregToLiteCandidate);
+    if (source !== "brreg") {
+      // Only units the Brreg path cannot use and that are not already in Airtable; the website must
+      // map back to exactly this unit. The list is rotated by day so a capped run moves through it.
+      const cap = Math.max(1, Math.min(Number(arg("website-cap") ?? "150") || 150, 1000));
+      const pool = units.filter(u => u.websiteUrl && !assessLiteRecipient(u, allowedOrgForms).ok && !existing.organizationNumbers.has(u.organizationNumber));
+      const offset = pool.length ? (Math.floor(Date.now() / 86_400_000) * cap) % pool.length : 0;
+      const websiteOnly = [...pool.slice(offset), ...pool.slice(0, offset)].slice(0, cap);
       let matched = 0;
       for (const unit of websiteOnly) {
         const registry = await lookupBrregByWebsite(unit.websiteUrl!);
@@ -79,19 +97,16 @@ async function main(): Promise<void> {
     }
     console.log(`Places candidates with website: ${places.length}; unique Brreg match: ${matched}`);
   } else {
-    throw new Error("--source must be brreg or places.");
+    throw new Error("--source must be brreg, website, auto or places.");
   }
 
-  const airtable = sync || process.env.AIRTABLE_API_TOKEN ? airtableConfigFromEnv() : undefined;
-  const existing = airtable ? await fetchExistingIndex(airtable) : emptyIndex();
-  if (!airtable) console.log("No Airtable credentials: de-duplication against Airtable skipped (dry run only).");
   const inSegment = candidates.filter(c => {
     const segment = liteSegment(c.industryCode, regionOfMunicipality(c.municipalityCode));
     return segment !== undefined && documented.has(segment.key);
   });
   console.log(`Documented segments: ${documented.size}; candidates in a documented segment: ${inSegment.length} of ${candidates.length}`);
   const selection = selectLiteLeads(inSegment, existing, allowedOrgForms);
-  const leads = selection.leads.slice(0, limit);
+  const leads = selection.leads.slice(0, room);
   console.log(`Lite selection: qualified=${selection.leads.length} usedThisRun=${leads.length} alreadyKnown=${selection.alreadyKnown} ` +
     `duplicateInBatch=${selection.duplicateInBatch} rejected=${JSON.stringify(selection.rejected)}`);
 

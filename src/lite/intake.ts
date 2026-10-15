@@ -34,6 +34,8 @@ export type ExistingIndex = {
   businessDomains: Set<string>;
   duplicateKeys: Set<string>;
   organizationNumbers: Set<string>;
+  /** Rows in Lead Status Lite Ready (the buffer that automatic refill tops up). */
+  readyCount: number;
 };
 
 export type LiteSelection = {
@@ -44,7 +46,7 @@ export type LiteSelection = {
 };
 
 export function emptyIndex(): ExistingIndex {
-  return { emails: new Set(), businessDomains: new Set(), duplicateKeys: new Set(), organizationNumbers: new Set() };
+  return { emails: new Set(), businessDomains: new Set(), duplicateKeys: new Set(), organizationNumbers: new Set(), readyCount: 0 };
 }
 
 function keyOf(candidate: LiteSourceCandidate): string {
@@ -154,6 +156,7 @@ export function indexFromRecords(records: AirtableRecord[]): ExistingIndex {
     if (website || company) index.duplicateKeys.add(duplicateKey({ companyName: company, websiteUrl: website }));
     const notes = typeof record.fields["Research Notes"] === "string" ? record.fields["Research Notes"] : "";
     for (const match of notes.matchAll(ORGNR_IN_NOTES)) index.organizationNumbers.add(match[1]);
+    if (record.fields["Lead Status"] === LITE_READY_STATUS && record.fields["Do Not Contact"] !== true) index.readyCount++;
   }
   return index;
 }
@@ -166,7 +169,7 @@ export async function fetchExistingIndex(cfg: AirtableConfig): Promise<ExistingI
   for (let page = 0; page < 500; page++) {
     const url = new URL(`https://api.airtable.com/v0/${cfg.baseId}/${encodeURIComponent(cfg.tableName)}`);
     url.searchParams.set("pageSize", "100");
-    for (const field of ["Email", "Website", "Company", "Duplicate Key", "Research Notes"]) url.searchParams.append("fields[]", field);
+    for (const field of ["Email", "Website", "Company", "Duplicate Key", "Research Notes", "Lead Status", "Do Not Contact"]) url.searchParams.append("fields[]", field);
     if (offset) url.searchParams.set("offset", offset);
     const response = await fetchImpl(url.toString(), {
       headers: { Authorization: `Bearer ${cfg.apiToken}` },
