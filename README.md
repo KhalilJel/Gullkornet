@@ -2,6 +2,12 @@
 
 Gullkornet is Cidea's internal lead research and qualification engine.
 
+Current Lite launch status: [launch phases](docs/LITE-LANSERINGSFASER.md).
+The current public-source Lite prospecting flow is blocked from live delivery through
+Resend by its provider terms, regardless of the live flag. Technical previews remain
+read-only and do not establish permission to send. See the
+[provider findings](docs/LITE-LEVERANDORKONTROLL-2026-10-15.md).
+
 ## Initial pilot
 
 - **Industry:** Local service businesses across several categories, rotated to broaden prospect volume
