@@ -33,6 +33,8 @@ Alle kommuner i Østfold (12), Buskerud (18) og Vestfold (6) er lagt til med reg
 
 24 nye segmenter undersøkt med samme metode og lagret kryptert. Fem støtter malen: rørlegger og elektriker i Østfold og Buskerud, rørlegger i Vestfold. De øvrige 19 forblir sperret. Ingen ekstra utvalg er trukket for å presse et resultat over terskelen. Intake dedupliserer mot alle Airtable-rader på e-post, domene og org.nr., og skriver bare nye Lite Ready-rader.
 
+Påfylling fra sprintgren ba1f955, kjøring #10: https://github.com/KhalilJel/Gullkornet/actions/runs/38724180140 . SUCCESS. Startbuffer 423, rom mot 700 var 277. Hentet 8900 registerenheter, 2064 med registrert e-post; 150 nettsidekandidater undersøkt, 102 entydig koblet til registerenheten. 13 dokumenterte segmenter totalt (8 tidligere + 5 nye). Etter alle filtre og deduplisering: 96 nye, 469 allerede kjente hoppet over, 3 duplikater i utvalget fjernet. Airtable bekreftet opprettelse av 96 rader; buffer 519. Målet 700 er ikke nådd. Dette er ett avgrenset nettsideutvalg, ikke bevis for at alle nettsidekilder er uttømt. Ingen udokumenterte segmenter er brukt for å fylle resten.
+
 ## Kapasitet uten oppgradering
 
 Resend API 15.10: 0/100 brukt i dag; 214/3000 brukt i perioden; 2786 igjen. Månedlig reset 23.10.2026 kl. 08:51:31 Europe/Oslo. Daglig reset 16.10 kl. 01:59:59 Europe/Oslo (UTC-basert kvote). 95 × 31 = 2945, bare 55 i reserve per full 31-dagersperiode. Kvoten deles med alle kontoens domener, også smartsvar.no. 95 er et maksimum og krever reduksjon/stopp ved annet forbruk; det er ingen garanti om 95 hver dag.

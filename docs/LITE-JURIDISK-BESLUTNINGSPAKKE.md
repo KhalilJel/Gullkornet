@@ -4,7 +4,7 @@
 
 ## Hva vi vil gjøre
 
-Cidea Marketing (CIDEA AS, org.nr. 927 394 391 [BEKREFT]) vil sende **én** e-post med fast tekst til felles e-postadresser hos aksjeselskaper innen frisør og rørlegger i Oslo og Akershus. Omfanget er 77 bedrifter i køen i dag, og piloten er maks 5 per dag. Ingen oppfølging uten svar. Adressene er hentet fra Enhetsregisteret eller fra bedriftens egen nettside. Reservasjon blokkerer hele domenet. Ingen sporingspiksler.
+Cidea Marketing (CIDEA AS, org.nr. 927 394 391, bekreftet av eier 15.10.2026) vil sende **én** e-post med fast tekst til felles e-postadresser hos AS/ASA. Sprintens utgangspunkt er 423 Lite Ready, hvorav 403 teknisk klare i forrige audit. Oslo/Akershus dekker frisør, rørlegger, elektriker, snekker/tømrer, bilverksted, taktekker, renhold og regnskap. Utvidelsen dokumenterer også rørlegger/elektriker i Østfold og Buskerud og rørlegger i Vestfold; øvrige nye segmenter er sperret. Bufferens mål er 700. Planlagt tak er 95/dag, men eventuell kontrollert aktivering starter med pilot maks 5/dag og 1/kjøring. Ingen oppfølging uten svar. Adressene er hentet fra Enhetsregisteret eller bedriftens egen nettside. Reservasjon blokkerer hele domenet. Ingen sporingspiksler. Ingen teknisk status utgjør et lovlig kontaktgrunnlag.
 
 ## Spørsmål til advokaten, i prioritert rekkefølge
 
@@ -17,22 +17,22 @@ Cidea Marketing (CIDEA AS, org.nr. 927 394 391 [BEKREFT]) vil sende **én** e-po
 | 5 (B5) | Holder interesseavveiningen, gitt at svaret på spørsmål 1 er nei? | Grunnlaget for art. 6 nr. 1 bokstav f | LIA-utkastet |
 | 6 | Telefon: kan vi ringe de samme AS-ene muntlig, uten samtykke? | Salgsplanen bygger på telefon til topp 20 | mfl. § 15 annet ledd (muntlig telefon er unntatt). Om reservasjon etter mfl. § 12 gjelder for AS |
 
-Ikke blokkerende for selve utsendingen, men må følges opp: DPA-er og USA-overføringer (B6) og lagringstid (B7, bygget og ikke aktivert).
+Kontoenes DPA-er, USA-overføringer og faktiske lagringsrutiner er ikke bekreftet. De skal avklares før personvernerklæringen publiseres og før aktivering. Retensjonskode er bygget, men ikke aktivert; ingen sletting er godkjent i denne sprinten.
 
 ## Foreslått malversjon til vurdering
 
-`forslag-2026-10-14.3`, se [LITE-EPOSTMAL-FORSLAG.md](LITE-EPOSTMAL-FORSLAG.md). Emne: «Reklame fra Cidea Marketing: en idé til forbedring hos dere». Godkjent brødtekst, reservasjonslinjen, og en bunntekst med CIDEA AS, org.nr., adresse, e-post, kilden «Enhetsregisteret» og en lenke til personvernerklæringen.
+Eierens beslutning 15.10.2026 er å beholde godkjent **2026-10-14.2 uendret**, slik den finnes i `src/lite/template.ts`. Juristens vurdering må gjelde denne faktiske teksten, emnet og informasjonsplikten. Forslaget `.3` i [LITE-EPOSTMAL-FORSLAG.md](LITE-EPOSTMAL-FORSLAG.md) er bare et historisk alternativ og er ikke godkjent for bruk. Dersom juristen krever endringer, stopper aktiveringen til en ny mal er uttrykkelig godkjent.
 
 ## Personvern i korte trekk
 
-- **Data per bedrift:** firmanavn, org.nr., org.form, NACE, kommune, felles e-post, nettside, kilde-URL og status. Ingen navngitte personer.
+- **Data per bedrift:** firmanavn, org.nr., org.form, NACE, kommune, felles e-post, nettside, kilde-URL og status. Navngitte mottakeradresser avvises; innkommende svar kan likevel inneholde personopplysninger.
 - **Grunnlag:** art. 6 nr. 1 bokstav f (berettiget interesse), forutsatt at § 15 ikke krever samtykke.
-- **Lagring:** aldri kontaktet slettes etter 90 dager, kontaktet uten svar minimeres etter 90 dager, reservasjoner minimeres og beholdes.
+- **Foreslått lagring, ikke aktivert:** aldri kontaktet slettes etter 90 dager, kontaktet uten svar minimeres etter 90 dager, reservasjoner minimeres og beholdes. Innboks og svarmonitorens e-postkopier mangler vedtatt lagringstid.
 - **Databehandlere:** Airtable (USA), Resend (USA, sender fra EU-regionen), Migadu (Sveits), Railway (USA, lagrer kopier av innkommende e-post) og GitHub.
 
 ## Eierens beslutninger etter advokatens svar
 
-1. Bruke forslaget 2026-10-14.3 eller beholde 2026-10-14.2.
+1. Bekrefte om den uendrede 2026-10-14.2 kan brukes. Ingen malendring uten ny uttrykkelig godkjenning.
 2. Eventuelt sette en nedre grense for antall ansatte (kan bygges som et filter uten å endre malen).
-3. Publisere personvernerklæringen.
-4. Slå på `GULLKORNET_LITE_ENABLE_LIVE_SEND`.
+3. Fullføre DPA-/overførings- og lagringsavklaringer og publisere en faktakontrollert personvernerklæring.
+4. Gi et særskilt uttrykkelig klarsignal for kontrollert pilot etter avklart lovlig grunnlag og teknisk kontroll. Sprinten setter ikke `GULLKORNET_LITE_ENABLE_LIVE_SEND`.
