@@ -28,8 +28,11 @@ RUN python /app/openoutsend_send_lock.py /usr/local/lib/python3.13/site-packages
  && echo "OUTSEND_SEND_LOCK=verified"
 
 COPY openoutsend_ingest_api.py /app/openoutsend_ingest_api.py
+COPY openoutsend_retention.py /app/openoutsend_retention.py
 COPY tests/test_openoutsend_ingest_api.py /app/tests/test_openoutsend_ingest_api.py
+COPY tests/test_openoutsend_retention.py /app/tests/test_openoutsend_retention.py
 
 RUN python -m unittest discover -s /app/tests -p 'test_openoutsend_ingest_api.py' -v
+RUN python -m unittest discover -s /app/tests -p 'test_openoutsend_retention.py' -v
 
 CMD ["python", "/app/openoutsend_ingest_api.py"]

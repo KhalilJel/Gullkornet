@@ -20,6 +20,7 @@ MAX_BODY_BYTES = 2_000_000
 MAX_RECORDS = 100
 INGEST_PATH = "/v1/leads"
 REPLY_STATUS_PATH = "/v1/reply-status"
+RETENTION_STATUS_PATH = "/v1/retention-status"
 TOKEN_ENV = "OPENOUTREACH_INGEST_TOKEN"
 # Read-only credential for POST /v1/reply-status. It can never authorize ingest, so GitHub Actions
 # can hold it without holding the ingest token.
@@ -481,6 +482,30 @@ def start_reply_monitor() -> None:
     threading.Thread(target=_reply_monitor_loop, name="reply-monitor", daemon=True).start()
 
 
+def _handle_retention_status(handler: "IngestHandler", body: bytes) -> None:
+    # No execute flag, custom query, mailbox selector or data fields are accepted.
+    try:
+        if json.loads(body) != {}:
+            raise ValueError("EMPTY_OBJECT_REQUIRED")
+    except (ValueError, UnicodeDecodeError):
+        handler._respond(400, {"error": "EMPTY_OBJECT_REQUIRED"})
+        return
+    configured = _reply_monitor_ready(handler)
+    if configured is None:
+        return
+    try:
+        from openoutsend_retention import COUNT_FIELDS, POLICY_DAYS, mailbox_inventory
+        raw_counts = mailbox_inventory(configured)
+        counts = {key: raw_counts[key] for key in COUNT_FIELDS}
+        if any(type(value) is not int or value < 0 for value in counts.values()):
+            raise ValueError("INVALID_COUNTS")
+    except Exception:
+        handler._respond(503, {"error": "RETENTION_INVENTORY_UNAVAILABLE"})
+        return
+    handler._respond(200, {"mode": "read_only_retention_inventory", "policy_days": POLICY_DAYS,
+        "ttl_enabled": False, "send_triggered": False, "data_changed": False, "counts": counts})
+
+
 class IngestHandler(BaseHTTPRequestHandler):
     server_version = "OpenOutSendIngest/1.0"
 
@@ -504,11 +529,11 @@ class IngestHandler(BaseHTTPRequestHandler):
         self._respond(404, {"error": "NOT_FOUND"})
 
     def do_POST(self) -> None:
-        if self.path not in {INGEST_PATH, REPLY_STATUS_PATH}:
+        if self.path not in {INGEST_PATH, REPLY_STATUS_PATH, RETENTION_STATUS_PATH}:
             self._respond(404, {"error": "NOT_FOUND"})
             return
 
-        if self.path == REPLY_STATUS_PATH:
+        if self.path in {REPLY_STATUS_PATH, RETENTION_STATUS_PATH}:
             if not (os.environ.get(TOKEN_ENV, "").strip() or os.environ.get(REPLY_STATUS_TOKEN_ENV, "").strip()):
                 self._respond(503, {"error": "INGEST_NOT_CONFIGURED"})
                 return
@@ -526,7 +551,7 @@ class IngestHandler(BaseHTTPRequestHandler):
                 return
 
         content_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
-        if self.path == REPLY_STATUS_PATH:
+        if self.path in {REPLY_STATUS_PATH, RETENTION_STATUS_PATH}:
             if content_type != "application/json":
                 self._respond(415, {"error": "JSON_REQUIRED"})
                 return
@@ -539,11 +564,15 @@ class IngestHandler(BaseHTTPRequestHandler):
         except ValueError:
             self._respond(400, {"error": "INVALID_CONTENT_LENGTH"})
             return
-        if content_length <= 0 or content_length > MAX_BODY_BYTES:
-            self._respond(413 if content_length > MAX_BODY_BYTES else 400, {"error": "INVALID_BODY_SIZE"})
+        body_limit = 1024 if self.path == RETENTION_STATUS_PATH else MAX_BODY_BYTES
+        if content_length <= 0 or content_length > body_limit:
+            self._respond(413 if content_length > body_limit else 400, {"error": "INVALID_BODY_SIZE"})
             return
 
         body = self.rfile.read(content_length)
+        if self.path == RETENTION_STATUS_PATH:
+            _handle_retention_status(self, body)
+            return
         if self.path == REPLY_STATUS_PATH:
             _handle_reply_status(self, body)
             return

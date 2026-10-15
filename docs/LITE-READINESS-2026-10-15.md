@@ -1,29 +1,12 @@
-> Nyeste språkregel: Alltid «vi» og «dere», aldri «jeg» eller «du».
+# Gjeldende readiness — Gullkornet
 
-> Gjeldende eierbeslutning: Gjenopprett lagret emne «Dette la vi merke til hos dere» og opprinnelig tekst fra 2026-10-14.1. Behold to uttrykkelige endringer: siste setning fjernet; spørsmålet er «Er dere interessert i at vi sender dere en kort forklaring?». Alltid dere, aldri du. Gjeldende sporingsversjon er 2026-10-15.6. Se LITE-GJELDENDE-EPOSTMAL.md. Eldre emner og instrukser nedenfor er historikk. Live-send er av.
+Se LITE-LANSERINGSFASER.md for samlet plan. Dette er dagens grunnlag, ikke en stabel av gamle malforslag.
 
-> Nyeste godkjente tekst: 2026-10-15.5. Eier ba uttrykkelig om å fjerne setningen «Gi gjerne beskjed dersom dere ikke ønsker flere henvendelser.» Emne og øvrig tekst fra .2 er bevart. Se LITE-GJELDENDE-EPOSTMAL.md. Eldre instruks om uendret .2 er erstattet bare for denne konkrete tekstendringen. Live-send er fortsatt av.
-
-> NYESTE EIERBESLUTNING 15.10.2026: Forslag .4 med «Reklame fra Cidea Marketing» er avvist og trukket tilbake. Behold hele .2 uendret, med emnet «En idé til forbedring hos dere». Ikke etterspør godkjenning av .4. Tidligere omtale av forslaget nedenfor er historikk. Retensjonsendringene beholdes; personvernkrav gjenstår separat. Live-send er av.
-
-# Samlet personvern- og lagringsleveranse — 15.10.2026
-
-## Endret grunnlag
-Eier har bekreftet at avtalene er i orden, delegert valg av lagringsfrister og bestemt at ekstern jurist ikke brukes. Vi gjentar ikke krav om ekstern jurist eller ny bekreftelse på CIDEA AS. Dokumentert egenvurdering ligger i LITE-INTERESSEAVVEINING.md. Avtaler er eierbekreftet; konkrete leverandørfrister og overføringsvedlegg er ikke uavhengig verifisert av dette.
-
-## Gjennomført i denne leveransen
-- Interne 90-/30-dagersfrister og begrunnelser er dokumentert i LITE-LAGRINGSPOLICY-2026-10-15.md. Disse er egne nødvendighetsbaserte valg, ikke lovbestemte standardfrister.
-- Retensjonsplanleggeren flagger gammel, udokumentert og tapt dialog for konkret behovsvurdering. Ugyldige, doble og fremtidige vurderingsdatoer kan ikke skjule gjennomgangsbehov. En fremtidig Next Step Date er ikke aktivitetsbevis. Tapte dialoger uten dokumentert avslutningsdato flagges. Kundedata/regnskapsbevis slettes ikke automatisk.
-- CLI og audit viser denne gjennomgangen. 90-dagersgrensen er eksplisitt, og ugyldige perioder avvises før det kan lages en sletteplan. Eksisterende utførelsessperrer er beholdt. Workflow har ekstra skriveblokkering når utførelse ikke både er forespurt og aktivert.
-- Konkret malforslag 2026-10-15.4 viser reklameformålet, selskapet, korrekt kildetype, behandlingsformål/-grunnlag, protestrett og personvernlenke. Det er bare et forslag og er ikke importert av senderen. Godkjent .2 er uendret.
-- Personvern- og LIA-tekst er oppdatert. Utkastet lover ikke at sletterutiner eller ukontrollerte backupfrister allerede er i drift. Det er ikke publisert.
-
-## Kontroller som faktisk gjenstår
-1. Riktig kildemapping må kobles til senderen etter uttrykkelig godkjenning av en konkret ny mal; godkjenning av .2 er ikke godkjenning av .4. Denne leveransen endrer ikke sending.
-2. Innkommende meldingskopier på Railway, originalinnboksen, tekniske logger, historikk og leverandørbackuper må kartlegges og håndheves i de respektive systemene. 30 dager i policyen setter ikke automatisk database-/innboksfrister. En Gullkornet-køjobb kan ikke alene styre Migadu/Railway.
-3. Opprettelsesdato skal ikke fornyes ved ny innlesing. Eksisterende sletting av ukontaktede rader kan tillate ny import senere; før utførelse må opprinnelig frist eller nødvendig sperre mot automatisk gjeninnsamling sikres. Ingen produksjonssletting utføres nå.
-4. Bekreft fungerende personvernkontakt og publiser kun faktakontrollert tekst. /personvern viser ved siste kontroll forsiden. Nettstedet ligger i et separat prosjekt, ikke i denne repo-PR-en.
-5. Fullfør konkret art. 14-/mottakervurdering for piloten, fersk audit/preview, svar-/reservasjonskontroll og restkvote. DPA-avtale og rolleadressefilter alene er ikke nok.
-6. Særskilt uttrykkelig live-klarsignal kreves fortsatt. Pilot 5/dag og 1/kjøring, senere tak 95 bare etter kontroll. Ingen nye kostnader, DNS/secrets-endringer eller produksjonssletting er gjort.
-
-Full test- og produksjonssimuleringsstatus føres i PR-kommentar etter kjøring. Kontroller om en simulering kun viser planlagte tiltak; det er ikke bevis på at sletting er aktivert.
+- Godkjent mal 2026-10-15.6: «Dette la vi merke til hos dere». Alltid vi/dere. Siste setning fjernet. Ingen .3/.4-forslag skal gjenbrukes eller etterspørres godkjenning av.
+- Avtaler er bekreftet i orden av eier. CIDEA AS er ansvarlig. Ekstern jurist brukes ikke; konkrete krav ivaretas i egenvurderingen og faktiske kontroller.
+- Lagringspolicy er dokumentert. Køens 90-dagersplanlegger har behovsgjennomgang for gammel/tapt dialog og eksplisitte utførelsessperrer. Simulering viste ingen planlagte endringer. Ingen produksjonssletting er utført.
+- Meldingskopier i Railway er en egen database. Ny skrivebeskyttet /v1/retention-status teller innkommende kopier og om ferdigbehandlet/ubehandlet innhold er eldre enn policyen. Den håndhever ikke en TTL, endrer ikke data og har ingen utførelsesmulighet. Produksjonsresultat føres i PR-en etter utrulling.
+- /personvern er ved siste lokale kontroll ikke implementert i nettstedskilden. Korrekt offentlig tekst må samsvare med faktisk drift og verifiserte leverandør-/backupfrister. Overvåket kontaktpostkasse finnes allerede; ingen ny adresse eller DNS trengs.
+- Opprettelsesdato må ikke fornyes ved ny innlesing. Før faktisk sletting må nødvendig vern mot automatisk gjeninnsamling, gjentatt kontakt, tap av original eller svar-/sperrebevis være ivaretatt.
+- Før pilot: konkret mottaker-/informasjonsvurdering, fersk audit/preview, svar-/reservasjonskontroll og restkvote. 700 i buffer er ikke en pilotforutsetning; sist var 505 teknisk klare av 530 Lite Ready.
+- Pilot er ikke aktivert. Maks 5/dag og 1/kjøring etter særskilt uttrykkelig live-klarsignal. Senere tak 95 krever egen kontroll/beslutning. Ingen endring av live-brytere, produksjonsdata, DNS/secrets eller kostnader i denne leveransen.
