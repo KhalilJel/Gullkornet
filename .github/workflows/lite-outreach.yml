@@ -20,7 +20,7 @@ on:
       preview_limit:
         description: "Preview: rows to check (oldest first)"
         required: false
-        default: "100"
+        default: "95"
         type: string
 
 permissions:
@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 45
     env:
       GULLKORNET_LITE_ENABLE_LIVE_SEND: ${{ secrets.GULLKORNET_LITE_ENABLE_LIVE_SEND }}
-      GULLKORNET_LITE_DAILY_LIMIT: ${{ vars.GULLKORNET_LITE_DAILY_LIMIT || '100' }}
+      GULLKORNET_LITE_DAILY_LIMIT: ${{ vars.GULLKORNET_LITE_DAILY_LIMIT || '95' }}
       GULLKORNET_LITE_HOURLY_LIMIT: ${{ vars.GULLKORNET_LITE_HOURLY_LIMIT || '15' }}
       GULLKORNET_LITE_MAX_PER_RUN: ${{ vars.GULLKORNET_LITE_MAX_PER_RUN || '5' }}
       GULLKORNET_LITE_MIN_SPACING_SECONDS: ${{ vars.GULLKORNET_LITE_MIN_SPACING_SECONDS || '60' }}

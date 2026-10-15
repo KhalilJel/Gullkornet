@@ -17,7 +17,7 @@ on:
         type: choice
         options: ["auto", "brreg", "website"]
       municipalities:
-        description: "Comma-separated municipality numbers (empty = Oslo + Akershus default)"
+        description: "Comma-separated municipality numbers (empty = all documented regions)"
         required: false
         default: ""
         type: string

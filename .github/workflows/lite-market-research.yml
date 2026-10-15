@@ -18,7 +18,7 @@ on:
         required: true
         default: "oslo-akershus"
         type: choice
-        options: [oslo-akershus]
+        options: [oslo-akershus, ostfold, buskerud, vestfold]
       sample:
         description: "Sites to examine (8-40)"
         required: true

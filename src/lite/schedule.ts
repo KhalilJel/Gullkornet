@@ -19,7 +19,7 @@ export type LiteSendConfig = {
 export const LITE_DEFAULTS = Object.freeze({
   startHour: 8,
   endHour: 20,
-  dailyLimit: 100,
+  dailyLimit: 95,
   hourlyLimit: 15,
   maxPerRun: 5,
   minSpacingSeconds: 60
