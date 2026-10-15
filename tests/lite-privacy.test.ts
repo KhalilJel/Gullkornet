@@ -7,7 +7,6 @@ import {
 } from "../src/lite/retention.js";
 import { runLiteSend, type LiteQueueRecord } from "../src/lite/send.js";
 import { assertLiteTemplateCompliant, LITE_TEMPLATE, LITE_TEMPLATE_VERSION } from "../src/lite/template.js";
-import { LITE_TEMPLATE_PROPOSAL, liteTemplateProposalForSource } from "../src/lite/template-proposal.js";
 
 const NOW = Date.parse("2026-10-14T12:00:00Z");
 const DAY = 86_400_000;
@@ -95,14 +94,7 @@ test("retention expiry includes the 90-day boundary and invalid periods cannot p
   for (const days of [0, -1, NaN, Infinity, 1.5]) assert.throws(() => planLiteRetention(records, NOW, days), /Invalid retention/);
 });
 
-test("proposal source matches provenance and unknown sources fail closed", () => {
-  assert.match(liteTemplateProposalForSource("brreg").text, /i Enhetsregisteret\./);
-  const website = liteTemplateProposalForSource("website");
-  assert.match(website.text, /på bedriftens egen nettside\./);
-  assert.doesNotMatch(website.text, /i Enhetsregisteret\./);
-  assertLiteTemplateCompliant(website);
-  assert.throws(() => liteTemplateProposalForSource("places" as "website"), /Unknown contact source/);
-});
+
 
 test("Airtable writer: minimise keeps Email, Lead Status, DNC and Duplicate Key; delete batches by ID", async () => {
   const requests: Array<{ url: string; method?: string; body?: string }> = [];
@@ -132,14 +124,10 @@ test("the sender writes sent=<date> on the claimed row, which retention counts f
 
 // ---------- Template proposal ----------
 
-test("approved template is unchanged; the proposal passes the same guard and is not used by the sender", () => {
+test("approved template remains locked after the rejected proposal is withdrawn", () => {
   assert.equal(LITE_TEMPLATE_VERSION, "2026-10-14.2");
   assert.equal(LITE_TEMPLATE.subject, "En idé til forbedring hos dere");
-  assertLiteTemplateCompliant(LITE_TEMPLATE_PROPOSAL);
-  assert.match(LITE_TEMPLATE_PROPOSAL.subject, /^Reklame fra Cidea Marketing/);
-  assert.match(LITE_TEMPLATE_PROPOSAL.text, /org\.nr\. 927 394 391/);
-  assert.match(LITE_TEMPLATE_PROPOSAL.text, /Enhetsregisteret/);
-  assert.ok(LITE_TEMPLATE_PROPOSAL.text.startsWith(LITE_TEMPLATE.text), "approved body kept word for word");
+  assertLiteTemplateCompliant(LITE_TEMPLATE);
   for (const file of ["src/lite/send.ts", "src/cli/send-lite.ts", "src/lite/template.ts"]) {
     assert.ok(!readFileSync(file, "utf8").includes("template-proposal"), `${file} must not use the proposal`);
   }

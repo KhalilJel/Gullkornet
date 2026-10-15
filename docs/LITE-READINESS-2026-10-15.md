@@ -1,3 +1,5 @@
+> NYESTE EIERBESLUTNING 15.10.2026: Forslag .4 med «Reklame fra Cidea Marketing» er avvist og trukket tilbake. Behold hele .2 uendret, med emnet «En idé til forbedring hos dere». Ikke etterspør godkjenning av .4. Tidligere omtale av forslaget nedenfor er historikk. Retensjonsendringene beholdes; personvernkrav gjenstår separat. Live-send er av.
+
 # Samlet personvern- og lagringsleveranse — 15.10.2026
 
 ## Endret grunnlag
