@@ -1,3 +1,5 @@
+> NYESTE EIERBESLUTNING 15.10.2026: Forslag .4 med «Reklame fra Cidea Marketing» er avvist og trukket tilbake. Behold hele .2 uendret, med emnet «En idé til forbedring hos dere». Ikke etterspør godkjenning av .4. Tidligere omtale av forslaget nedenfor er historikk. Retensjonsendringene beholdes; personvernkrav gjenstår separat. Live-send er av.
+
 > Oppdatert eierbeslutning 15.10.2026: Avtalene er bekreftet i orden av eier, valg av lagringstid er delegert og ekstern jurist skal ikke brukes. Eldre krav om juristgodkjenning nedenfor er historikk, ikke gjeldende arbeidskrav. Les LITE-READINESS-2026-10-15.md og LITE-LAGRINGSPOLICY-2026-10-15.md for gjeldende vurdering og konkrete gjenstående kontroller. Dette er ikke live-klarsignal. Mal .2 er uendret, sletting er av.
 # Beslutningspakke for juridisk gjennomgang – Gullkornet Lite
 
