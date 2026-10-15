@@ -8,6 +8,7 @@ on:
       - "openoutsend_resend.py"
       - "Dockerfile"
       - "tests/test_openoutsend_ingest_api.py"
+      - "tests/test_reply_status_batch.py"
       - ".github/workflows/phase11-reply-monitor.yml"
   push:
     branches: ["phase11/production"]
@@ -16,6 +17,7 @@ on:
       - "openoutsend_resend.py"
       - "Dockerfile"
       - "tests/test_openoutsend_ingest_api.py"
+      - "tests/test_reply_status_batch.py"
       - ".github/workflows/phase11-reply-monitor.yml"
 
 jobs:
@@ -27,7 +29,9 @@ jobs:
         with:
           python-version: "3.13"
       - name: Run bridge and reply monitor unit tests
-        run: python -m unittest discover -s tests -p 'test_openoutsend_ingest_api.py' -v
+        run: |
+          python -m unittest discover -s tests -p 'test_openoutsend_ingest_api.py' -v
+          python -m unittest discover -s tests -p 'test_reply_status_batch.py' -v
       - name: Build Docker image with pinned OpenOutSend and runtime tests
         run: docker build --tag gullkornet-phase11-reply-monitor .
 
