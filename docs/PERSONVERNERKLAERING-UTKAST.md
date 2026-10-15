@@ -3,7 +3,7 @@
 **Ikke publisert.** Avtaler er bekreftet i orden av eier; ekstern jurist brukes ikke. Dette utkastet gjelder bedriftshenvendelser og tilhørende dialog, ikke en full kartlegging av nettstedets skjemaer, cookies og analyse. Fristene er vedtatt som intern policy, men må ikke presenteres som automatisk gjennomført. Før publisering: kontroller kontaktkanal, faktiske leverandør-/backupfrister og sikker manuell eller teknisk håndheving, særlig innboks og svarmonitor. Ingen produksjonssletting er autorisert.
 
 ## Hvem er ansvarlig?
-CIDEA AS, org.nr. 927 394 391, Gunnar Schjelderups vei 13A, 0485 Oslo, driver Cidea Marketing. Kontakt om personvern: hello@cideamarketing.com. Denne kontaktkanalen må kontrolleres før publisering.
+CIDEA AS, org.nr. 927 394 391, Gunnar Schjelderups vei 13A, 0485 Oslo, driver Cidea Marketing. Kontakt om personvern: jelassi@cideamarketing.com. Dette er den eksisterende overvåkede postkassen; ingen ny kontaktadresse er opprettet.
 
 ## Opplysninger, kilder og formål
 Vi bruker selskapsnavn, organisasjonsnummer, organisasjonsform, bransje, kommune, nettsted og offentlig publisert fellesadresse. Kildene er Enhetsregisteret og bedriftens egen nettside. Vi registrerer kilde, tidspunkt, om vi har kontaktet bedriften, svar og reservasjoner. Svar kan inneholde personnavn, kontaktinformasjon og korrespondanse. Vi bruker dette til én relevant bedriftshenvendelse, ønsket videre dialog og å hindre ny kontakt med dem som allerede er kontaktet eller har reservert seg. Vi retter ikke dette løpet mot navngitte personadresser eller enkeltpersonforetak. Vi bruker ikke åpnings-/klikksporing i dette løpet og fatter ikke automatiserte avgjørelser med rettslig eller tilsvarende betydelig virkning.
