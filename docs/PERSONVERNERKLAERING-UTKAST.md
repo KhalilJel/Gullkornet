@@ -1,6 +1,6 @@
 # Utkast: Personvernerklæring for Cidea Marketing
 
-**Publiseringskontroll 15.10.2026: IKKE KLAR.** Brreg bekrefter selskapsnavn, organisasjonsnummer og adresse, men registeret oppgir cidea.no og bekrefter ikke alene tilknytningen til cideamarketing.com. Retensjonsløftene nedenfor er ikke verifisert i drift, innboksens lagringstid og kontoenes DPA/overføringsgrunnlag er uavklart. `/personvern` viser fortsatt forsiden. Dette er konkrete innholdshindringer for den betingede publiseringsgodkjenningen. Se [lanseringsrapporten](LITE-LANSERINGSSPRINT-2026-10-15.md). Mal `.2` er uendret.
+**Publiseringskontroll 15.10.2026: IKKE KLAR.** Brreg bekrefter selskapsnavn, organisasjonsnummer og adresse. Eier har nå bekreftet at CIDEA AS driver Cidea Marketing og er behandlingsansvarlig for Gullkornet. Retensjonsløftene nedenfor er ikke verifisert i drift, innboksens lagringstid og kontoenes DPA/overføringsgrunnlag er uavklart. `/personvern` viser fortsatt forsiden. Dette er konkrete innholdshindringer for den betingede publiseringsgodkjenningen. Se [lanseringsrapporten](LITE-LANSERINGSSPRINT-2026-10-15.md). Mal `.2` er uendret.
 
 **Status: UTKAST 14.10.2026. Ikke publisert, ikke juridisk kontrollert.** Teksten bygger på den faktiske databehandlingen i Gullkornet Lite slik den er kartlagt i koden og i [LITE-DATABEHANDLERE.md](LITE-DATABEHANDLERE.md). Punkter merket **[BEKREFT]** må eieren bekrefte, og hele teksten bør kontrolleres av en jurist før den publiseres på `https://cideamarketing.com/personvern`.
 
@@ -12,7 +12,7 @@ Sist oppdatert: [DATO]
 
 ### 1. Hvem er ansvarlig
 
-Behandlingsansvarlig er CIDEA AS, org.nr. 927 394 391, Gunnar Schjelderups vei 13A, 0485 Oslo, som driver Cidea Marketing. **[BEKREFT at Cidea Marketing drives av CIDEA AS]**
+Behandlingsansvarlig er CIDEA AS, org.nr. 927 394 391, Gunnar Schjelderups vei 13A, 0485 Oslo, som driver Cidea Marketing. Eier bekreftet ansvaret 15.10.2026; selskapsopplysningene er kontrollert mot Brreg.
 Kontakt om personvern: hello@cideamarketing.com.
 
 ### 2. Hvilke opplysninger vi behandler når vi kontakter bedrifter

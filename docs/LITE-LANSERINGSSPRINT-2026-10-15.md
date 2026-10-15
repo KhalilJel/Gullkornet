@@ -6,7 +6,7 @@ Live-utsending skal forbli av. Denne sprinten godkjenner ingen utsending, juridi
 
 Kontrollert offentlig nettsted 15.10: `/personvern` returnerer samme HTML og JavaScript som forsiden. Publisert JavaScript har ingen personvernside eller opplysninger om CIDEA AS. Lokal nettstedskilde (`Cidea-Marketing/src/main.jsx`) sender ukjente stier til forsiden. En HTTP 200 er derfor ikke en publisert erklæring.
 
-Brreg bekrefter CIDEA AS, org.nr. 927394391, AS, Gunnar Schjelderups vei 13A, 0485 Oslo, reklamebyråvirksomhet og ikke konkurs/under avvikling. Registrert nettsted er cidea.no; registeret beviser ikke alene forholdet til cideamarketing.com. Resend bekrefter cideamarketing.com som verified, eu-west-1, sending enabled, open/click tracking false. Eier må bekrefte at CIDEA AS er behandlingsansvarlig og avsender bak Cidea Marketing.
+Brreg bekrefter CIDEA AS, org.nr. 927394391, AS, Gunnar Schjelderups vei 13A, 0485 Oslo, reklamebyråvirksomhet og ikke konkurs/under avvikling. Registrert nettsted er cidea.no; registeret beviser ikke alene forholdet til cideamarketing.com. Resend bekrefter cideamarketing.com som verified, eu-west-1, sending enabled, open/click tracking false. Eier bekreftet uttrykkelig i sprintchatten 15.10.2026 at CIDEA AS er ansvarlig. Avsenderidentiteten er dermed bekreftet gjennom register, Resend-domene og eierens bekreftelse.
 
 Mal `2026-10-14.2` beholdes byte-for-byte. Ingen overgang til forslag `.3`. Jurist må vurdere den faktiske uendrede malen, inkludert emne etter ehandelsloven § 9 og informasjon etter GDPR art. 14, i tillegg til markedsføringsloven § 15.
 
@@ -43,7 +43,7 @@ Kode- og workflowstandard er satt til 95. Eksisterende repository-variabler har 
 
 Før et særskilt uttrykkelig klarsignal kan gjennomføres:
 1. Juridisk beslutning må gjelde den faktiske malen `.2`, adressetypen og de nye regionene/bransjene.
-2. Bekreft avsender/behandlingsansvarlig, konto-DPA-er, overføringer og faktiske lagringsrutiner.
+2. Avsender/behandlingsansvarlig er bekreftet. Konto-DPA-er, overføringer og faktiske lagringsrutiner gjenstår.
 3. Publiser og kontroller `/personvern` med ekte sideinnhold og en fungerende kontaktadresse.
 4. Kontroller faktisk restkvote, oppdatert read-only audit/preview og batch reply-status. Avklar at andre avsendere ikke bruker reserven.
 5. Start etter godkjenning med pilot 5/dag og 1/kjøring, kontroller levering/svar/reservasjon, og øk senere til maks 95 ved egen beslutning. Behold upstream `OPENOUTREACH_ALLOW_SEND=false`.
@@ -59,3 +59,5 @@ Når innholdet er avklart: implementer `/personvern` i nettstedets eksisterende 
 PR: https://github.com/KhalilJel/Gullkornet/pull/128
 
 Lokal typecheck PASS. 388 tester: 386 bestått, 2 hoppet over, 0 feil. Ny regionisolasjon og 95-per-dag-simulering inkluderer unike mottakere og idempotensnøkler. Produksjonsdeploy ved start er ac57a8d, Railway SUCCESS. Sluttstatus for CI, buffer og preview føres inn etter kjøringene.
+
+Batch reply-status: PASS 15.10.2026. Positiv replied=true og negativ replied=false, også i batch. Kjøring: https://github.com/KhalilJel/Gullkornet/actions/runs/38724299860 . Railway CLI bekrefter OPENOUTREACH_ALLOW_SEND=false og OPENOUTREACH_STARTUP_ACCEPTANCE_TEST=false. Planlagt Lite-kjøring #15 bekrefter tom live-bryter og ingen sending.
