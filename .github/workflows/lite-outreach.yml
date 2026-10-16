@@ -6,7 +6,8 @@ name: Gullkornet Lite Outreach
 # (src/lite/schedule.ts). Each run sends at most GULLKORNET_LITE_MAX_PER_RUN emails, so a
 # skipped or delayed GitHub cron run is caught up by the next one.
 # Scheduled sending remains off unless its secret is enabled. Manual pilot_send permits
-# one run of the owner-confirmed five-record pilot only. Manual preview never sends or writes.
+# one explicitly enabled run. Owner-confirmed operation is capped at 95/day and 2/run.
+# Manual preview never sends or writes.
 on:
   schedule:
     - cron: "*/10 6-18 * * *"
@@ -28,7 +29,7 @@ on:
         default: ""
         type: string
       pilot_send:
-        description: "Send one message from the confirmed five-recipient pilot (requires preview=false)"
+        description: "Enable this one authorized run (up to 2 messages, requires preview=false)"
         required: false
         default: false
         type: boolean
@@ -48,7 +49,7 @@ jobs:
       GULLKORNET_LITE_ENABLE_LIVE_SEND: ${{ secrets.GULLKORNET_LITE_ENABLE_LIVE_SEND }}
       GULLKORNET_LITE_DAILY_LIMIT: ${{ vars.GULLKORNET_LITE_DAILY_LIMIT || '95' }}
       GULLKORNET_LITE_HOURLY_LIMIT: ${{ vars.GULLKORNET_LITE_HOURLY_LIMIT || '15' }}
-      GULLKORNET_LITE_MAX_PER_RUN: ${{ vars.GULLKORNET_LITE_MAX_PER_RUN || '5' }}
+      GULLKORNET_LITE_MAX_PER_RUN: ${{ vars.GULLKORNET_LITE_MAX_PER_RUN || '2' }}
       GULLKORNET_LITE_MIN_SPACING_SECONDS: ${{ vars.GULLKORNET_LITE_MIN_SPACING_SECONDS || '60' }}
       GULLKORNET_LITE_ORG_FORMS: ${{ vars.GULLKORNET_LITE_ORG_FORMS || 'AS,ASA' }}
       RESEND_DAILY_QUOTA: ${{ vars.RESEND_DAILY_QUOTA }}

@@ -2,7 +2,7 @@ import { fetchRecentSendLedger, sendOneEmail } from "../integrations/outbound-em
 import { assertRecipientHasNotReplied } from "../integrations/reply-status.js";
 import { fetchLiteQueue, fetchPilotPreviewRows, lookupLiteRecords, markLiteReady, markLiteSent } from "../lite/airtable-queue.js";
 import { parsePilotPreviewIds } from "../lite/pilot-preview.js";
-import { assertConfirmedResendPilot, RESEND_PILOT_IDS } from "../lite/resend-pilot.js";
+import { assertConfirmedResendSending, assertResendDeliveryHealthy } from "../lite/resend-pilot.js";
 import { airtableConfigFromEnv } from "../lite/intake.js";
 import { checkLiteFreshness } from "../lite/freshness.js";
 import { loadResearchIndex } from "../lite/market-research.js";
@@ -10,7 +10,7 @@ import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
 import { loadLiteSendConfig } from "../lite/schedule.js";
 import { runLiteSend, withTransientRetry } from "../lite/send.js";
 
-// npm run send:lite            -> no-op with switch off; otherwise the owner-confirmed, five-record Resend pilot only.
+// npm run send:lite            -> no-op with switch off; otherwise owner-confirmed operation up to 95/day.
 // npm run send:lite -- --preview [--limit 100] -> read-only: runs every gate over (the first N of) the queue, never sends or writes
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
@@ -32,7 +32,7 @@ async function main(): Promise<void> {
   }
   if (preview) console.log("Technical preview only: counts do not establish opt-in, provider permission or legal readiness. Nothing will be sent or written.");
   const cfg = loadLiteSendConfig(preview && !env.RESEND_DAILY_QUOTA ? { ...env, RESEND_DAILY_QUOTA: "1000" } : env);
-  if (!preview) assertConfirmedResendPilot(cfg, env);
+  if (!preview) assertConfirmedResendSending(cfg, env);
   const airtable = airtableConfigFromEnv(env);
   const allowedOrgForms = parseAllowedOrgForms(env.GULLKORNET_LITE_ORG_FORMS);
   const resendKey = env.RESEND_API_KEY?.trim() ?? "";
@@ -43,9 +43,12 @@ async function main(): Promise<void> {
   const summary = await runLiteSend({
     now: () => Date.now(),
     sleep,
-    fetchLedger: () => resendKey ? fetchRecentSendLedger(resendKey) : Promise.resolve([]),
-    fetchQueue: () => !preview ? fetchPilotPreviewRows(airtable, [...RESEND_PILOT_IDS])
-      : pilotIds ? fetchPilotPreviewRows(airtable, pilotIds) : fetchLiteQueue(airtable),
+    fetchLedger: async () => {
+      const entries = resendKey ? await fetchRecentSendLedger(resendKey) : [];
+      if (!preview) assertResendDeliveryHealthy(entries, Date.now());
+      return entries;
+    },
+    fetchQueue: () => pilotIds ? fetchPilotPreviewRows(airtable, pilotIds) : fetchLiteQueue(airtable),
     lookupRecords: email => lookupLiteRecords(airtable, email),
     assertNotReplied: email => withTransientRetry(() => assertRecipientHasNotReplied(email, env), sleep),
     findResearch: segment => research.get(segment.key),
