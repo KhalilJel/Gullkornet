@@ -31,11 +31,11 @@ test("exact pilot selection cannot be used in live mode or truncated silently", 
   }
 });
 
-test("Lite live flag cannot bypass provider refusal, even before invalid config is read", () => {
+test("live pilot rejects invalid capacity before any network or CRM access", () => {
   const result = run("true");
   assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.match(result.stderr, /Resend requires opt-in and prohibits cold outreach/);
-  assert.doesNotMatch(result.stdout + result.stderr, /UNEXPECTED_NETWORK|must be an integer|is required/);
+  assert.match(result.stderr, /RESEND_DAILY_QUOTA/);
+  assert.doesNotMatch(result.stdout + result.stderr, /UNEXPECTED_NETWORK/);
 });
 
 test("technical preview stays available and explicitly distinguishes readiness from permission", () => {

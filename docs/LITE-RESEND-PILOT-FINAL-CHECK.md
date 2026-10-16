@@ -1,5 +1,11 @@
 # Final Resend pilot check
 
+## Owner confirmation received 16 October 2026
+
+The owner explicitly states the agreement is confirmed. This records their attestation; no contract contents have been independently inspected. The earlier pending-agreement entries below are historical. The implementation now permits only the fixed five reviewed record IDs, template .6, at most five/day and one/run. Increasing the environment limits does not expand the pilot; it fails before network access. No arbitrary queue recipients can enter this live pilot.
+
+Manual workflow dispatch with preview=false and pilot_send=true enables that one bounded run without changing the persistent live secret. Scheduled runs remain no-ops while the secret is absent. Explicit preview selections cannot be passed to live workflow runs. The operator verifies the first message result before dispatching another. Existing source/recipient/status/reply/research/history/idempotency/pre-send-claim controls remain in place. The owner has already authorized the pilot; no new approval is required for its unchanged scope. No 95/day activation or new cost is included.
+
 Resend is the owner's chosen channel. Mailreef is not connected; do not continue vendor migration or purchase work. The owner handles the requested Resend exception and privacy/marketing-information follow-up. Explicit authorization for the controlled pilot has already been given; do not request the same authorization again. The exception itself is not yet confirmed. The unconditional provider refusal in send-lite.ts and existing live switches remain unchanged in this preparation.
 
 ## Exact read-only preview
