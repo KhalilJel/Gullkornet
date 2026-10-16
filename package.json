@@ -26,6 +26,7 @@
     "lite:dry-run": "tsx src/cli/lite-dry-run.ts",
     "lite:research": "tsx src/cli/lite-research.ts",
     "check:reply-status": "tsx src/cli/check-reply-status.ts",
+    "check:mailreef": "tsx src/cli/check-mailreef.ts",
     "lite:replies": "tsx src/cli/lite-replies.ts",
     "lite:audit": "tsx src/cli/lite-audit.ts",
     "lite:retention": "tsx src/cli/lite-retention.ts"
