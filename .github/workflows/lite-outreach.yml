@@ -23,6 +23,11 @@ on:
         required: false
         default: "95"
         type: string
+      preview_record_ids:
+        description: "Optional: 1-5 comma-separated record IDs for an exact read-only pilot preview"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -65,10 +70,15 @@ jobs:
 
       - name: Read-only preview (manual run)
         if: github.event_name == 'workflow_dispatch' && inputs.preview
+        env:
+          PREVIEW_LIMIT: ${{ inputs.preview_limit }}
+          PREVIEW_RECORD_IDS: ${{ inputs.preview_record_ids }}
         run: |
           umask 077
-          case "${{ inputs.preview_limit }}" in ''|*[!0-9]*) echo "preview_limit must be a number"; exit 1 ;; esac
-          npm run --silent send:lite -- --preview --limit "${{ inputs.preview_limit }}"
+          case "$PREVIEW_LIMIT" in ''|*[!0-9]*) echo "preview_limit must be a number"; exit 1 ;; esac
+          args=(--limit "$PREVIEW_LIMIT")
+          if [ -n "$PREVIEW_RECORD_IDS" ]; then args+=(--preview-record-ids "$PREVIEW_RECORD_IDS"); fi
+          npm run --silent send:lite -- --preview "${args[@]}"
 
       - name: Send Lite outreach (no-op while the kill switch is off)
         if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.preview)

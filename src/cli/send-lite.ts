@@ -1,6 +1,7 @@
 import { fetchRecentSendLedger, sendOneEmail } from "../integrations/outbound-email.js";
 import { assertRecipientHasNotReplied } from "../integrations/reply-status.js";
-import { fetchLiteQueue, lookupLiteRecords, markLiteReady, markLiteSent } from "../lite/airtable-queue.js";
+import { fetchLiteQueue, fetchPilotPreviewRows, lookupLiteRecords, markLiteReady, markLiteSent } from "../lite/airtable-queue.js";
+import { parsePilotPreviewIds } from "../lite/pilot-preview.js";
 import { airtableConfigFromEnv } from "../lite/intake.js";
 import { checkLiteFreshness } from "../lite/freshness.js";
 import { loadResearchIndex } from "../lite/market-research.js";
@@ -15,9 +16,13 @@ const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, m
 
 async function main(): Promise<void> {
   const preview = process.argv.includes("--preview");
+  const idsIndex = process.argv.indexOf("--preview-record-ids");
+  if (idsIndex >= 0 && !preview) throw new Error("--preview-record-ids is read-only and requires --preview.");
+  const pilotIds = idsIndex >= 0 ? parsePilotPreviewIds(process.argv[idsIndex + 1] ?? "") : undefined;
   const limitIndex = process.argv.indexOf("--limit");
   const previewLimit = limitIndex >= 0 ? Number(process.argv[limitIndex + 1]) : undefined;
   if (previewLimit !== undefined && !(Number.isInteger(previewLimit) && previewLimit > 0)) throw new Error("--limit must be a positive integer.");
+  if (pilotIds && previewLimit !== undefined && previewLimit < pilotIds.length) throw new Error("--limit must cover every selected pilot record.");
   const env = process.env;
   if (!preview && env.GULLKORNET_LITE_ENABLE_LIVE_SEND !== "true") {
     // Checked before any provider or CRM call.
@@ -43,7 +48,7 @@ async function main(): Promise<void> {
     now: () => Date.now(),
     sleep,
     fetchLedger: () => resendKey ? fetchRecentSendLedger(resendKey) : Promise.resolve([]),
-    fetchQueue: () => fetchLiteQueue(airtable),
+    fetchQueue: () => pilotIds ? fetchPilotPreviewRows(airtable, pilotIds) : fetchLiteQueue(airtable),
     lookupRecords: email => lookupLiteRecords(airtable, email),
     assertNotReplied: email => withTransientRetry(() => assertRecipientHasNotReplied(email, env), sleep),
     findResearch: segment => research.get(segment.key),

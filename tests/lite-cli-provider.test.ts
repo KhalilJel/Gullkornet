@@ -21,6 +21,16 @@ test("Lite scheduled runs remain harmless no-ops while live is off", () => {
   assert.doesNotMatch(result.stdout + result.stderr, /UNEXPECTED_NETWORK/);
 });
 
+test("exact pilot selection cannot be used in live mode or truncated silently", () => {
+  for (const args of [["--preview-record-ids", "recA"],
+    ["--preview", "--preview-record-ids", "recA,recB", "--limit", "1"]]) {
+    const result = run("true", args);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /read-only|cover every selected/);
+    assert.doesNotMatch(result.stdout + result.stderr, /UNEXPECTED_NETWORK/);
+  }
+});
+
 test("Lite live flag cannot bypass provider refusal, even before invalid config is read", () => {
   const result = run("true");
   assert.equal(result.status, 1, result.stdout + result.stderr);
