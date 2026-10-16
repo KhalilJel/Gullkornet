@@ -3,6 +3,7 @@ import { approvalLookupFormula } from "../integrations/airtable-send-approval.js
 import { LITE_READY_STATUS } from "./intake.js";
 import type { AirtableConfig } from "./intake.js";
 import type { LiteQueueRecord } from "./send.js";
+import { parsePilotPreviewIds } from "./pilot-preview.js";
 
 const FIELDS = ["Email", "Website", "Company", "Lead Status", "Do Not Contact", "Research Notes"];
 
@@ -19,6 +20,22 @@ async function getJson(url: URL, cfg: AirtableConfig): Promise<{ records: LiteQu
 
 function tableUrl(cfg: AirtableConfig): URL {
   return new URL(`https://api.airtable.com/v0/${cfg.baseId}/${encodeURIComponent(cfg.tableName)}`);
+}
+
+/** Reads precisely the requested pilot rows, including any now blocked rows; never substitutes others. */
+export async function fetchPilotPreviewRows(cfg: AirtableConfig, ids: string[]): Promise<LiteQueueRecord[]> {
+  const selected = parsePilotPreviewIds(ids.join(","));
+  const url = tableUrl(cfg);
+  url.searchParams.set("filterByFormula", `OR(${selected.map(id => `RECORD_ID()='${id}'`).join(",")})`);
+  url.searchParams.set("pageSize", "100");
+  for (const field of FIELDS) url.searchParams.append("fields[]", field);
+  const result = await getJson(url, cfg);
+  if (result.offset || result.records.length !== selected.length ||
+      new Set(result.records.map(row => row.id)).size !== selected.length ||
+      result.records.some(row => !selected.includes(row.id))) {
+    throw new Error("Exact pilot preview could not read every selected record. No substitution allowed.");
+  }
+  return selected.map(id => result.records.find(row => row.id === id)!);
 }
 
 /** Lite Ready rows with Do Not Contact unticked, oldest first. The DNC field reference also makes a renamed field fail. */
