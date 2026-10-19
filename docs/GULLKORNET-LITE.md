@@ -48,9 +48,11 @@ E-handelsloven § 9: the subject is neutral; Lite sends as `Cidea Marketing <hel
 | `RESEND_DAILY_QUOTA` | variable | **required** | Daily email quota of the actual Resend plan. Sending refuses without it. |
 | `RESEND_MONTHLY_QUOTA` | variable | unset | Monthly quota; daily limit x 31 must fit. |
 | `GULLKORNET_LITE_DAILY_LIMIT` | variable | 100 | Daily target (rolling 24 h, account-wide). Can be raised up to the Resend quota. |
-| `GULLKORNET_LITE_HOURLY_LIMIT` | variable | 15 | Max per rolling hour. |
-| `GULLKORNET_LITE_MAX_PER_RUN` | variable | 5 | Max per 10-minute run (lets a run catch up after skipped crons). |
-| `GULLKORNET_LITE_MIN_SPACING_SECONDS` | variable | 60 | Minimum gap between two emails. |
+| `GULLKORNET_LITE_START_HOUR` / `_END_HOUR` | workflow | 11 / 12 | The daily Oslo slot. Fixed in `lite-outreach.yml`. |
+| `GULLKORNET_LITE_HOURLY_LIMIT` | workflow | 95 | Max per rolling hour. Fixed in `lite-outreach.yml`; the repository variable is no longer read. |
+| `GULLKORNET_LITE_MAX_PER_RUN` | workflow | 95 | Max per run (one run a day). Fixed in `lite-outreach.yml`; the repository variable is no longer read. |
+| `GULLKORNET_LITE_MIN_SPACING_SECONDS` | workflow | 30 | Floor between two emails; the slot spreads them evenly (about 38 s for 95). |
+| `GULLKORNET_LITE_ONE_OFF_DATE` | dispatch input `one_off_date` | unset | Owner one-off: today's Oslo date sends now, spread over 60 minutes, same limits. Any other date refuses. |
 | `GULLKORNET_LITE_ORG_FORMS` | variable | `AS,ASA` | Allowed org forms: a subset of AS, ASA. Anything else (ENK, ANS, DA, NUF ...) stops the run. |
 | `GULLKORNET_LITE_INTAKE_ENABLED` | variable | unset | Scheduled intake runs only when `true`. |
 | `GULLKORNET_LITE_INTAKE_SYNC` | variable | unset | Scheduled intake writes Airtable only when `true`. |
@@ -58,7 +60,7 @@ E-handelsloven § 9: the subject is neutral; Lite sends as `Cidea Marketing <hel
 
 Failures in the Lite intake, outreach, market research and reply sync workflows open or update the existing *[Gullkornet Pipeline Alert]* issue (`pipeline-failure-alerts.yml`).
 
-Window: every day 08:00-20:00 Europe/Oslo (code; the cron is a superset). Defaults allow 100/day: 12 h x 15/h = 180, spacing allows 720.
+Window: one coordinated run every day, 11:00-12:00 Europe/Oslo ([LITE-DAILY-SLOT.md](LITE-DAILY-SLOT.md)). The run sends what the rolling 24 h limit (95) and Resend quota leave, spread evenly over the hour.
 
 ## Go-live order
 

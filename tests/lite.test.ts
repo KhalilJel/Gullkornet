@@ -9,7 +9,7 @@ import {
 import { brregToLiteCandidate, placesToLiteCandidate } from "../src/lite/places-supplement.js";
 import { assessLiteRecipient, parseAllowedOrgForms } from "../src/lite/recipient-policy.js";
 import {
-  assertLiteCapacity, countLedger, isWithinLiteWindow, loadLiteSendConfig, theoreticalDailyCapacity
+  assertLiteCapacity, countLedger, dailyLiteSlot, isWithinLiteWindow, loadLiteSendConfig, resolveLiteSlot, theoreticalDailyCapacity
 } from "../src/lite/schedule.js";
 import { assertLiteRecipientApproved, liteIdempotencyKey, LiteRefusedError, runLiteSend, withTransientRetry, type LiteQueueRecord } from "../src/lite/send.js";
 import { assertLiteTemplateCompliant, LITE_FROM, LITE_TEMPLATE } from "../src/lite/template.js";
@@ -330,11 +330,15 @@ test("template guard refuses singular 'du' and other Cidea sales lines", () => {
 // ---------- 6. Capacity and window ----------
 
 const baseEnv = { RESEND_DAILY_QUOTA: "100" };
+// The earlier 08-20, 10-minute-run profile; the runner still supports it without a slot.
+const legacyEnv = { ...baseEnv, GULLKORNET_LITE_START_HOUR: "8", GULLKORNET_LITE_END_HOUR: "20", GULLKORNET_LITE_HOURLY_LIMIT: "15",
+  GULLKORNET_LITE_MAX_PER_RUN: "5", GULLKORNET_LITE_MIN_SPACING_SECONDS: "60" };
 
-test("defaults give 08-20 every day, 95/day, within the 3000/month plan", () => {
+test("defaults give one 11-12 slot every day, 95/day in one run, within the 3000/month plan", () => {
   const cfg = loadLiteSendConfig(baseEnv);
-  assert.deepEqual([cfg.startHour, cfg.endHour, cfg.dailyLimit, cfg.hourlyLimit, cfg.maxPerRun], [8, 20, 95, 15, 5]);
+  assert.deepEqual([cfg.startHour, cfg.endHour, cfg.dailyLimit, cfg.hourlyLimit, cfg.maxPerRun, cfg.minSpacingMs], [11, 12, 95, 95, 95, 30_000]);
   assert.ok(theoreticalDailyCapacity(cfg) === 95);
+  assert.doesNotThrow(() => loadLiteSendConfig({ ...baseEnv, RESEND_MONTHLY_QUOTA: "3000" }), "95 x 31 = 2945 fits the free plan");
 });
 
 test("config refuses to exceed the Resend plan and refuses unreachable targets", () => {
@@ -342,8 +346,9 @@ test("config refuses to exceed the Resend plan and refuses unreachable targets",
   assert.throws(() => loadLiteSendConfig({ RESEND_DAILY_QUOTA: "50" }), /exceeds RESEND_DAILY_QUOTA/);
   assert.throws(() => loadLiteSendConfig({ ...baseEnv, GULLKORNET_LITE_DAILY_LIMIT: "100", RESEND_MONTHLY_QUOTA: "3000" }), /RESEND_MONTHLY_QUOTA/, "free plan cannot carry 100/day");
   assert.doesNotThrow(() => loadLiteSendConfig({ ...baseEnv, RESEND_MONTHLY_QUOTA: "50000" }));
-  assert.throws(() => loadLiteSendConfig({ ...baseEnv, GULLKORNET_LITE_HOURLY_LIMIT: "5" }), /unreachable/);
-  assert.equal(loadLiteSendConfig({ RESEND_DAILY_QUOTA: "1000", GULLKORNET_LITE_DAILY_LIMIT: "150" }).dailyLimit, 150, "100 is a target, not a ceiling");
+  assert.throws(() => loadLiteSendConfig({ ...legacyEnv, GULLKORNET_LITE_HOURLY_LIMIT: "5" }), /unreachable/);
+  assert.throws(() => loadLiteSendConfig({ ...baseEnv, GULLKORNET_LITE_HOURLY_LIMIT: "15" }), /unreachable/, "one hour at 15/h cannot reach 95");
+  assert.equal(loadLiteSendConfig({ ...legacyEnv, RESEND_DAILY_QUOTA: "1000", GULLKORNET_LITE_DAILY_LIMIT: "150" }).dailyLimit, 150, "100 is a target, not a ceiling");
 });
 
 test("window covers Saturday and Sunday 08:00-19:59 Oslo, summer and winter time", () => {
@@ -357,7 +362,7 @@ test("window covers Saturday and Sunday 08:00-19:59 Oslo, summer and winter time
 });
 
 test("capacity check: hourly, daily, quota and spacing", () => {
-  const cfg = loadLiteSendConfig(baseEnv);
+  const cfg = loadLiteSendConfig(legacyEnv);
   const now = SATURDAY_10_OSLO;
   const at = (minutesAgo: number) => ({ created_at: new Date(now - minutesAgo * 60_000).toISOString(), to: ["x@y.example"] });
   assert.doesNotThrow(() => assertLiteCapacity(countLedger([at(2)], now), cfg, now));
@@ -369,7 +374,7 @@ test("capacity check: hourly, daily, quota and spacing", () => {
 
 test("a full simulated day with a run every 10 minutes sends exactly 95, all inside 08-20 Oslo", async () => {
   const records = Array.from({ length: 300 }, (_, i) => liteRecord(`recSim${String(i).padStart(4, "0")}`, { Email: `post@sim${i}.example` }));
-  const cfg = loadLiteSendConfig(baseEnv);
+  const cfg = loadLiteSendConfig(legacyEnv);
   const dayStart = Date.parse("2026-10-17T22:00:00Z"); // Sunday 00:00 Oslo
   const run = dryRunDeps(dayStart, records);
   for (let minute = 0; minute < 24 * 60; minute += 10) {
@@ -421,7 +426,10 @@ test("Lite outreach workflow is gated by its own kill switch and has no push/PR 
   assert.doesNotMatch(wf, /GULLKORNET_ENABLE_LIVE_SEND:/, "must not reuse the advanced sender switch");
   assert.doesNotMatch(wf, /^  (push|pull_request):/m);
   assert.match(wf, /send:lite -- --preview/);
-  assert.match(wf, /cron: "\*\/10 6-18 \* \* \*"/, "every day; window enforced in code");
+  assert.doesNotMatch(wf, /cron: "\*\/10/, "the old 10-minute schedule must not compete with the slot");
+  for (const cron of ["35 8", "50 8", "35 9", "50 9", "5 10"]) assert.match(wf, new RegExp(`cron: "${cron} \\* \\* \\*"`), "every day, summer and winter");
+  assert.match(wf, /GULLKORNET_LITE_MAX_PER_RUN: "95"/, "not the repository variable that still says 2");
+  assert.match(wf, /timeout-minutes: 105/);
   assert.doesNotMatch(wf, /upload-artifact/);
 });
 
