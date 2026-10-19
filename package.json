@@ -29,7 +29,8 @@
     "check:mailreef": "tsx src/cli/check-mailreef.ts",
     "lite:replies": "tsx src/cli/lite-replies.ts",
     "lite:audit": "tsx src/cli/lite-audit.ts",
-    "lite:retention": "tsx src/cli/lite-retention.ts"
+    "lite:retention": "tsx src/cli/lite-retention.ts",
+    "lite:delivery-check": "tsx src/cli/lite-delivery-check.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
