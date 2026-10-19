@@ -3,6 +3,8 @@ import {
   exactAddressBlocked, FAILED_EVENTS, fetchResendEmailsSince, markDoNotContact, providerDetail, recipientRef, rowStates, stopLiftsAt, SUPPRESS_EVENTS
 } from "../lite/delivery-check.js";
 import { airtableConfigFromEnv } from "../lite/intake.js";
+import { assessDeliveryHealth, type BounceInfo } from "../lite/delivery-health.js";
+import { fetchBounceInfo } from "../lite/delivery-check.js";
 
 // npm run lite:delivery-check -- [--days 7] [--apply-suppression]
 // Read-only by default: lists the Resend events that trip the delivery-health stop, with the
@@ -27,7 +29,15 @@ async function main(): Promise<void> {
   const last24 = emails.filter(e => now - Date.parse(e.created_at) < 24 * 60 * 60 * 1000);
   console.log(`Last 24 h: ${last24.length} emails.`);
   const lifts = stopLiftsAt(emails, now);
-  console.log(lifts === undefined ? "Delivery-health stop: not active." : `Delivery-health stop: active until ${new Date(lifts).toISOString()}.`);
+  console.log(lifts === undefined ? "Old global rule: no failure in 24 h." : `Old global rule would stop until ${new Date(lifts).toISOString()}.`);
+  const bounces = new Map<string, BounceInfo>();
+  for (const e of last24) {
+    if (e.last_event === "bounced" && e.id) { const info = await fetchBounceInfo(apiKey, e.id); if (info) bounces.set(e.id, info); }
+  }
+  const verdict = assessDeliveryHealth(emails, bounces, now);
+  console.log(verdict.ok
+    ? `Delivery-health stop (targeted policy): not active; ${verdict.recipientScoped.length} recipient-scoped failure(s) to reserve.`
+    : `Delivery-health stop (targeted policy): ACTIVE: ${verdict.reason}`);
 
   const failedSet = new Set<string>(FAILED_EVENTS);
   const failed = emails.filter(e => failedSet.has(e.last_event ?? ""));

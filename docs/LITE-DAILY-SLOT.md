@@ -15,3 +15,15 @@ Owner instruction: send up to 95 a day from Cidea Marketing, spread evenly betwe
 Both the daily limit and the Resend quota check count the last 24 hours, not the calendar day. An afternoon one-off therefore holds back the next day's 11:00 slot. Every email sent at, say, 17:30-18:30 still counts at 11:00-12:00 the next day. If the one-off sends the day's full 95, the next day's slot sends nothing. Normal operation resumes the day after. This is deliberate: it respects the provider limit instead of treating 11:00 as a fresh day.
 
 Stop: set `GULLKORNET_LITE_ENABLE_LIVE_SEND` to anything but `true`.
+
+## Delivery-health stop (targeted, 19 October 2026)
+
+The run checks the last 30 days of Resend history before it reads the queue:
+
+- A spam complaint or a provider send failure in the last 24 h stops all sending.
+- A bounce in the last 24 h that is not confirmed permanent also stops all sending. "Confirmed permanent" means Resend type `Permanent`, or an SMTP code for a non-existent mailbox (5.1.1/2/3/6/10, or Microsoft's "550 5.4.1 Recipient address rejected"). `Undetermined` and `Transient` bounces count as unconfirmed.
+- More than 2 recipient-scoped failures in 24 h stop all sending (burst).
+- A 30-day failure rate (bounced, suppressed or complained) above 4 % over at least 50 emails stops all sending.
+- A confirmed-permanent bounce or a Resend `suppressed` event is recipient-scoped. Do Not Contact is ticked and verified on the exact-address rows, which also blocks the business domain, and sending continues.
+
+`Gullkornet Lite Delivery Check` prints the verdict ("targeted policy") and each event's bounce type and SMTP code, without addresses.

@@ -3,7 +3,9 @@ import { fetchRecentSendLedger, sendOneEmail } from "../integrations/outbound-em
 import { assertRecipientHasNotReplied } from "../integrations/reply-status.js";
 import { fetchLiteQueue, fetchLiteRowsByStatus, fetchPilotPreviewRows, lookupLiteRecords, markLiteReady, markLiteSent } from "../lite/airtable-queue.js";
 import { parsePilotPreviewIds } from "../lite/pilot-preview.js";
-import { assertConfirmedResendSending, assertResendDeliveryHealthy } from "../lite/resend-pilot.js";
+import { assertConfirmedResendSending } from "../lite/resend-pilot.js";
+import { exactAddressBlocked, fetchBounceInfo, fetchResendEmailsSince, markDoNotContact, rowStates } from "../lite/delivery-check.js";
+import { assessDeliveryHealth, type BounceInfo } from "../lite/delivery-health.js";
 import { airtableConfigFromEnv, LITE_READY_STATUS, LITE_RECHECK_STATUS } from "../lite/intake.js";
 import { checkLiteFreshness, type FreshnessReason } from "../lite/freshness.js";
 import { dueRechecks, staleUpdate, writeLiteStatus } from "../lite/stale.js";
@@ -39,6 +41,35 @@ function timed<A extends unknown[], R>(name: string, fn: (...args: A) => Promise
 }
 function timingSummary(): string {
   return [...timings].map(([name, t]) => `${name} n=${t.n} total=${(t.total / 1000).toFixed(1)}s avg=${(t.total / t.n / 1000).toFixed(2)}s max=${(t.max / 1000).toFixed(1)}s`).join("; ");
+}
+
+/**
+ * Targeted delivery-health stop (delivery-health.ts): complaints, provider failures, unconfirmed
+ * bounces, bursts and a high 30-day failure rate stop the run; a permanent invalid address or a
+ * Resend suppression is reserved (Do Not Contact, verified) and the run may continue.
+ */
+async function enforceDeliveryHealth(apiKey: string, airtable: ReturnType<typeof airtableConfigFromEnv>, env: NodeJS.ProcessEnv): Promise<void> {
+  const now = Date.now();
+  const history = await fetchResendEmailsSince(apiKey, now - 30 * 24 * 60 * 60 * 1000);
+  const bounces = new Map<string, BounceInfo>();
+  for (const e of history) {
+    if (e.last_event !== "bounced" || !e.id || now - Date.parse(e.created_at) >= 24 * 60 * 60 * 1000) continue;
+    const info = await fetchBounceInfo(apiKey, e.id);
+    if (info) bounces.set(e.id, info);
+  }
+  const verdict = assessDeliveryHealth(history, bounces, now);
+  if (!verdict.ok) throw new Error(`Delivery-health stop: ${verdict.reason} Review provider events before continuing.`);
+  for (const failure of verdict.recipientScoped) {
+    const states = rowStates(await lookupLiteRecords(airtable, failure.recipient), failure.recipient);
+    for (const row of states.filter(r => r.exactAddress && !r.doNotContact)) {
+      await markDoNotContact(airtable, row.recordId, env);
+      console.log(`Reserved ${row.recordId} after a ${failure.event} event (recipient-scoped; Do Not Contact verified).`);
+    }
+    if (states.some(r => r.exactAddress) && !exactAddressBlocked(rowStates(await lookupLiteRecords(airtable, failure.recipient), failure.recipient))) {
+      throw new Error("A failed recipient could not be confirmed reserved. Refusing to send.");
+    }
+  }
+  console.log(`Delivery health: ok (${verdict.recipientScoped.length} recipient-scoped failure(s) in 24 h reserved; ${history.length} emails in 30 days checked).`);
 }
 
 async function main(): Promise<void> {
@@ -77,7 +108,7 @@ async function main(): Promise<void> {
     sleep,
     fetchLedger: async () => {
       const entries = resendKey ? await fetchRecentSendLedger(resendKey) : [];
-      if (!preview) assertResendDeliveryHealthy(entries, Date.now());
+      if (!preview) await enforceDeliveryHealth(resendKey, airtable, env);
       return entries;
     },
     fetchQueue: async () => {
