@@ -97,11 +97,27 @@ export async function fetchResendEmailsSince(apiKey: string, sinceMs: number, fe
     const data = payload.data as ResendEmailEntry[];
     entries.push(...data);
     const oldest = Math.min(...data.map(e => Date.parse(e.created_at)).filter(Number.isFinite));
-    if (data.length === 0 || payload.has_more !== true || (Number.isFinite(oldest) && oldest < sinceMs)) break;
+    if (data.length === 0 || payload.has_more !== true || (Number.isFinite(oldest) && oldest < sinceMs)) {
+      return entries.filter(e => Date.parse(e.created_at) >= sinceMs);
+    }
     after = data[data.length - 1]?.id;
     if (!after) throw new Error("Resend email list page has no cursor.");
   }
-  return entries.filter(e => Date.parse(e.created_at) >= sinceMs);
+  // Fail closed: an incomplete history must never read as a low failure rate.
+  throw new Error("Resend history exceeded the page limit; the failure rate cannot be established.");
+}
+
+/** The bounce classification of one email (type, subType, diagnosticCode); fails closed on an API error. */
+export async function fetchBounceInfo(apiKey: string, id: string, fetchImpl: typeof fetch = fetch): Promise<{ type?: string; subType?: string; diagnosticCode?: string } | undefined> {
+  const response = await fetchImpl(`https://api.resend.com/emails/${encodeURIComponent(id)}`, {
+    headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(15000)
+  });
+  if (!response.ok) throw new Error(`Resend email detail failed (HTTP ${response.status}). Refusing to send.`);
+  const payload = await response.json().catch(() => null) as { bounce?: Record<string, unknown> } | null;
+  const b = payload?.bounce;
+  if (!b || typeof b !== "object") return undefined;
+  const code = Array.isArray(b.diagnosticCode) ? b.diagnosticCode.join(" ") : typeof b.diagnosticCode === "string" ? b.diagnosticCode : undefined;
+  return { type: typeof b.type === "string" ? b.type : undefined, subType: typeof b.subType === "string" ? b.subType : undefined, diagnosticCode: code };
 }
 
 /** When the delivery-health stop (24 h after the newest failure) lifts, or undefined when no failure is in the window. */
