@@ -1,11 +1,12 @@
+import { Resolver } from "node:dns/promises";
 import { fetchRecentSendLedger, sendOneEmail } from "../integrations/outbound-email.js";
 import { assertRecipientHasNotReplied } from "../integrations/reply-status.js";
-import { fetchLiteQueue, fetchPilotPreviewRows, lookupLiteRecords, markLiteReady, markLiteSent } from "../lite/airtable-queue.js";
+import { fetchLiteQueue, fetchLiteRowsByStatus, fetchPilotPreviewRows, lookupLiteRecords, markLiteReady, markLiteSent } from "../lite/airtable-queue.js";
 import { parsePilotPreviewIds } from "../lite/pilot-preview.js";
 import { assertConfirmedResendSending, assertResendDeliveryHealthy } from "../lite/resend-pilot.js";
-import { airtableConfigFromEnv } from "../lite/intake.js";
-import { checkLiteFreshness } from "../lite/freshness.js";
-import { resolveMx } from "node:dns/promises";
+import { airtableConfigFromEnv, LITE_READY_STATUS, LITE_RECHECK_STATUS } from "../lite/intake.js";
+import { checkLiteFreshness, type FreshnessReason } from "../lite/freshness.js";
+import { dueRechecks, staleUpdate, writeLiteStatus } from "../lite/stale.js";
 import { loadResearchIndex } from "../lite/market-research.js";
 import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
 import { loadLiteSendConfig, resolveLiteSlot } from "../lite/schedule.js";
@@ -15,6 +16,9 @@ import { runLiteSend, withTransientRetry } from "../lite/send.js";
 //                                 spread evenly over 11:00-12:00 Oslo (a run up to 30 min early waits for it).
 //   GULLKORNET_LITE_ONE_OFF_DATE=<today, Oslo> -> owner's one-off: the same, spread over the next 60 minutes.
 // npm run send:lite -- --preview [--limit 100] -> read-only: runs every gate over (the first N of) the queue, never sends or writes
+
+// Same bounds as freshness.ts's default resolver; created here so the timing wrapper sees each lookup.
+const mxResolver = new Resolver({ timeout: 3000, tries: 2 });
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
@@ -76,14 +80,29 @@ async function main(): Promise<void> {
       if (!preview) assertResendDeliveryHealthy(entries, Date.now());
       return entries;
     },
-    fetchQueue: () => pilotIds ? fetchPilotPreviewRows(airtable, pilotIds) : fetchLiteQueue(airtable),
+    fetchQueue: async () => {
+      if (pilotIds) return fetchPilotPreviewRows(airtable, pilotIds);
+      if (!preview) {
+        // Controlled retry: Lite Recheck rows whose date has come go back to Lite Ready and through every gate again.
+        const due = dueRechecks(await fetchLiteRowsByStatus(airtable, LITE_RECHECK_STATUS), Date.now());
+        for (const row of due) {
+          await writeLiteStatus(airtable, row.id, { status: LITE_READY_STATUS, notes: String(row.fields["Research Notes"] ?? "") }, env);
+        }
+        if (due.length) console.log(`Released ${due.length} Lite Recheck row(s) for a new check.`);
+      }
+      return fetchLiteQueue(airtable);
+    },
     lookupRecords: timed("airtable_lookup", (email: string) => lookupLiteRecords(airtable, email)),
     assertNotReplied: timed("reply_check", (email: string) => withTransientRetry(() => assertRecipientHasNotReplied(email, env), sleep)),
     findResearch: segment => research.get(segment.key),
     checkFreshness: (email, notes) => checkLiteFreshness(notes, email, allowedOrgForms, {
       fetchImpl: timed("brreg", (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => fetch(input, init)),
-      resolveMxImpl: timed("dns_mx", (domain: string) => resolveMx(domain))
+      resolveMxImpl: timed("dns_mx", (domain: string) => mxResolver.resolveMx(domain))
     }),
+    markStale: (recordId, reason, notes) => {
+      if (preview) throw new Error("Preview must never write.");
+      return writeLiteStatus(airtable, recordId, staleUpdate(notes, reason as FreshnessReason, Date.now()), env);
+    },
     send: (email, key) => {
       if (preview) throw new Error("Preview must never send.");
       return sendOneEmail(email, resendKey, key);

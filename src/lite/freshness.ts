@@ -1,4 +1,4 @@
-import { resolveMx } from "node:dns/promises";
+import { Resolver } from "node:dns/promises";
 import { emailDomain } from "../domain/email-domain.js";
 import { toLiteCandidate } from "./brreg-lite.js";
 import { DEFAULT_LITE_ORG_FORMS, normalizeOrgForm } from "./recipient-policy.js";
@@ -17,7 +17,16 @@ export type FreshnessReason =
   | "UNIT_INACTIVE"
   | "ORG_FORM_CHANGED"
   | "EMAIL_NOT_REGISTERED"
-  | "NO_MAIL_SERVER";
+  | "NO_MAIL_SERVER"
+  | "DNS_TEMPORARY";
+
+/** Only this reason is worth retrying later; the others are facts about the company or domain. */
+export const TEMPORARY_FRESHNESS_REASONS: ReadonlySet<FreshnessReason> = new Set(["DNS_TEMPORARY"]);
+
+// Bounded resolver: a dead domain's nameservers answer with a timeout after about 10 s instead of
+// the system default's minutes. A timeout is still treated as "cannot receive mail now".
+const resolver = new Resolver({ timeout: 3000, tries: 2 });
+const boundedResolveMx = (domain: string) => resolver.resolveMx(domain);
 
 export type FreshnessDeps = {
   fetchImpl?: typeof fetch;
@@ -59,31 +68,38 @@ export async function checkBrregStillValid(
 /** A domain whose MX lookup must always work; used to tell a broken recipient domain from a resolver outage. */
 export const DNS_CONTROL_DOMAIN = "cideamarketing.com";
 
+export type MailServerStatus = "ok" | "none" | "temporary";
+
 /**
- * True when the domain publishes a usable MX record. No domain / no MX / null MX -> false.
+ * "ok" when the domain publishes a usable MX record; "none" for no domain / no MX / null MX.
  * Any other DNS error (SERVFAIL, timeout ...) is checked against a control domain: if the control
- * still resolves, the fault lies with the recipient's domain, which then cannot reliably receive
- * mail either (false); if the control fails too, the resolver is down and the run stops (throws).
+ * still resolves, the fault lies with the recipient's domain ("temporary": cannot receive mail now,
+ * may recover); if the control fails too, the resolver is down and the run stops (throws).
  */
-export async function hasMailServer(email: string, resolve: FreshnessDeps["resolveMxImpl"] = resolveMx): Promise<boolean> {
+export async function mailServerStatus(email: string, resolve: FreshnessDeps["resolveMxImpl"] = boundedResolveMx): Promise<MailServerStatus> {
   const domain = emailDomain(email);
-  if (!domain) return false;
+  if (!domain) return "none";
   try {
     const records = await resolve(domain);
     // RFC 7505 null MX ("." / empty exchange): the domain accepts no mail.
-    return records.some(record => record.exchange && record.exchange !== ".");
+    return records.some(record => record.exchange && record.exchange !== ".") ? "ok" : "none";
   } catch (error) {
     const code = (error as { code?: unknown }).code;
-    if (code === "ENOTFOUND" || code === "ENODATA" || code === "NXDOMAIN") return false;
+    if (code === "ENOTFOUND" || code === "ENODATA" || code === "NXDOMAIN") return "none";
     let controlOk = false;
     try {
       controlOk = (await resolve(DNS_CONTROL_DOMAIN)).length > 0;
     } catch {
       controlOk = false;
     }
-    if (controlOk) return false;
+    if (controlOk) return "temporary";
     throw new Error(`DNS lookup failed (${typeof code === "string" ? code : "unknown"}). Refusing to send.`);
   }
+}
+
+/** True only when the domain can receive mail now. */
+export async function hasMailServer(email: string, resolve: FreshnessDeps["resolveMxImpl"] = boundedResolveMx): Promise<boolean> {
+  return await mailServerStatus(email, resolve) === "ok";
 }
 
 export async function checkLiteFreshness(
@@ -94,5 +110,6 @@ export async function checkLiteFreshness(
 ): Promise<FreshnessReason | undefined> {
   const registry = await checkBrregStillValid(notes, email, allowedOrgForms, deps.fetchImpl);
   if (registry) return registry;
-  return await hasMailServer(email, deps.resolveMxImpl) ? undefined : "NO_MAIL_SERVER";
+  const mx = await mailServerStatus(email, deps.resolveMxImpl);
+  return mx === "ok" ? undefined : mx === "none" ? "NO_MAIL_SERVER" : "DNS_TEMPORARY";
 }

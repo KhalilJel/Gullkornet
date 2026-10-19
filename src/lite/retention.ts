@@ -1,5 +1,5 @@
 import { assertAirtableWritesAllowed } from "../domain/airtable-write-guard.js";
-import { LITE_MARKER, LITE_READY_STATUS, type AirtableConfig } from "./intake.js";
+import { LITE_MARKER, LITE_READY_STATUS, LITE_RECHECK_STATUS, LITE_STALE_STATUS, type AirtableConfig } from "./intake.js";
 import { orgnrFromNotes } from "./freshness.js";
 import type { LiteQueueRecord } from "./send.js";
 
@@ -95,7 +95,8 @@ export function planLiteRetention(rows: LiteQueueRecord[], nowMs: number, days =
       }
       continue;
     }
-    if (status === LITE_READY_STATUS) {
+    // Never contacted, whether still queued or taken out by a freshness check.
+    if (status === LITE_READY_STATUS || status === LITE_STALE_STATUS || status === LITE_RECHECK_STATUS) {
       const firstSeen = Date.parse(text(row, "First Seen"));
       if (!Number.isFinite(firstSeen)) { plan.undated.push(row.id); continue; }
       if (firstSeen <= cutoff) plan.actions.push({ id: row.id, action: "delete", reason: "NEVER_CONTACTED_EXPIRED" });
