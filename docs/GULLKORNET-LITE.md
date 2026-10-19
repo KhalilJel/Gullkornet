@@ -60,6 +60,8 @@ E-handelsloven § 9: the subject is neutral; Lite sends as `Cidea Marketing <hel
 
 Failures in the Lite intake, outreach, market research and reply sync workflows open or update the existing *[Gullkornet Pipeline Alert]* issue (`pipeline-failure-alerts.yml`).
 
+Freshness refusals leave the queue: a definite reason (company gone, inactive, re-formed, address changed, no mail server) sets `Lite Stale`; a temporary DNS failure of the recipient's domain sets `Lite Recheck` with `recheck_after` 1, 3 and 7 days later (then `Lite Stale`). A due `Lite Recheck` row goes back to `Lite Ready` at the start of a live run and passes every gate again. MX lookups are bounded (3 s timeout, 2 tries). Both statuses are deleted after 90 days like any never-contacted row.
+
 Window: one coordinated run every day, 11:00-12:00 Europe/Oslo ([LITE-DAILY-SLOT.md](LITE-DAILY-SLOT.md)). The run sends what the rolling 24 h limit (95) and Resend quota leave, spread evenly over the hour.
 
 ## Go-live order

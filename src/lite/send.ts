@@ -91,6 +91,8 @@ export type LiteSendDeps = {
   findResearch: (segment: LiteSegment) => SegmentResearch | undefined;
   /** Re-checks the row's facts at their sources (Brreg, DNS). Returns a refusal reason, undefined when still valid; throws on an outage. */
   checkFreshness: (email: string, notes: string) => Promise<string | undefined>;
+  /** Live only: takes a row that failed the freshness check out of the queue (Lite Stale / Lite Recheck). */
+  markStale?: (recordId: string, reason: string, notes: string) => Promise<void>;
   send: (email: PreparedEmail, idempotencyKey: string) => Promise<{ id: string }>;
   /** Claims the row: Lead Status Sent and Research Notes with the research reference. */
   markSent: (recordId: string, researchNotes: string) => Promise<void>;
@@ -215,7 +217,19 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
     if (!research.ok) { summary.skipped.noResearch++; continue; }
     // The company may have been deleted, gone bankrupt or changed its address since intake.
     const staleReason = await deps.checkFreshness(email, freshNotes);
-    if (staleReason) { summary.skipped.stale++; deps.log(`Skipped ${recordId}: ${staleReason}`); continue; }
+    if (staleReason) {
+      summary.skipped.stale++;
+      deps.log(`Skipped ${recordId}: ${staleReason}`);
+      // Out of the queue so it is not checked again tomorrow. A failed write only costs that recheck.
+      if (!options.preview && deps.markStale) {
+        try {
+          await deps.markStale(recordId, staleReason, freshNotes);
+        } catch (error) {
+          deps.log(`Could not take ${recordId} out of the queue: ${error instanceof Error ? error.message : "unknown error"}`);
+        }
+      }
+      continue;
+    }
     try {
       await deps.assertNotReplied(email);
     } catch (error) {

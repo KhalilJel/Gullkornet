@@ -5,6 +5,10 @@ import { assessLiteRecipient, type LiteRejectReason } from "./recipient-policy.j
 import { LITE_TEMPLATE_VERSION } from "./template.js";
 
 export const LITE_READY_STATUS = "Lite Ready";
+/** Failed a send-time freshness check for good (company gone, address changed, no mail server): out of the queue. */
+export const LITE_STALE_STATUS = "Lite Stale";
+/** Recipient domain's DNS failed temporarily: out of the queue until its recheck_after date, then Lite Ready again. */
+export const LITE_RECHECK_STATUS = "Lite Recheck";
 export const LITE_MARKER = "[GK-LITE]";
 
 export type LiteSourceCandidate = {
