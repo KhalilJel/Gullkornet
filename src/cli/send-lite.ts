@@ -5,6 +5,7 @@ import { parsePilotPreviewIds } from "../lite/pilot-preview.js";
 import { assertConfirmedResendSending, assertResendDeliveryHealthy } from "../lite/resend-pilot.js";
 import { airtableConfigFromEnv } from "../lite/intake.js";
 import { checkLiteFreshness } from "../lite/freshness.js";
+import { resolveMx } from "node:dns/promises";
 import { loadResearchIndex } from "../lite/market-research.js";
 import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
 import { loadLiteSendConfig, resolveLiteSlot } from "../lite/schedule.js";
@@ -16,6 +17,25 @@ import { runLiteSend, withTransientRetry } from "../lite/send.js";
 // npm run send:lite -- --preview [--limit 100] -> read-only: runs every gate over (the first N of) the queue, never sends or writes
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+// Per-dependency wall time (counts and seconds only), printed at the end of every run.
+const timings = new Map<string, { n: number; total: number; max: number }>();
+function timed<A extends unknown[], R>(name: string, fn: (...args: A) => Promise<R>): (...args: A) => Promise<R> {
+  return async (...args: A) => {
+    const start = performance.now();
+    try {
+      return await fn(...args);
+    } finally {
+      const ms = performance.now() - start;
+      const t = timings.get(name) ?? { n: 0, total: 0, max: 0 };
+      t.n++; t.total += ms; t.max = Math.max(t.max, ms);
+      timings.set(name, t);
+    }
+  };
+}
+function timingSummary(): string {
+  return [...timings].map(([name, t]) => `${name} n=${t.n} total=${(t.total / 1000).toFixed(1)}s avg=${(t.total / t.n / 1000).toFixed(2)}s max=${(t.max / 1000).toFixed(1)}s`).join("; ");
+}
 
 async function main(): Promise<void> {
   const preview = process.argv.includes("--preview");
@@ -57,10 +77,13 @@ async function main(): Promise<void> {
       return entries;
     },
     fetchQueue: () => pilotIds ? fetchPilotPreviewRows(airtable, pilotIds) : fetchLiteQueue(airtable),
-    lookupRecords: email => lookupLiteRecords(airtable, email),
-    assertNotReplied: email => withTransientRetry(() => assertRecipientHasNotReplied(email, env), sleep),
+    lookupRecords: timed("airtable_lookup", (email: string) => lookupLiteRecords(airtable, email)),
+    assertNotReplied: timed("reply_check", (email: string) => withTransientRetry(() => assertRecipientHasNotReplied(email, env), sleep)),
     findResearch: segment => research.get(segment.key),
-    checkFreshness: (email, notes) => checkLiteFreshness(notes, email, allowedOrgForms),
+    checkFreshness: (email, notes) => checkLiteFreshness(notes, email, allowedOrgForms, {
+      fetchImpl: timed("brreg", (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => fetch(input, init)),
+      resolveMxImpl: timed("dns_mx", (domain: string) => resolveMx(domain))
+    }),
     send: (email, key) => {
       if (preview) throw new Error("Preview must never send.");
       return sendOneEmail(email, resendKey, key);
@@ -76,6 +99,7 @@ async function main(): Promise<void> {
     log: message => console.log(message)
   }, cfg, { preview, allowedOrgForms, previewLimit, slot });
 
+  console.log(`Timing: ${timingSummary() || "-"}`);
   // Counts only: no addresses or company names in logs.
   console.log(`Gullkornet Lite ${preview ? "preview" : "run"}: scanned=${summary.scanned} sent=${summary.sent} ` +
     `eligible=${summary.eligibleInPreview ?? "-"} refused=${summary.skipped.refused} replied=${summary.skipped.replied} ` +
