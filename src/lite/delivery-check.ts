@@ -35,6 +35,15 @@ const PERSONAL_KEYS = new Set(["to", "cc", "bcc", "reply_to", "from", "html", "t
 
 /** The provider's email object without addresses or content: only status and diagnostic fields, scrubbed. */
 export function providerDetail(detail: Record<string, unknown>, recipient: string): string {
+  // The bounce classification first, so the length cap never cuts it off.
+  const bounce = detail.bounce;
+  if (bounce && typeof bounce === "object") {
+    const b = bounce as Record<string, unknown>;
+    const head = scrub(JSON.stringify({ type: b.type, subType: b.subType, diagnosticCode: b.diagnosticCode }), recipient);
+    const kept: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(detail)) if (!PERSONAL_KEYS.has(key) && key !== "bounce") kept[key] = value;
+    return `bounce=${head} ${scrub(JSON.stringify(kept), recipient)}`;
+  }
   const kept: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(detail)) if (!PERSONAL_KEYS.has(key)) kept[key] = value;
   return scrub(JSON.stringify(kept), recipient);
