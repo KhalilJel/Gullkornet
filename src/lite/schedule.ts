@@ -1,7 +1,8 @@
 import { osloClock, SendDeferredError } from "../integrations/send-schedule.js";
 import type { SendLedgerEntry } from "../integrations/outbound-email.js";
 
-// Lite schedule: every day (Mon-Sun), 08:00 (inclusive) to 20:00 (exclusive) Europe/Oslo.
+// Lite schedule: every day (Mon-Sun), one coordinated run in the 11:00 (inclusive) to 12:00
+// (exclusive) Europe/Oslo slot that spreads the day's sends evenly across the hour.
 // The daily number is a configurable target, not a code ceiling, but it can never exceed the
 // configured Resend daily quota, and a monthly quota (when given) must cover 31 days of it.
 
@@ -17,16 +18,21 @@ export type LiteSendConfig = {
 };
 
 export const LITE_DEFAULTS = Object.freeze({
-  startHour: 8,
-  endHour: 20,
+  startHour: 11,
+  endHour: 12,
   dailyLimit: 95,
-  hourlyLimit: 15,
-  maxPerRun: 5,
-  minSpacingSeconds: 60
+  hourlyLimit: 95,
+  maxPerRun: 95,
+  minSpacingSeconds: 30
 });
 
 // Sanity bounds only, to catch typos such as an extra zero.
-const SANITY = Object.freeze({ maxDaily: 1000, maxHourly: 100, maxPerRun: 20, minSpacingSeconds: 20 });
+const SANITY = Object.freeze({ maxDaily: 1000, maxHourly: 100, maxPerRun: 100, minSpacingSeconds: 20 });
+
+/** A scheduled run may start this long before the slot and wait for it (GitHub cron is late more often than early). */
+export const SLOT_LEAD_MS = 30 * 60 * 1000;
+/** The owner-authorised one-off run sends within this long of its start. */
+export const ONE_OFF_DURATION_MS = 60 * 60 * 1000;
 
 function intFrom(env: NodeJS.ProcessEnv, name: string, fallback?: number): number {
   const raw = env[name]?.trim();
@@ -74,6 +80,39 @@ export function loadLiteSendConfig(env: NodeJS.ProcessEnv = process.env): LiteSe
 export function isWithinLiteWindow(ms: number, cfg: Pick<LiteSendConfig, "startHour" | "endHour">): boolean {
   const clock = osloClock(ms);
   return clock.weekday >= 1 && clock.weekday <= 7 && clock.hour >= cfg.startHour && clock.hour < cfg.endHour;
+}
+
+/** The instants a run may send in. Sends are spread evenly between startMs and endMs. */
+export type LiteSlot = { kind: "daily" | "one_off"; startMs: number; endMs: number };
+
+/**
+ * Today's startHour:00-endHour:00 Oslo as instants. Oslo's offset is a whole number of hours and
+ * changes only at 02:00/03:00, so wall-clock minute arithmetic is exact for a slot from 04:00 on,
+ * in summer (CEST) and winter (CET) time alike.
+ */
+export function dailyLiteSlot(nowMs: number, cfg: Pick<LiteSendConfig, "startHour" | "endHour">): LiteSlot {
+  if (cfg.startHour < 4) throw new Error("A daily Lite slot must start at 04:00 Oslo or later.");
+  const clock = osloClock(nowMs);
+  const intoMinuteMs = nowMs - Math.floor(nowMs / 60_000) * 60_000;
+  const startMs = nowMs - intoMinuteMs - ((clock.hour - cfg.startHour) * 60 + clock.minute) * 60_000;
+  return { kind: "daily", startMs, endMs: startMs + (cfg.endHour - cfg.startHour) * 60 * 60 * 1000 };
+}
+
+/**
+ * The slot this run may send in, or undefined when it is not its time (a no-op, not a failure).
+ * oneOffDate (YYYY-MM-DD, Oslo) is the owner's one-off authorisation: it must be today and gives
+ * [now, now + 60 min). A stale or malformed date refuses, so a re-run on another day cannot reuse it.
+ */
+export function resolveLiteSlot(nowMs: number, cfg: Pick<LiteSendConfig, "startHour" | "endHour">, oneOffDate?: string): LiteSlot | undefined {
+  const date = oneOffDate?.trim();
+  if (date) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("One-off date must be YYYY-MM-DD.");
+    if (date !== osloClock(nowMs).date) throw new Error(`One-off date ${date} is not today in Europe/Oslo. Refusing to send.`);
+    return { kind: "one_off", startMs: nowMs, endMs: nowMs + ONE_OFF_DURATION_MS };
+  }
+  const slot = dailyLiteSlot(nowMs, cfg);
+  if (nowMs < slot.startMs - SLOT_LEAD_MS || nowMs >= slot.endMs) return undefined;
+  return slot;
 }
 
 export type LedgerCounts = { lastHour: number; lastDay: number; newestMs?: number };

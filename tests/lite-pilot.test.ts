@@ -153,7 +153,7 @@ test("preview limit: a large queue is checked oldest-first up to the limit, noth
 
 test("capacity: 100/day passes config only when the monthly quota covers 31 days", async () => {
   const { loadLiteSendConfig, theoreticalDailyCapacity } = await import("../src/lite/schedule.js");
-  const base = { GULLKORNET_LITE_DAILY_LIMIT: "100", GULLKORNET_LITE_HOURLY_LIMIT: "15", GULLKORNET_LITE_MAX_PER_RUN: "5", RESEND_DAILY_QUOTA: "100" };
+  const base = { GULLKORNET_LITE_START_HOUR: "8", GULLKORNET_LITE_END_HOUR: "20", GULLKORNET_LITE_DAILY_LIMIT: "100", GULLKORNET_LITE_HOURLY_LIMIT: "15", GULLKORNET_LITE_MAX_PER_RUN: "5", RESEND_DAILY_QUOTA: "100" };
   assert.throws(() => loadLiteSendConfig({ ...base, RESEND_MONTHLY_QUOTA: "3000" }), /x 31 exceeds RESEND_MONTHLY_QUOTA/);
   const cfg = loadLiteSendConfig({ ...base, RESEND_MONTHLY_QUOTA: "50000" });
   assert.equal(theoreticalDailyCapacity(cfg), 100);

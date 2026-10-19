@@ -6,7 +6,7 @@ import { LITE_MARKER, LITE_READY_STATUS } from "./intake.js";
 import { assessResearch, segmentFromNotes, withResearchRef, type LiteSegment, type SegmentResearch } from "./market-research.js";
 import { assessLiteRecipient } from "./recipient-policy.js";
 import { withSentDate } from "./retention.js";
-import { assertLiteCapacity, countLedger, isWithinLiteWindow, type LiteSendConfig } from "./schedule.js";
+import { assertLiteCapacity, countLedger, isWithinLiteWindow, type LiteSendConfig, type LiteSlot } from "./schedule.js";
 import { assertLiteTemplateCompliant, LITE_FROM, LITE_TEMPLATE } from "./template.js";
 
 export type LiteQueueRecord = { id: string; fields: Record<string, unknown> };
@@ -105,6 +105,8 @@ export type LiteRunSummary = {
   skipped: { refused: number; replied: number; recentlySent: number; noResearch: number; stale: number };
   stoppedBy: "max_per_run" | "queue_empty" | "outside_window" | "limit" | "preview";
   eligibleInPreview?: number;
+  /** Slot runs: how many this run aimed for after subtracting the last 24 h of account sends. */
+  target?: number;
 };
 
 export type LiteRunOptions = {
@@ -112,6 +114,12 @@ export type LiteRunOptions = {
   allowedOrgForms?: readonly string[];
   /** Preview only: stop after this many scanned rows (keeps a large queue inside the job time limit). */
   previewLimit?: number;
+  /**
+   * Live only. The run waits for slot.startMs, sends at most what the daily limit and Resend quota
+   * leave after the last 24 h of account sends, spread evenly until slot.endMs, and stops there.
+   * Without a slot the run uses the hourly startHour-endHour window (tests and dry runs).
+   */
+  slot?: LiteSlot;
 };
 
 /**
@@ -122,7 +130,13 @@ export type LiteRunOptions = {
 export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, options: LiteRunOptions = {}): Promise<LiteRunSummary> {
   assertLiteTemplateCompliant();
   const summary: LiteRunSummary = { sent: 0, scanned: 0, skipped: { refused: 0, replied: 0, recentlySent: 0, noResearch: 0, stale: 0 }, stoppedBy: "queue_empty" };
-  if (!options.preview && !isWithinLiteWindow(deps.now(), cfg)) {
+  const slot = options.preview ? undefined : options.slot;
+  const inWindow = () => slot ? deps.now() >= slot.startMs && deps.now() < slot.endMs : isWithinLiteWindow(deps.now(), cfg);
+  if (slot && deps.now() < slot.startMs && deps.now() < slot.endMs) {
+    deps.log(`Waiting ${Math.round((slot.startMs - deps.now()) / 1000)} s for the slot to open.`);
+    await deps.sleep(slot.startMs - deps.now());
+  }
+  if (!options.preview && !inWindow()) {
     summary.stoppedBy = "outside_window";
     return summary;
   }
@@ -130,10 +144,36 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
   const queue = await deps.fetchQueue();
   let eligible = 0;
 
+  // Slot pacing: the target is what the rolling 24 h daily limit and Resend quota still allow
+  // (account-wide, so sends earlier today count), spread evenly over what is left of the slot.
+  let maxThisRun = cfg.maxPerRun;
+  let paceStartMs = 0;
+  let intervalMs = 0;
+  if (slot) {
+    const counts = countLedger(ledger, deps.now());
+    maxThisRun = Math.max(0, Math.min(cfg.maxPerRun, cfg.dailyLimit - counts.lastDay, cfg.resendDailyQuota - counts.lastDay));
+    summary.target = maxThisRun;
+    paceStartMs = deps.now();
+    intervalMs = maxThisRun > 0 ? Math.max(cfg.minSpacingMs, Math.floor((slot.endMs - paceStartMs) / maxThisRun)) : 0;
+    deps.log(`Slot plan (${slot.kind}): sentLast24h=${counts.lastDay} dailyLimit=${cfg.dailyLimit} resendDailyQuota=${cfg.resendDailyQuota} ` +
+      `target=${maxThisRun} queue=${queue.length} intervalSec=${Math.round(intervalMs / 1000)} ends=${new Date(slot.endMs).toISOString()}`);
+    if (maxThisRun === 0) { summary.stoppedBy = "limit"; return summary; }
+  }
+
   for (const record of queue) {
-    if (!options.preview && summary.sent >= cfg.maxPerRun) { summary.stoppedBy = "max_per_run"; break; }
+    if (!options.preview && summary.sent >= maxThisRun) { summary.stoppedBy = maxThisRun < cfg.maxPerRun ? "limit" : "max_per_run"; break; }
     if (options.preview && options.previewLimit !== undefined && summary.scanned >= options.previewLimit) break;
-    if (!options.preview) {
+    if (slot) {
+      if (!inWindow()) { summary.stoppedBy = "outside_window"; break; }
+      // Spacing is handled by the pace below; daily, hourly and quota limits stop the run here.
+      const counts = countLedger(ledger, deps.now());
+      try {
+        assertLiteCapacity({ ...counts, newestMs: undefined }, cfg, deps.now());
+      } catch (error) {
+        if (!(error instanceof SendDeferredError)) throw error;
+        summary.stoppedBy = "limit"; deps.log("Deferred: " + error.message); break;
+      }
+    } else if (!options.preview) {
       if (!isWithinLiteWindow(deps.now(), cfg)) { summary.stoppedBy = "outside_window"; break; }
       try {
         assertLiteCapacity(countLedger(ledger, deps.now()), cfg, deps.now());
@@ -186,6 +226,21 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
 
     if (options.preview) { eligible++; continue; }
 
+    if (slot) {
+      // Every gate has passed; wait for this send's place in the even spread (gate time is absorbed by the wait).
+      const newest = countLedger(ledger, deps.now()).newestMs;
+      const dueAt = Math.max(paceStartMs + summary.sent * intervalMs, newest === undefined ? 0 : newest + cfg.minSpacingMs);
+      if (dueAt >= slot.endMs) { summary.stoppedBy = "outside_window"; break; }
+      if (dueAt > deps.now()) await deps.sleep(dueAt - deps.now());
+      if (!inWindow()) { summary.stoppedBy = "outside_window"; break; }
+      try {
+        assertLiteCapacity(countLedger(ledger, deps.now()), cfg, deps.now());
+      } catch (error) {
+        if (!(error instanceof SendDeferredError)) throw error;
+        summary.stoppedBy = "limit"; deps.log("Deferred: " + error.message); break;
+      }
+    }
+
     const prepared: PreparedEmail = { from: LITE_FROM, to: email, subject: LITE_TEMPLATE.subject, text: LITE_TEMPLATE.text };
     // Claim the row (Sent) before sending: a row that is not Lite Ready never re-enters the queue,
     // so a later failure can at worst leave one row marked Sent without an email, never send twice.
@@ -212,9 +267,10 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
     }
     ledger.push({ created_at: new Date(deps.now()).toISOString(), to: [email] });
     summary.sent++;
+    if (slot) deps.log(`Sent ${summary.sent}/${maxThisRun} at ${new Date(deps.now()).toISOString()}`);
   }
   if (options.preview) { summary.stoppedBy = "preview"; summary.eligibleInPreview = eligible; }
-  else if (summary.sent >= cfg.maxPerRun) summary.stoppedBy = "max_per_run";
+  else if (summary.sent >= maxThisRun) summary.stoppedBy = maxThisRun < cfg.maxPerRun ? "limit" : "max_per_run";
   return summary;
 }
 

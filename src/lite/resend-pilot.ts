@@ -10,13 +10,14 @@ export const RESEND_PILOT_IDS: readonly string[] = Object.freeze([
 ]);
 
 // After five delivered pilot messages, owner requested automatic operation up to 95/day.
+// On 2026-10-19 the owner moved it to one run a day that spreads up to 95 across 11:00-12:00 Oslo.
 export function assertConfirmedResendSending(cfg: LiteSendConfig, env: NodeJS.ProcessEnv): void {
   if (env.GITHUB_EVENT_NAME === "pull_request" || env.GITHUB_EVENT_NAME === "pull_request_target") {
     throw new Error("Live sending is forbidden in pull-request environments.");
   }
-  if (cfg.dailyLimit > 95 || cfg.maxPerRun > 2 || cfg.hourlyLimit > 15 || cfg.minSpacingMs < 60_000 ||
-      cfg.startHour !== 8 || cfg.endHour !== 20 || LITE_TEMPLATE_VERSION !== "2026-10-15.6") {
-    throw new Error("Confirmed Resend operation permits at most 95/day, 2/run, 15/hour, 60-second spacing, 08-20 Oslo and template 2026-10-15.6.");
+  if (cfg.dailyLimit > 95 || cfg.maxPerRun > 95 || cfg.hourlyLimit > 95 || cfg.minSpacingMs < 30_000 ||
+      cfg.startHour !== 11 || cfg.endHour !== 12 || LITE_TEMPLATE_VERSION !== "2026-10-15.6") {
+    throw new Error("Confirmed Resend operation permits at most 95/day, 95/run, 95/hour, 30-second spacing, 11-12 Oslo and template 2026-10-15.6.");
   }
 }
 
