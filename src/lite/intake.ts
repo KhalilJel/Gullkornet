@@ -130,7 +130,7 @@ export function liteAirtableFields(lead: LiteLead, now: Date): Record<string, un
 
 type AirtableRecord = { id: string; fields: Record<string, unknown> };
 
-export type AirtableConfig = { apiToken: string; baseId: string; tableName: string; fetchImpl?: typeof fetch };
+export type AirtableConfig = { apiToken: string; baseId: string; tableName: string; fetchImpl?: typeof fetch; retryPausesMs?: readonly number[] };
 
 export function airtableConfigFromEnv(env: NodeJS.ProcessEnv = process.env): AirtableConfig {
   const apiToken = env.AIRTABLE_API_TOKEN?.trim();
