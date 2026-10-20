@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       industry:
-        description: "NACE code (SN2025), e.g. 96.210"
+        description: "NACE code(s) (SN2025), e.g. 96.210 or 43.220,56.110 (comma-separated batch)"
         required: true
         type: string
       region:
@@ -18,7 +18,7 @@ on:
         required: true
         default: "oslo-akershus"
         type: choice
-        options: [oslo-akershus, ostfold, buskerud, vestfold]
+        options: [oslo-akershus, ostfold, buskerud, vestfold, all]
       sample:
         description: "Sites to examine (8-40)"
         required: true
@@ -36,7 +36,8 @@ concurrency:
 jobs:
   research:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # One segment takes 1-3 minutes; a batch of industries x all regions needs more.
+    timeout-minutes: 240
     env:
       INPUT_INDUSTRY: ${{ inputs.industry }}
       INPUT_REGION: ${{ inputs.region }}
@@ -58,9 +59,21 @@ jobs:
           GULLKORNET_LITE_RESEARCH_KEY: ${{ secrets.GULLKORNET_LITE_RESEARCH_KEY }}
         run: |
           umask 077
-          case "$INPUT_INDUSTRY" in [0-9][0-9].[0-9]|[0-9][0-9].[0-9][0-9]|[0-9][0-9].[0-9][0-9][0-9]) ;; *) echo "industry must be a NACE code such as 96.210"; exit 1 ;; esac
           case "$INPUT_SAMPLE" in ''|*[!0-9]*) echo "sample must be a number"; exit 1 ;; esac
-          npm run --silent lite:research -- --industry "$INPUT_INDUSTRY" --region "$INPUT_REGION" --sample "$INPUT_SAMPLE" --write
+          IFS=',' read -r -a industries <<< "$INPUT_INDUSTRY"
+          if [ "${#industries[@]}" -gt 20 ]; then echo "At most 20 industries per batch"; exit 1; fi
+          for code in "${industries[@]}"; do
+            case "$code" in [0-9][0-9].[0-9]|[0-9][0-9].[0-9][0-9]|[0-9][0-9].[0-9][0-9][0-9]) ;; *) echo "industry must be a NACE code such as 96.210"; exit 1 ;; esac
+          done
+          if [ "$INPUT_REGION" = "all" ]; then regions=(oslo-akershus ostfold buskerud vestfold); else regions=("$INPUT_REGION"); fi
+          failed=0
+          for code in "${industries[@]}"; do
+            for region in "${regions[@]}"; do
+              # One segment that cannot be researched (no websites, Brreg hiccup) must not lose the rest.
+              npm run --silent lite:research -- --industry "$code" --region "$region" --sample "$INPUT_SAMPLE" --write || failed=$((failed + 1))
+            done
+          done
+          echo "Segments that failed to run: $failed"
 
       - name: Propose the research as a pull request
         env:
@@ -68,7 +81,8 @@ jobs:
         run: |
           umask 077
           if [ -z "$(git status --porcelain research/segments)" ]; then echo "No research file changed."; exit 0; fi
-          branch="research/lite-${INPUT_INDUSTRY}-${INPUT_REGION}-$(date -u +%Y%m%d%H%M)"
+          label="$(echo "$INPUT_INDUSTRY" | tr ',' '_' | cut -c1-60)"
+          branch="research/lite-${label}-${INPUT_REGION}-$(date -u +%Y%m%d%H%M)"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"
