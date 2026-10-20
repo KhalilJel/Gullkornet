@@ -117,7 +117,7 @@ export async function fetchLiteRowsByStatus(cfg: AirtableConfig, status: string,
     offset = result.offset;
     if (!offset) return records;
   }
-  throw new Error("Too many Lite rows to read safely; reply sync stopped.");
+  throw new Error(`Too many Lite rows with status ${status} to read safely (more than ${maxPages * 100}).`);
 }
 
 /** Lite rows (any status) created in Airtable during the last `hours` hours: the intake's gross supply. */
