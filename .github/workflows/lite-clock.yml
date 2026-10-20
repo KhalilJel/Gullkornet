@@ -11,7 +11,7 @@ name: Gullkornet Lite Clock
 # re-arm. Everything it starts has its own lock and checks: Lite Outreach keeps its single
 # concurrency group, the 11:00-12:00 slot, 95 per rolling 24 h, Resend quotas, delivery health,
 # reservations and idempotency, so a duplicate dispatch only continues the slot or no-ops.
-#   06:40 Lite Lead Intake (top up to the qualified buffer)   08:10 Lite Readiness (read-only)
+#   06:40 Lite Lead Intake (top up to 1500 Lite Ready)   08:10 Lite Readiness (read-only)
 #   10:40 Lite Outreach (waits for 11:00)   11:20 reserve Lite Outreach   12:10 Daily Report + Readiness
 on:
   workflow_dispatch:

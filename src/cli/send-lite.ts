@@ -150,7 +150,10 @@ async function main(): Promise<void> {
         }
         if (due.length) console.log(`Released ${due.length} Lite Recheck row(s) for a new check.`);
       }
-      return preparePreviewReplies(await fetchLiteQueue(airtable));
+      // A preview above 300 reads as many queue pages as it needs (up to 3000 rows), so readiness can
+      // check every queued row instead of estimating from a sample. Live runs read the oldest 300.
+      const pages = preview && previewLimit !== undefined && previewLimit > 300 ? Math.min(30, Math.ceil(previewLimit / 100)) : 3;
+      return preparePreviewReplies(await fetchLiteQueue(airtable, pages));
     },
     lookupRecords: timed("airtable_lookup", (email: string) => lookupLiteRecords(airtable, email)),
     assertNotReplied: timed("reply_check", async (email: string) => {
@@ -198,14 +201,16 @@ async function main(): Promise<void> {
     const rate = summary.scanned ? eligible / summary.scanned : 0;
     const expiries = [...research.values()].map(r => Date.parse(r.researchedAt) + LITE_RESEARCH_MAX_AGE_DAYS * 86_400_000).filter(Number.isFinite);
     const firstExpiry = expiries.length ? new Date(Math.min(...expiries)).toISOString().slice(0, 10) : "none";
-    const estimate = Math.floor(ready * rate);
+    // Every queued row checked: the count itself, not an estimate from a sample.
+    const counted = summary.scanned >= ready;
+    const estimate = counted ? eligible : Math.floor(ready * rate);
     // Net supply over the last 24 h: new rows that would qualify at today's rate, minus what the
     // account sent (every send uses one qualified row).
     const added = await countLiteRowsCreatedSince(airtable, 24);
     const sentLastDay = resendKey ? countLedger(await fetchRecentSendLedger(resendKey), Date.now()).lastDay : undefined;
     const netQualified = sentLastDay === undefined ? "-" : String(Math.round(added * rate) - sentLastDay);
     console.log(`Readiness: liteReady=${ready} liteRecheck=${recheck} checked=${summary.scanned} eligible=${eligible} ` +
-      `eligibleRate=${(100 * rate).toFixed(0)}% estimatedEligibleQueue=${estimate} daysAt95=${(estimate / 95).toFixed(1)} ` +
+      `eligibleRate=${(100 * rate).toFixed(0)}% ${counted ? "qualifiedQueueCounted" : "estimatedEligibleQueue"}=${estimate} daysAt95=${(estimate / 95).toFixed(1)} ` +
       `required=${minEligible} firstResearchExpiry=${firstExpiry} addedLast24h=${added} sentLast24h=${sentLastDay ?? "-"} netQualifiedLast24h=${netQualified}`);
     if (eligible < minEligible) {
       console.error(`Readiness failed: ${eligible} eligible of ${summary.scanned} checked, ${minEligible} required (95 + reserve). Refill the Lite Ready queue.`);

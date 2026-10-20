@@ -10,10 +10,10 @@ case "$action" in
   outreach|reserve) wf=lite-outreach.yml
     args=(-f preview=false -f pilot_send=false -f preview_limit=95 -f preview_record_ids= -f one_off_date=) ;;
   report) wf=lite-daily-report.yml; args=(-f date=) ;;
-  readiness) wf=lite-readiness.yml; args=(-f limit=150 -f min_eligible=115) ;;
+  readiness) wf=lite-readiness.yml; args=(-f limit=2000 -f min_eligible=115) ;;
   intake) wf=lite-lead-intake.yml
     args=(-f source=auto -f sync_to_airtable=true -f limit=400 -f pages=20 -f start_page=0 -f website_cap=150
-          -f municipalities= -f industries= -f buffer_target=1400) ;;
+          -f municipalities= -f industries= -f buffer_target=1500) ;;
   *) echo "Unknown action $action"; exit 1 ;;
 esac
 since=$(date -u -d "@$(( $(date -u -d "$at" +%s) - 300 ))" +%FT%TZ)
@@ -23,7 +23,7 @@ existing=$(runs_since "$since")
 if [ -n "$existing" ]; then echo "Planned $action at $at: already started, not dispatched again: $existing"; exit 0; fi
 before=$(date -u +%FT%TZ)
 gh workflow run "$wf" --ref main "${args[@]}"
-if [ "$action" = report ]; then gh workflow run lite-readiness.yml --ref main -f limit=150 -f min_eligible=115; fi
+if [ "$action" = report ]; then gh workflow run lite-readiness.yml --ref main -f limit=2000 -f min_eligible=115; fi
 echo "Planned $action at $at: dispatched $wf at $before"
 for _ in $(seq 1 12); do
   sleep 5
