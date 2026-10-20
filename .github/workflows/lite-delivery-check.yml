@@ -18,6 +18,11 @@ on:
         required: true
         default: false
         type: boolean
+      analyze:
+        description: "Compare bounces with delivered sends per coarse feature (counts only)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -51,9 +56,11 @@ jobs:
         env:
           DAYS: ${{ inputs.days }}
           APPLY: ${{ inputs.apply_suppression }}
+          ANALYZE: ${{ inputs.analyze }}
         run: |
           umask 077
           case "$DAYS" in ''|*[!0-9]*) echo "days must be a number"; exit 1 ;; esac
           args=(--days "$DAYS")
           if [ "$APPLY" = "true" ]; then args+=(--apply-suppression); fi
+          if [ "$ANALYZE" = "true" ]; then args+=(--analyze); fi
           npm run --silent lite:delivery-check -- "${args[@]}"
