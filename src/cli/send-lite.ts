@@ -5,13 +5,13 @@ import { fetchLiteQueue, fetchLiteRowsByStatus, fetchPilotPreviewRows, lookupLit
 import { parsePilotPreviewIds } from "../lite/pilot-preview.js";
 import { assertConfirmedResendSending } from "../lite/resend-pilot.js";
 import { exactAddressBlocked, fetchBounceInfo, fetchResendEmailsSince, markDoNotContact, rowStates } from "../lite/delivery-check.js";
-import { assessDeliveryHealth, type BounceInfo } from "../lite/delivery-health.js";
+import { assessDeliveryHealth, DeliveryStopError, deliveryStopLiftsAt, type BounceInfo } from "../lite/delivery-health.js";
 import { airtableConfigFromEnv, LITE_READY_STATUS, LITE_RECHECK_STATUS } from "../lite/intake.js";
 import { checkLiteFreshness, type FreshnessReason } from "../lite/freshness.js";
 import { dueRechecks, staleUpdate, writeLiteStatus } from "../lite/stale.js";
-import { loadResearchIndex } from "../lite/market-research.js";
+import { LITE_RESEARCH_MAX_AGE_DAYS, loadResearchIndex } from "../lite/market-research.js";
 import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
-import { loadLiteSendConfig, resolveLiteSlot } from "../lite/schedule.js";
+import { loadLiteSendConfig, MAX_SCHEDULED_LEAD_MS, resolveLiteSlot, SLOT_LEAD_MS } from "../lite/schedule.js";
 import { runLiteSend, withTransientRetry } from "../lite/send.js";
 
 // npm run send:lite            -> no-op with switch off; otherwise owner-confirmed operation up to 95/day,
@@ -65,7 +65,9 @@ async function enforceDeliveryHealth(apiKey: string, airtable: ReturnType<typeof
     if (info) bounces.set(e.id, info);
   }
   const verdict = assessDeliveryHealth(history, bounces, now);
-  if (!verdict.ok) throw new Error(`Delivery-health stop: ${verdict.reason} Review provider events before continuing.`);
+  if (!verdict.ok) {
+    throw new DeliveryStopError(`Delivery-health stop: ${verdict.reason} Review provider events before continuing.`, deliveryStopLiftsAt(history, bounces, now));
+  }
   for (const failure of verdict.recipientScoped) {
     const states = rowStates(await lookupLiteRecords(airtable, failure.recipient), failure.recipient);
     for (const row of states.filter(r => r.exactAddress && !r.doNotContact)) {
@@ -89,6 +91,10 @@ async function main(): Promise<void> {
   const previewLimit = limitIndex >= 0 ? Number(process.argv[limitIndex + 1]) : undefined;
   if (previewLimit !== undefined && !(Number.isInteger(previewLimit) && previewLimit > 0)) throw new Error("--limit must be a positive integer.");
   if (pilotIds && previewLimit !== undefined && previewLimit < pilotIds.length) throw new Error("--limit must cover every selected pilot record.");
+  // Readiness: a preview that fails (exit 1) unless at least N of the checked rows are eligible now.
+  const minIndex = process.argv.indexOf("--min-eligible");
+  const minEligible = minIndex >= 0 ? Number(process.argv[minIndex + 1]) : undefined;
+  if (minEligible !== undefined && (!preview || !Number.isInteger(minEligible) || minEligible < 1)) throw new Error("--min-eligible needs --preview and a positive integer.");
   const env = process.env;
   if (!preview && env.GULLKORNET_LITE_ENABLE_LIVE_SEND !== "true") {
     // Checked before any provider or CRM call.
@@ -98,10 +104,15 @@ async function main(): Promise<void> {
   if (preview) console.log("Technical preview only: counts do not establish opt-in, provider permission or legal readiness. Nothing will be sent or written.");
   const cfg = loadLiteSendConfig(preview && !env.RESEND_DAILY_QUOTA ? { ...env, RESEND_DAILY_QUOTA: "1000" } : env);
   if (!preview) assertConfirmedResendSending(cfg, env);
-  const slot = preview ? undefined : resolveLiteSlot(Date.now(), cfg, env.GULLKORNET_LITE_ONE_OFF_DATE);
+  // Scheduled events arrive hours late or not at all, so the workflow lets them start early and wait.
+  const leadMinutes = Number(env.GULLKORNET_LITE_MAX_LEAD_MINUTES?.trim() || SLOT_LEAD_MS / 60_000);
+  if (!Number.isInteger(leadMinutes) || leadMinutes < 0 || leadMinutes * 60_000 > MAX_SCHEDULED_LEAD_MS) {
+    throw new Error(`GULLKORNET_LITE_MAX_LEAD_MINUTES must be 0-${MAX_SCHEDULED_LEAD_MS / 60_000}.`);
+  }
+  const slot = preview ? undefined : resolveLiteSlot(Date.now(), cfg, env.GULLKORNET_LITE_ONE_OFF_DATE, leadMinutes * 60_000);
   if (!preview && !slot) {
     // Checked before any provider or CRM call: other cron triggers of the day end here.
-    console.log(`Gullkornet Lite: not within the ${cfg.startHour}:00-${cfg.endHour}:00 Europe/Oslo slot or its 30-minute lead. Nothing sent.`);
+    console.log(`Gullkornet Lite: not within the ${cfg.startHour}:00-${cfg.endHour}:00 Europe/Oslo slot or its ${leadMinutes}-minute lead. Nothing sent.`);
     return;
   }
   const airtable = airtableConfigFromEnv(env);
@@ -125,10 +136,10 @@ async function main(): Promise<void> {
   const summary = await runLiteSend({
     now: () => Date.now(),
     sleep,
-    fetchLedger: async () => {
+    fetchLedger: timed("delivery_health", async () => {
       if (!preview) return enforceDeliveryHealth(resendKey, airtable, env);
       return resendKey ? fetchRecentSendLedger(resendKey) : [];
-    },
+    }),
     fetchQueue: async () => {
       if (pilotIds) return preparePreviewReplies(await fetchPilotPreviewRows(airtable, pilotIds));
       if (!preview) {
@@ -158,14 +169,14 @@ async function main(): Promise<void> {
       if (preview) throw new Error("Preview must never write.");
       return writeLiteStatus(airtable, recordId, staleUpdate(notes, reason as FreshnessReason, Date.now()), env);
     },
-    send: (email, key) => {
+    send: timed("resend_send", async (email: Parameters<typeof sendOneEmail>[0], key: string) => {
       if (preview) throw new Error("Preview must never send.");
       return sendOneEmail(email, resendKey, key);
-    },
-    markSent: (recordId, researchNotes) => {
+    }),
+    markSent: timed("airtable_claim", async (recordId: string, researchNotes: string) => {
       if (preview) throw new Error("Preview must never write.");
       return markLiteSent(airtable, recordId, researchNotes, env);
-    },
+    }),
     markReady: recordId => {
       if (preview) throw new Error("Preview must never write.");
       return markLiteReady(airtable, recordId, env);
@@ -179,6 +190,23 @@ async function main(): Promise<void> {
     `eligible=${summary.eligibleInPreview ?? "-"} refused=${summary.skipped.refused} replied=${summary.skipped.replied} ` +
     `recentlySent=${summary.skipped.recentlySent} noResearch=${summary.skipped.noResearch} stale=${summary.skipped.stale} documentedSegments=${research.size} ` +
     `target=${summary.target ?? "-"} slot=${slot?.kind ?? "-"} stoppedBy=${summary.stoppedBy}`);
+
+  if (minEligible !== undefined) {
+    const ready = (await fetchLiteRowsByStatus(airtable, LITE_READY_STATUS)).filter(r => r.fields["Do Not Contact"] !== true).length;
+    const recheck = (await fetchLiteRowsByStatus(airtable, LITE_RECHECK_STATUS)).length;
+    const eligible = summary.eligibleInPreview ?? 0;
+    const rate = summary.scanned ? eligible / summary.scanned : 0;
+    const expiries = [...research.values()].map(r => Date.parse(r.researchedAt) + LITE_RESEARCH_MAX_AGE_DAYS * 86_400_000).filter(Number.isFinite);
+    const firstExpiry = expiries.length ? new Date(Math.min(...expiries)).toISOString().slice(0, 10) : "none";
+    const estimate = Math.floor(ready * rate);
+    console.log(`Readiness: liteReady=${ready} liteRecheck=${recheck} checked=${summary.scanned} eligible=${eligible} ` +
+      `eligibleRate=${(100 * rate).toFixed(0)}% estimatedEligibleQueue=${estimate} daysAt95=${(estimate / 95).toFixed(1)} ` +
+      `required=${minEligible} firstResearchExpiry=${firstExpiry}`);
+    if (eligible < minEligible) {
+      console.error(`Readiness failed: ${eligible} eligible of ${summary.scanned} checked, ${minEligible} required (95 + reserve). Refill the Lite Ready queue.`);
+      process.exitCode = 1;
+    }
+  }
 }
 
 main().catch(error => {

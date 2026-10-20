@@ -427,9 +427,10 @@ test("Lite outreach workflow is gated by its own kill switch and has no push/PR 
   assert.doesNotMatch(wf, /^  (push|pull_request):/m);
   assert.match(wf, /send:lite -- --preview/);
   assert.doesNotMatch(wf, /cron: "\*\/10/, "the old 10-minute schedule must not compete with the slot");
-  for (const cron of ["35 8", "50 8", "35 9", "50 9", "5 10"]) assert.match(wf, new RegExp(`cron: "${cron} \\* \\* \\*"`), "every day, summer and winter");
+  for (const cron of ["7 0-10", "37 0-10"]) assert.match(wf, new RegExp(`cron: "${cron} \\* \\* \\*"`), "every day, summer and winter");
+  assert.match(wf, /GULLKORNET_LITE_MAX_LEAD_MINUTES: \$\{\{ github.event_name == 'schedule' && '285' \|\| '30' \}\}/);
   assert.match(wf, /GULLKORNET_LITE_MAX_PER_RUN: "95"/, "not the repository variable that still says 2");
-  assert.match(wf, /timeout-minutes: 105/);
+  assert.match(wf, /timeout-minutes: \$\{\{ github.event_name == 'schedule' && 355 \|\| 105 \}\}/);
   assert.doesNotMatch(wf, /upload-artifact/);
 });
 

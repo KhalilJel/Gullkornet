@@ -1,0 +1,58 @@
+name: Gullkornet Lite Daily Report
+
+# Read-only. After the 11:00-12:00 Europe/Oslo slot: Lite messages accepted by Resend in the slot,
+# their latest delivery event (delivered, bounced ...), and the shortfall against what the rolling
+# 24 h limit allowed. A missed start or a shortfall fails the job, which opens the existing
+# pipeline alert issue. Scheduled events are best-effort; the owner's daily check also dispatches it.
+on:
+  schedule:
+    - cron: "20 10,11,12,14 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Oslo date of the slot (YYYY-MM-DD); empty = today"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gullkornet-lite-daily-report
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      RESEND_DAILY_QUOTA: ${{ vars.RESEND_DAILY_QUOTA }}
+      RESEND_MONTHLY_QUOTA: ${{ vars.RESEND_MONTHLY_QUOTA }}
+      GULLKORNET_LITE_DAILY_LIMIT: ${{ vars.GULLKORNET_LITE_DAILY_LIMIT || '95' }}
+      GULLKORNET_LITE_START_HOUR: "11"
+      GULLKORNET_LITE_END_HOUR: "12"
+      GULLKORNET_LITE_HOURLY_LIMIT: "95"
+      GULLKORNET_LITE_MAX_PER_RUN: "95"
+      GULLKORNET_LITE_MIN_SPACING_SECONDS: "30"
+      AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
+      GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
+      GULLKORNET_AIRTABLE_TABLE: ${{ vars.GULLKORNET_AIRTABLE_TABLE || 'Leads' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Daily report
+        env:
+          REPORT_DATE: ${{ inputs.date }}
+        run: |
+          umask 077
+          args=()
+          if [ -n "$REPORT_DATE" ]; then
+            case "$REPORT_DATE" in [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;; *) echo "date must be YYYY-MM-DD"; exit 1 ;; esac
+            args=(--date "$REPORT_DATE")
+          fi
+          npm run --silent lite:daily-report -- "${args[@]}"
