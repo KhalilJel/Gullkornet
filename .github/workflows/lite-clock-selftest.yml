@@ -1,0 +1,33 @@
+name: Gullkornet Lite Clock Self-test
+
+# Manual only. Runs the clock's real dispatch script (scripts/lite-clock-fire.sh) against the
+# read-only Lite Readiness workflow: the first call must dispatch and confirm the created run, the
+# second call for the same event must find that run and not dispatch again. Proves that
+# GITHUB_TOKEN may start workflows and that one event is never started twice. Sends no email.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: gullkornet-lite-clock-selftest
+  cancel-in-progress: false
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dispatch, then refuse a duplicate
+        run: |
+          at=$(date -u +%FT%TZ)
+          first=$(scripts/lite-clock-fire.sh readiness "$at"); echo "$first"
+          echo "$first" | grep -q "Confirmed: GitHub created the run" || { echo "FAIL: no confirmed run"; exit 1; }
+          second=$(scripts/lite-clock-fire.sh readiness "$at"); echo "$second"
+          echo "$second" | grep -q "already started, not dispatched again" || { echo "FAIL: duplicate dispatched"; exit 1; }
+          echo "Self-test passed."
