@@ -6,7 +6,7 @@ import { loadLiteSendConfig } from "../src/lite/schedule.js";
 import { LITE_TEMPLATE } from "../src/lite/template.js";
 
 const cfg = loadLiteSendConfig({ RESEND_DAILY_QUOTA: "100", RESEND_MONTHLY_QUOTA: "3000" });
-const mail = (iso: string, last_event = "delivered", subject = LITE_TEMPLATE.subject) => ({ created_at: iso, last_event, subject, to: ["x@y.example"] });
+const mail = (iso: string, last_event = "delivered", subject: string = LITE_TEMPLATE.subject) => ({ created_at: iso, last_event, subject, to: ["x@y.example"] });
 const at = (start: string, n: number, stepMs: number, ev = "delivered") =>
   Array.from({ length: n }, (_, i) => mail(new Date(Date.parse(start) + i * stepMs).toISOString(), ev));
 
