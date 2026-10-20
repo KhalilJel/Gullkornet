@@ -89,6 +89,9 @@ jobs:
           git add research/segments
           git commit -m "research(lite): ${INPUT_INDUSTRY} @ ${INPUT_REGION}"
           git push origin "$branch"
+          # The repository does not let GitHub Actions open pull requests; the pushed branch is the
+          # result, and a maintainer (or the operator) opens the pull request from it.
           gh pr create --base main --head "$branch" \
             --title "Lite market research: ${INPUT_INDUSTRY} @ ${INPUT_REGION}" \
-            --body "Automated front-page review for the Lite template claim. Review the observations, then merge to enable this segment for 90 days."
+            --body "Automated front-page review for the Lite template claim. Review the observations, then merge to enable this segment for 90 days." \
+            || echo "Research pushed to branch $branch; open a pull request from it to main."
