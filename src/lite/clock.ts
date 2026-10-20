@@ -48,3 +48,33 @@ export function planClockHop(nowMs: number): { sleepMs: number; fire?: ClockActi
   if (wait > MAX_HOP_MS) return { sleepMs: MAX_HOP_MS, atMs: next.atMs };
   return { sleepMs: wait, fire: next.action, atMs: next.atMs };
 }
+
+/**
+ * How long after its time an event is still worth starting when the clock was late (a re-armed run
+ * queued behind GitHub, a cancelled or crashed hop). Outreach is useful until shortly before 12:00;
+ * the reserve only until the main run would have been checked; reports and intake for hours.
+ */
+export const CLOCK_GRACE_MS: Readonly<Record<ClockAction, number>> = Object.freeze({
+  intake: 3 * 3_600_000,
+  readiness: 2 * 3_600_000,
+  outreach: 75 * 60_000,
+  reserve: 30 * 60_000,
+  report: 3 * 3_600_000
+});
+
+/**
+ * The latest event whose time has passed but is still inside its grace period. The workflow starts
+ * it only after checking on GitHub that no run of its workflow was created since the event's time,
+ * so a run that follows an on-time dispatch does not start the same event twice.
+ */
+export function missedClockEvent(nowMs: number, timetable = LITE_TIMETABLE): { action: ClockAction; atMs: number } | undefined {
+  let latest: { action: ClockAction; atMs: number } | undefined;
+  for (const dayOffset of [-1, 0]) {
+    const date = osloClock(nowMs + dayOffset * 86_400_000).date;
+    for (const event of timetable) {
+      const atMs = osloInstant(date, event.at);
+      if (atMs <= nowMs && (!latest || atMs > latest.atMs)) latest = { action: event.action, atMs };
+    }
+  }
+  return latest && nowMs - latest.atMs <= CLOCK_GRACE_MS[latest.action] ? latest : undefined;
+}

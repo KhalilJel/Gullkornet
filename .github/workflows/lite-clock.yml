@@ -4,7 +4,7 @@ name: Gullkornet Lite Clock
 # GitHub's own schedule delivers this repository's events hours late or not at all (measured
 # 14-20 Oct 2026), so this workflow keeps time itself: each run sleeps until the next event of the
 # Europe/Oslo timetable (src/lite/clock.ts; summer and winter time), dispatches it, and then
-# dispatches itself again. A run never sleeps longer than 5.5 h (GitHub's job limit is 6 h); it
+# dispatches itself again (also after a failure or cancellation; disable the workflow to stop it). A run never sleeps longer than 5.5 h (GitHub's job limit is 6 h); it
 # then only re-arms. GITHUB_TOKEN may dispatch workflow_dispatch events, so the chain needs no
 # personal token. The cron entries below are a backstop that restarts the chain if it ever breaks.
 # Only one clock runs at a time (concurrency group); a pending duplicate is replaced by the next
@@ -39,37 +39,30 @@ jobs:
       - name: Plan the next event (Europe/Oslo)
         id: plan
         run: |
-          read -r secs action at <<< "$(npm run --silent lite:clock)"
+          read -r secs action at missed missed_at <<< "$(npm run --silent lite:clock)"
           case "$secs" in ''|*[!0-9]*) echo "Invalid plan"; exit 1 ;; esac
-          echo "Next event: $action at $at (sleeping ${secs}s)"
-          echo "secs=$secs" >> "$GITHUB_OUTPUT"
-          echo "action=$action" >> "$GITHUB_OUTPUT"
+          echo "Planned next event: $action at $at (sleeping ${secs}s). Missed event in grace: $missed $missed_at"
+          {
+            echo "secs=$secs"; echo "action=$action"; echo "at=$at"; echo "missed=$missed"; echo "missed_at=$missed_at"
+          } >> "$GITHUB_OUTPUT"
+      # A late or interrupted clock (queued re-arm, cancelled hop) starts an event it missed, unless
+      # its workflow already has a run created since the event's time.
+      - name: Catch up a missed event
+        if: steps.plan.outputs.missed != 'none'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/lite-clock-fire.sh "${{ steps.plan.outputs.missed }}" "${{ steps.plan.outputs.missed_at }}"
       - name: Sleep until the event
         run: sleep "${{ steps.plan.outputs.secs }}"
       - name: Fire the event
         if: steps.plan.outputs.action != 'none'
         env:
           GH_TOKEN: ${{ github.token }}
-          ACTION: ${{ steps.plan.outputs.action }}
-        run: |
-          case "$ACTION" in
-            outreach|reserve)
-              gh workflow run lite-outreach.yml --ref main -f preview=false -f pilot_send=false \
-                -f preview_limit=95 -f preview_record_ids= -f one_off_date= ;;
-            report)
-              gh workflow run lite-daily-report.yml --ref main -f date=
-              gh workflow run lite-readiness.yml --ref main -f limit=150 -f min_eligible=115 ;;
-            readiness)
-              gh workflow run lite-readiness.yml --ref main -f limit=150 -f min_eligible=115 ;;
-            intake)
-              gh workflow run lite-lead-intake.yml --ref main -f source=auto -f sync_to_airtable=true \
-                -f limit=400 -f pages=20 -f start_page=0 -f website_cap=150 -f municipalities= -f industries= \
-                -f buffer_target=1400 ;;
-            *) echo "Unknown action $ACTION"; exit 1 ;;
-          esac
-          echo "Dispatched $ACTION at $(date -u +%FT%TZ)"
+        run: scripts/lite-clock-fire.sh "${{ steps.plan.outputs.action }}" "${{ steps.plan.outputs.at }}"
+      # Runs after success, failure and cancellation alike, so an interrupted hop restarts the chain.
+      # To stop the clock, disable this workflow (Actions > Gullkornet Lite Clock > Disable).
       - name: Re-arm the clock
-        if: success() || failure()
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run lite-clock.yml --ref main
