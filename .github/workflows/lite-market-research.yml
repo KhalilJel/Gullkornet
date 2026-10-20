@@ -18,7 +18,7 @@ on:
         required: true
         default: "oslo-akershus"
         type: choice
-        options: [oslo-akershus, ostfold, buskerud, vestfold, all]
+        options: [oslo-akershus, ostfold, buskerud, vestfold, akershus, innlandet, telemark, agder, rogaland, vestland, more-romsdal, trondelag, nordland, troms, finnmark, all]
       sample:
         description: "Sites to examine (8-40)"
         required: true
@@ -65,7 +65,7 @@ jobs:
           for code in "${industries[@]}"; do
             case "$code" in [0-9][0-9].[0-9]|[0-9][0-9].[0-9][0-9]|[0-9][0-9].[0-9][0-9][0-9]) ;; *) echo "industry must be a NACE code such as 96.210"; exit 1 ;; esac
           done
-          if [ "$INPUT_REGION" = "all" ]; then regions=(oslo-akershus ostfold buskerud vestfold); else regions=("$INPUT_REGION"); fi
+          if [ "$INPUT_REGION" = "all" ]; then regions=(oslo-akershus ostfold buskerud vestfold akershus innlandet telemark agder rogaland vestland more-romsdal trondelag nordland troms finnmark); else regions=("$INPUT_REGION"); fi
           failed=0
           for code in "${industries[@]}"; do
             for region in "${regions[@]}"; do

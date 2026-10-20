@@ -480,7 +480,8 @@ test("Brreg discovery can start further into the register and respects the 10 00
 
 test("segment is NACE x region, read from the intake marker", () => {
   assert.deepEqual(segmentFromNotes("[GK-LITE] source=brreg nace=96.021 kommune=3201 template=x"), { key: "96.021@oslo-akershus", industryCode: "96.021", region: "oslo-akershus" });
-  assert.equal(segmentFromNotes("[GK-LITE] source=brreg nace=96.021 kommune=5001"), undefined, "region without research coverage");
+  assert.deepEqual(segmentFromNotes("[GK-LITE] source=brreg nace=96.021 kommune=5001"), { key: "96.021@trondelag", industryCode: "96.021", region: "trondelag" }, "county region (still needs its own research to send)");
+  assert.equal(segmentFromNotes("[GK-LITE] source=brreg nace=96.021 kommune=1201"), undefined, "obsolete pre-2020 code");
   assert.equal(segmentFromNotes("[GK-LITE] source=brreg orgnr=1"), undefined);
 });
 
