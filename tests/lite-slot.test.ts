@@ -220,3 +220,26 @@ test("14 simulated days with varying start (0-25 min late) and send pace: no per
   const ordinary = perDay.filter((_, i) => i !== 4);
   assert.ok(ordinary.filter(n => n === 95).length >= ordinary.length - 1, `at most one day one short: ${perDay.join(",")}`);
 });
+
+test("30 simulated days with gate times as measured in production: 95 on every day that starts on time", async () => {
+  // Measured 20 Oct 2026 (readiness run 39476610873): Brreg max 0.6 s, DNS max 0.9 s, Airtable 0.2 s.
+  // Modelled generously as 0.5-7.5 s per record, 3 % of records 20 s; start 0-4 min late; two days 25 min late.
+  let seed = 20261021;
+  const rand = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  const run = dryRunDeps(Date.parse("2026-11-01T08:30:00Z"), records(3200));
+  run.deps.fetchLedger = async () => [...run.ledger];
+  run.deps.checkFreshness = async () => { run.advance(500 + Math.floor(rand() * (rand() < 0.03 ? 20_000 : 7_000))); return undefined; };
+  const perDay: number[] = [];
+  for (let d = 0; d < 30; d++) {
+    const day = new Date(Date.parse("2026-11-02T00:00:00Z") + d * 86_400_000).toISOString().slice(0, 10);
+    const late = d === 4 || d === 17 ? 25 * 60_000 : Math.floor(rand() * 4 * 60_000);
+    run.advance(Date.parse(`${day}T10:00:00Z`) + late - run.deps.now());
+    const before = run.ledger.length;
+    await runLiteSend(run.deps, cfg, { slot: resolveLiteSlot(run.deps.now(), cfg)! });
+    perDay.push(run.ledger.length - before);
+  }
+  assertRollingLimits(run.ledger);
+  // A 25-minute late start leaves 35 minutes at >= 30 s spacing; every other day sends exactly 95.
+  perDay.forEach((n, i) => assert.equal(n, i === 4 || i === 17 ? n : 95, `day ${i + 1}: ${perDay.join(",")}`));
+  assert.ok(perDay[4]! >= 60 && perDay[17]! >= 60);
+});
