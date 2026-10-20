@@ -4,7 +4,7 @@ import { researchContactAndDraft } from "../integrations/contact-research.js";
 import type { GoogleCandidate } from "../integrations/website-audit.js";
 import { discoverBrregLiteCandidates, lookupBrregByWebsite } from "../lite/brreg-lite.js";
 import { airtableConfigFromEnv, createLiteRecords, emptyIndex, fetchExistingIndex, selectLiteLeads, type LiteSourceCandidate } from "../lite/intake.js";
-import { documentedSegments, LITE_REGIONS, liteSegment, loadResearchIndex, regionOfMunicipality } from "../lite/market-research.js";
+import { documentedSegments, LITE_REGIONS, liteSegment, loadResearchIndex, regionMunicipalities, regionOfMunicipality } from "../lite/market-research.js";
 import { brregToLiteCandidate, placesToLiteCandidate, websiteSupplementPool } from "../lite/places-supplement.js";
 import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
 
@@ -50,17 +50,27 @@ async function main(): Promise<void> {
   }
 
   if (source === "brreg" || source === "website" || source === "auto") {
-    const documentedList = [...documented].map(key => key.split("@"));
-    const industries = list(arg("industries")).length ? list(arg("industries")) : [...new Set(documentedList.map(([nace]) => nace!))];
-    const municipalities = list(arg("municipalities")).length ? list(arg("municipalities"))
-      : [...new Set(documentedList.flatMap(([, region]) => [...(LITE_REGIONS[region!]?.municipalities ?? [])]))];
-    const units = await discoverBrregLiteCandidates({
-      municipalities,
-      industryCodes: industries,
-      orgForms: allowedOrgForms,
-      pagesPerQuery: Number(arg("pages") ?? "3") || 3,
-      startPage: Number(arg("start-page") ?? "0") || 0
-    });
+    const documentedList = [...documented].map(key => key.split("@") as [string, string]);
+    const onlyIndustries = list(arg("industries"));
+    const query = { orgForms: allowedOrgForms, pagesPerQuery: Number(arg("pages") ?? "3") || 3, startPage: Number(arg("start-page") ?? "0") || 0 };
+    let units: Awaited<ReturnType<typeof discoverBrregLiteCandidates>>;
+    if (list(arg("municipalities")).length) {
+      units = await discoverBrregLiteCandidates({
+        ...query, municipalities: list(arg("municipalities")),
+        industryCodes: onlyIndustries.length ? onlyIndustries : [...new Set(documentedList.map(([nace]) => nace))]
+      });
+    } else {
+      // One query set per documented region, for that region's documented industries only: a code
+      // researched in Vestfold is not fetched for the whole of Vestland.
+      const byOrg = new Map<string, (typeof units)[number]>();
+      for (const region of [...new Set(documentedList.map(([, r]) => r))]) {
+        const industries = documentedList.filter(([nace, r]) => r === region && (!onlyIndustries.length || onlyIndustries.includes(nace))).map(([nace]) => nace);
+        if (!LITE_REGIONS[region] || industries.length === 0) continue;
+        const found = await discoverBrregLiteCandidates({ ...query, municipalities: await regionMunicipalities(region), industryCodes: industries });
+        for (const unit of found) byOrg.set(unit.organizationNumber, unit);
+      }
+      units = [...byOrg.values()];
+    }
     console.log(`Brreg units fetched: ${units.length}; with registered email: ${units.filter(u => u.email).length}`);
     if (source !== "website") candidates = units.map(brregToLiteCandidate);
     if (source !== "brreg") {

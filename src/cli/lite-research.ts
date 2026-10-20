@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { auditCandidates } from "../integrations/website-audit.js";
-import { discoverBrregLiteCandidates } from "../lite/brreg-lite.js";
-import { assessResearch, buildSegmentResearch, LITE_REGIONS, LITE_RESEARCH_MIN_EXAMINED, liteSegment, loadResearchIndex, saveResearch, spreadSample } from "../lite/market-research.js";
+import { brregIndustryTotal, discoverBrregLiteCandidates } from "../lite/brreg-lite.js";
+import { assessResearch, buildSegmentResearch, LITE_REGIONS, regionMunicipalities, LITE_RESEARCH_MIN_EXAMINED, liteSegment, loadResearchIndex, saveResearch, spreadSample } from "../lite/market-research.js";
 
 // npm run lite:research -- --industry 96.021 [--region oslo-akershus] [--sample 15] [--write]
 // Fetches the front page of a spread sample of registered websites in the segment and stores
@@ -29,8 +29,13 @@ async function main(): Promise<void> {
   }
   const sampleSize = Math.max(LITE_RESEARCH_MIN_EXAMINED, Math.min(Number(arg("sample") ?? "15") || 15, 40));
 
+  // SN2025 check first: an unknown code would otherwise look like a segment without websites.
+  const registered = await brregIndustryTotal(segment.industryCode);
+  if (registered === 0) throw new Error(`NACE ${segment.industryCode} has no active units in Brreg; check the SN2025 code.`);
+  const municipalities = await regionMunicipalities(region);
+  console.log(`Segment ${segment.key}: ${registered} active units nationwide; ${municipalities.length} municipalities in ${LITE_REGIONS[region]!.name}.`);
   const units = (await discoverBrregLiteCandidates({
-    municipalities: LITE_REGIONS[region]!.municipalities,
+    municipalities,
     industryCodes: [segment.industryCode],
     orgForms: ["AS", "ASA"],
     pagesPerQuery: 3

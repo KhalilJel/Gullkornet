@@ -18,19 +18,59 @@ export const LITE_RESEARCH_MIN_EXAMINED = 8;
 /** An opportunity is only claimed when at least this share of examined sites shows it. */
 export const LITE_RESEARCH_MIN_SHARE = 0.3;
 
-export const LITE_REGIONS: Readonly<Record<string, { name: string; municipalities: readonly string[] }>> = Object.freeze({
+export type LiteRegion = {
+  name: string;
+  /** A verified list of municipality codes, or */
+  municipalities?: readonly string[];
+  /** the county's two-digit prefix of the 2024 municipality numbers; the list is read from Brreg at run time. */
+  countyPrefix?: string;
+};
+
+export const LITE_REGIONS: Readonly<Record<string, LiteRegion>> = Object.freeze({
+  // Listed regions first: a municipality in "oslo-akershus" never falls through to "akershus".
   "oslo-akershus": { name: "Oslo og omegn", municipalities: LITE_DEFAULT_MUNICIPALITIES },
   // Enhetsregisteret /api/kommuner?size=1000, verified 2026-10-15.
   ostfold: { name: "Østfold", municipalities: ["3101", "3103", "3105", "3107", "3110", "3112", "3114", "3116", "3118", "3120", "3122", "3124"] },
   buskerud: { name: "Buskerud", municipalities: ["3301", "3303", "3305", "3310", "3312", "3314", "3316", "3318", "3320", "3322", "3324", "3326", "3328", "3330", "3332", "3334", "3336", "3338"] },
-  vestfold: { name: "Vestfold", municipalities: ["3901", "3903", "3905", "3907", "3909", "3911"] }
+  vestfold: { name: "Vestfold", municipalities: ["3901", "3903", "3905", "3907", "3909", "3911"] },
+  // The 2024 county structure; each run resolves and checks the municipalities from Brreg.
+  akershus: { name: "Akershus", countyPrefix: "32" },
+  innlandet: { name: "Innlandet", countyPrefix: "34" },
+  telemark: { name: "Telemark", countyPrefix: "40" },
+  agder: { name: "Agder", countyPrefix: "42" },
+  rogaland: { name: "Rogaland", countyPrefix: "11" },
+  vestland: { name: "Vestland", countyPrefix: "46" },
+  "more-romsdal": { name: "Møre og Romsdal", countyPrefix: "15" },
+  trondelag: { name: "Trøndelag", countyPrefix: "50" },
+  nordland: { name: "Nordland", countyPrefix: "18" },
+  troms: { name: "Troms", countyPrefix: "55" },
+  finnmark: { name: "Finnmark", countyPrefix: "56" }
 });
 
 export type LiteSegment = { key: string; industryCode: string; region: string };
 
 export function regionOfMunicipality(municipalityCode?: string): string | undefined {
   if (!municipalityCode) return undefined;
-  return Object.entries(LITE_REGIONS).find(([, region]) => region.municipalities.includes(municipalityCode))?.[0];
+  if (!/^\d{4}$/.test(municipalityCode)) return undefined;
+  const entries = Object.entries(LITE_REGIONS);
+  return entries.find(([, region]) => region.municipalities?.includes(municipalityCode))?.[0]
+    ?? entries.find(([, region]) => region.countyPrefix !== undefined && municipalityCode.startsWith(region.countyPrefix))?.[0];
+}
+
+const KOMMUNER_API = "https://data.brreg.no/enhetsregisteret/api/kommuner?size=1000";
+
+/** The region's municipality codes: its verified list, or the county's current municipalities from Brreg (fails closed). */
+export async function regionMunicipalities(region: string, fetchImpl: typeof fetch = fetch): Promise<string[]> {
+  const def = LITE_REGIONS[region];
+  if (!def) throw new Error(`Unknown region ${region}.`);
+  if (def.municipalities) return [...def.municipalities];
+  const response = await fetchImpl(KOMMUNER_API, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error(`BRREG_KOMMUNER_FAILED status=${response.status}`);
+  const payload = await response.json().catch(() => null) as { _embedded?: { kommuner?: { nummer?: unknown }[] } } | null;
+  const codes = (payload?._embedded?.kommuner ?? []).map(k => String(k.nummer ?? ""))
+    .filter(code => /^\d{4}$/.test(code) && code.startsWith(def.countyPrefix!) && regionOfMunicipality(code) === region);
+  if (codes.length === 0) throw new Error(`Brreg lists no municipalities for ${region}.`);
+  return [...new Set(codes)].sort();
 }
 
 export function liteSegment(industryCode?: string, region?: string): LiteSegment | undefined {

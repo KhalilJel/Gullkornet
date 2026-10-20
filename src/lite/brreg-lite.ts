@@ -90,6 +90,22 @@ async function fetchPage(url: URL, fetchImpl: typeof fetch): Promise<BrregPage> 
   return await response.json() as BrregPage;
 }
 
+/**
+ * How many active units Brreg registers under a NACE code nationwide. Brreg classifies by SN2025
+ * since 2025, so a code from SN2007 (or a typo) returns 0: research and intake skip it instead of
+ * documenting an empty segment.
+ */
+export async function brregIndustryTotal(industryCode: string, fetchImpl: typeof fetch = fetch): Promise<number> {
+  const url = new URL(API);
+  url.searchParams.set("naeringskode", industryCode);
+  url.searchParams.set("konkurs", "false");
+  url.searchParams.set("size", "1");
+  const payload = await fetchPage(url, fetchImpl) as BrregPage & { page?: { totalElements?: number } };
+  const total = payload.page?.totalElements;
+  if (typeof total !== "number" || !Number.isInteger(total) || total < 0) throw new Error("BRREG_INVALID_TOTAL");
+  return total;
+}
+
 export async function discoverBrregLiteCandidates(options: BrregLiteOptions = {}): Promise<BrregLiteCandidate[]> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const municipalities = options.municipalities?.length ? options.municipalities : LITE_DEFAULT_MUNICIPALITIES;
