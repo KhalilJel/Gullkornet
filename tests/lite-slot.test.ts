@@ -193,3 +193,30 @@ test("scheduled runs may arrive up to 285 minutes early and wait; later or earli
   assert.equal(resolveLiteSlot(Date.parse("2026-10-26T11:00:00Z"), cfg, undefined, lead), undefined, "12:00 Oslo CET is too late");
   assert.equal(resolveLiteSlot(Date.parse("2026-10-21T04:16:00Z"), cfg), undefined, "manual runs keep the 30-minute lead");
 });
+
+test("14 simulated days with varying start (0-25 min late) and send pace: no persistent shortfall, never above 95 per 24 h", async () => {
+  // Deterministic pseudo-random sequence (seeded), so the test is repeatable.
+  let seed = 20261021;
+  const rand = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  const run = dryRunDeps(Date.parse("2026-10-21T08:30:00Z"), records(1500));
+  run.deps.fetchLedger = async () => [...run.ledger];
+  // Gate and reply time per prospective send varies between 1 and 30 s, now and then 55 s.
+  run.deps.checkFreshness = async () => { run.advance(1_000 + Math.floor(rand() * (rand() < 0.05 ? 55_000 : 29_000))); return undefined; };
+  const perDay: number[] = [];
+  for (let d = 0; d < 14; d++) {
+    const day = new Date(Date.parse("2026-11-02T00:00:00Z") + d * 86_400_000).toISOString().slice(0, 10); // CET: slot 10-11 UTC
+    const lateMs = d === 4 ? 25 * 60_000 : Math.floor(rand() * 4 * 60_000); // day 5: reserve start at 11:25
+    run.advance(Date.parse(`${day}T10:00:00Z`) + lateMs - run.deps.now());
+    const slot = resolveLiteSlot(run.deps.now(), cfg)!;
+    const before = run.ledger.length;
+    await runLiteSend(run.deps, cfg, { slot });
+    perDay.push(run.ledger.length - before);
+  }
+  assertRollingLimits(run.ledger);
+  // Day 5 starts 25 minutes late (35 minutes at >= 30 s spacing allow fewer), every other day reaches 95.
+  perDay.forEach((n, i) => { if (i !== 4) assert.ok(n >= 94, `day ${i + 1}: ${n} (${perDay.join(",")})`); });
+  assert.ok(perDay[4]! >= 60, `late day: ${perDay[4]}`);
+  assert.equal(perDay[5], 95, "the day after a late start recovers fully");
+  const ordinary = perDay.filter((_, i) => i !== 4);
+  assert.ok(ordinary.filter(n => n === 95).length >= ordinary.length - 1, `at most one day one short: ${perDay.join(",")}`);
+});

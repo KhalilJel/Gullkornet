@@ -51,6 +51,11 @@ on:
         required: true
         default: "150"
         type: string
+      buffer_target:
+        description: "auto source: top Lite Ready up to this many rows (empty = repository setting)"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -79,6 +84,7 @@ jobs:
       INPUT_SYNC: ${{ inputs.sync_to_airtable }}
       INPUT_SOURCE: ${{ inputs.source || 'auto' }}
       BUFFER_TARGET: ${{ vars.GULLKORNET_LITE_BUFFER_TARGET || '700' }}
+      INPUT_BUFFER_TARGET: ${{ inputs.buffer_target }}
       INPUT_WEBSITE_CAP: ${{ inputs.website_cap || '150' }}
     steps:
       - name: Check out repository
@@ -102,6 +108,8 @@ jobs:
           case "$INPUT_PAGES" in ''|*[!0-9]*) echo "pages must be a number"; exit 1 ;; esac
           case "$INPUT_LIMIT" in ''|*[!0-9]*) echo "limit must be a number"; exit 1 ;; esac
           case "$INPUT_WEBSITE_CAP" in ''|*[!0-9]*) echo "website_cap must be a number"; exit 1 ;; esac
+          if [ -n "$INPUT_BUFFER_TARGET" ]; then BUFFER_TARGET="$INPUT_BUFFER_TARGET"; fi
+          case "$BUFFER_TARGET" in ''|*[!0-9]*) echo "buffer_target must be a number"; exit 1 ;; esac
           if (( INPUT_WEBSITE_CAP < 1 || INPUT_WEBSITE_CAP > 1000 )); then echo "website_cap must be 1-1000"; exit 1; fi
           start="$INPUT_START_PAGE"
           # Scheduled runs read every documented segment from page 0 (de-duplication skips what is

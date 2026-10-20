@@ -31,7 +31,8 @@
     "lite:audit": "tsx src/cli/lite-audit.ts",
     "lite:retention": "tsx src/cli/lite-retention.ts",
     "lite:delivery-check": "tsx src/cli/lite-delivery-check.ts",
-    "lite:daily-report": "tsx src/cli/lite-daily-report.ts"
+    "lite:daily-report": "tsx src/cli/lite-daily-report.ts",
+    "lite:clock": "tsx src/cli/lite-clock.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

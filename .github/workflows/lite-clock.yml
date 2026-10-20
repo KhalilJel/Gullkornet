@@ -1,0 +1,75 @@
+name: Gullkornet Lite Clock
+
+# The durable daily timer for Gullkornet Lite, independent of any Claude session or outside service.
+# GitHub's own schedule delivers this repository's events hours late or not at all (measured
+# 14-20 Oct 2026), so this workflow keeps time itself: each run sleeps until the next event of the
+# Europe/Oslo timetable (src/lite/clock.ts; summer and winter time), dispatches it, and then
+# dispatches itself again. A run never sleeps longer than 5.5 h (GitHub's job limit is 6 h); it
+# then only re-arms. GITHUB_TOKEN may dispatch workflow_dispatch events, so the chain needs no
+# personal token. The cron entries below are a backstop that restarts the chain if it ever breaks.
+# Only one clock runs at a time (concurrency group); a pending duplicate is replaced by the next
+# re-arm. Everything it starts has its own lock and checks: Lite Outreach keeps its single
+# concurrency group, the 11:00-12:00 slot, 95 per rolling 24 h, Resend quotas, delivery health,
+# reservations and idempotency, so a duplicate dispatch only continues the slot or no-ops.
+#   06:40 Lite Lead Intake (top up to the qualified buffer)   08:10 Lite Readiness (read-only)
+#   10:40 Lite Outreach (waits for 11:00)   11:20 reserve Lite Outreach   12:10 Daily Report + Readiness
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "3 */2 * * *"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: gullkornet-lite-clock
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Plan the next event (Europe/Oslo)
+        id: plan
+        run: |
+          read -r secs action at <<< "$(npm run --silent lite:clock)"
+          case "$secs" in ''|*[!0-9]*) echo "Invalid plan"; exit 1 ;; esac
+          echo "Next event: $action at $at (sleeping ${secs}s)"
+          echo "secs=$secs" >> "$GITHUB_OUTPUT"
+          echo "action=$action" >> "$GITHUB_OUTPUT"
+      - name: Sleep until the event
+        run: sleep "${{ steps.plan.outputs.secs }}"
+      - name: Fire the event
+        if: steps.plan.outputs.action != 'none'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTION: ${{ steps.plan.outputs.action }}
+        run: |
+          case "$ACTION" in
+            outreach|reserve)
+              gh workflow run lite-outreach.yml --ref main -f preview=false -f pilot_send=false \
+                -f preview_limit=95 -f preview_record_ids= -f one_off_date= ;;
+            report)
+              gh workflow run lite-daily-report.yml --ref main -f date=
+              gh workflow run lite-readiness.yml --ref main -f limit=150 -f min_eligible=115 ;;
+            readiness)
+              gh workflow run lite-readiness.yml --ref main -f limit=150 -f min_eligible=115 ;;
+            intake)
+              gh workflow run lite-lead-intake.yml --ref main -f source=auto -f sync_to_airtable=true \
+                -f limit=400 -f pages=20 -f start_page=0 -f website_cap=150 -f municipalities= -f industries= \
+                -f buffer_target=1400 ;;
+            *) echo "Unknown action $ACTION"; exit 1 ;;
+          esac
+          echo "Dispatched $ACTION at $(date -u +%FT%TZ)"
+      - name: Re-arm the clock
+        if: success() || failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run lite-clock.yml --ref main

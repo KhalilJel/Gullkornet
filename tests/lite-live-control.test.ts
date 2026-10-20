@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DRY_RUN_RECORDS, dryRunConfig, dryRunDeps } from "../src/lite/fixtures.js";
-import { runLiteSend } from "../src/lite/send.js";
+import { REFRESH_LEAD_MS, runLiteSend, SLOT_PLAN_MARGIN_MS } from "../src/lite/send.js";
 
 const start = Date.parse("2026-10-20T09:00:00Z");
 const slot = { kind: "daily" as const, startMs: start, endMs: start + 3600_000 };
@@ -23,7 +23,8 @@ test("reply check happens after pacing and fails closed on an outage", async () 
   const run = dryRunDeps(start, DRY_RUN_RECORDS.slice(0, 2));
   run.deps.assertNotReplied = async () => {
     if (run.outbox.length) {
-      assert.ok(run.deps.now() >= start + 1800_000);
+      // The second send is due half-way through the planned part of the slot; the check runs just before it.
+      assert.ok(run.deps.now() >= start + (3600_000 - SLOT_PLAN_MARGIN_MS) / 2 - REFRESH_LEAD_MS);
       throw new Error("HTTP 503");
     }
   };

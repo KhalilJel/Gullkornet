@@ -15,6 +15,12 @@ export type LiteQueueRecord = { id: string; fields: Record<string, unknown> };
 /** One record cannot be sent (DNC, duplicate, replied, wrong status ...). The run moves on to the next record. */
 export class LiteRefusedError extends Error {}
 
+/** Slot runs plan their last message this long before the slot ends (see runLiteSend). */
+export const SLOT_PLAN_MARGIN_MS = 4 * 60_000;
+
+/** Slot runs refresh policy, reservations and replies this long before a send becomes due. */
+export const REFRESH_LEAD_MS = 15_000;
+
 // Same set as the advanced sender (airtable-send-approval.ts): a business in any of these
 // states has been contacted, has answered, or must not be contacted again through any address.
 const BUSINESS_BLOCKING_STATUSES = new Set([
@@ -171,6 +177,7 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
   let maxThisRun = cfg.maxPerRun;
   let paceStartMs = 0;
   let intervalMs = 0;
+  let dueAt = 0;
   if (slot) {
     // What the rolling 24 h limits allow by the end of the slot: sends from yesterday's slot roll out
     // during today's, so the target counts only those still inside the window when the slot ends.
@@ -180,7 +187,11 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
     maxThisRun = Math.max(0, Math.min(cfg.maxPerRun, cfg.dailyLimit - carried, cfg.resendDailyQuota - carried));
     summary.target = maxThisRun;
     paceStartMs = deps.now();
-    intervalMs = maxThisRun > 0 ? Math.max(cfg.minSpacingMs, Math.floor((slot.endMs - paceStartMs) / maxThisRun)) : 0;
+    // A send must wait until the send at the same place yesterday has left the rolling 24 h window, so
+    // every delay at the moment of sending carries over to the next day. The plan therefore ends
+    // SLOT_PLAN_MARGIN_MS before the slot, and the checks run before the roll-out wait, not after it.
+    const planMs = slot.endMs - SLOT_PLAN_MARGIN_MS - paceStartMs;
+    intervalMs = maxThisRun > 0 ? Math.max(cfg.minSpacingMs, Math.floor(planMs / maxThisRun)) : 0;
     deps.log(`Slot plan (${slot.kind}): sentLast24h=${counts.lastDay} stillCountedAtSlotEnd=${carried} dailyLimit=${cfg.dailyLimit} resendDailyQuota=${cfg.resendDailyQuota} ` +
       `target=${maxThisRun} queue=${queue.length} intervalSec=${Math.round(intervalMs / 1000)} ends=${new Date(slot.endMs).toISOString()}`);
     if (maxThisRun === 0) { summary.stoppedBy = "limit"; return summary; }
@@ -208,9 +219,12 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
     if (options.preview && options.previewLimit !== undefined && summary.scanned >= options.previewLimit) break;
     if (slot) {
       if (!inWindow()) { summary.stoppedBy = "outside_window"; break; }
-      // Spacing is handled by the pace below; daily, hourly and quota limits wait for roll-out or stop the run.
-      if (!await waitForCapacity(false)) { summary.stoppedBy = "limit"; break; }
-      if (!inWindow()) { summary.stoppedBy = "outside_window"; break; }
+      // Daily, hourly and quota limits: stop when nothing rolls out inside the slot. The wait itself
+      // comes after the checks below, so their time does not delay the send.
+      const freesAt = capacityFreesAt(ledger, cfg, deps.now());
+      if (freesAt !== undefined && freesAt + 1_000 >= slot.endMs) {
+        summary.stoppedBy = "limit"; deps.log(`Deferred: capacity frees at ${new Date(freesAt).toISOString()}, after the slot.`); break;
+      }
     } else if (!options.preview) {
       if (!isWithinLiteWindow(deps.now(), cfg)) { summary.stoppedBy = "outside_window"; break; }
       try {
@@ -278,13 +292,14 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
     }
 
     if (slot) {
-      // Every gate has passed; wait for this send's place in the even spread (gate time is absorbed by the wait).
+      // Every gate has passed; wait for this send's place in the even spread or for the roll-out of
+      // older sends, whichever is later (gate time is absorbed by the wait). Wake REFRESH_LEAD_MS early
+      // so the refresh below is done when the send becomes due.
       const newest = countLedger(ledger, deps.now()).newestMs;
-      const dueAt = Math.max(paceStartMs + summary.sent * intervalMs, newest === undefined ? 0 : newest + cfg.minSpacingMs);
+      const freesAt = capacityFreesAt(ledger, cfg, deps.now());
+      dueAt = Math.max(paceStartMs + summary.sent * intervalMs, newest === undefined ? 0 : newest + cfg.minSpacingMs, freesAt === undefined ? 0 : freesAt + 1_000);
       if (dueAt >= slot.endMs) { summary.stoppedBy = "outside_window"; break; }
-      if (dueAt > deps.now()) await deps.sleep(dueAt - deps.now());
-      if (!inWindow()) { summary.stoppedBy = "outside_window"; break; }
-      if (!await waitForCapacity(true)) { summary.stoppedBy = "limit"; break; }
+      if (dueAt - REFRESH_LEAD_MS > deps.now()) await deps.sleep(dueAt - REFRESH_LEAD_MS - deps.now());
       if (!inWindow()) { summary.stoppedBy = "outside_window"; break; }
     }
 
@@ -292,9 +307,7 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
     // reservations and replies after that wait, before claiming or sending this message.
     await refreshLedger();
     if (sentWithinLedger(ledger, email)) { summary.skipped.recentlySent++; continue; }
-    if (slot) {
-      if (!await waitForCapacity(true)) { summary.stoppedBy = "limit"; break; }
-    } else {
+    if (!slot) {
       try { assertLiteCapacity(countLedger(ledger, deps.now()), cfg, deps.now()); }
       catch (error) {
         if (!(error instanceof SendDeferredError)) throw error;
@@ -310,6 +323,21 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
     catch (error) {
       if (error instanceof Error && error.message.includes("Recipient has replied")) { summary.skipped.replied++; continue; }
       throw error;
+    }
+    if (slot) {
+      // The send itself: as soon as it is due and the limits allow it, re-checked on the refreshed ledger.
+      if (dueAt > deps.now()) await deps.sleep(dueAt - deps.now());
+      const waitedFrom = deps.now();
+      if (!inWindow() || !await waitForCapacity(true)) { summary.stoppedBy = inWindow() ? "limit" : "outside_window"; break; }
+      if (deps.now() - waitedFrom > REFRESH_LEAD_MS) {
+        // Something else used the capacity meanwhile; the reservation and reply checks are no longer fresh.
+        try { assertLiteRecipientApproved(await deps.lookupRecords(email), email, options.allowedOrgForms); await deps.assertNotReplied(email); }
+        catch (error) {
+          if (error instanceof LiteRefusedError) { summary.skipped.refused++; continue; }
+          if (error instanceof Error && error.message.includes("Recipient has replied")) { summary.skipped.replied++; continue; }
+          throw error;
+        }
+      }
     }
     if (!inWindow()) { summary.stoppedBy = "outside_window"; break; }
     const prepared: PreparedEmail = { from: LITE_FROM, to: email, subject: LITE_TEMPLATE.subject, text: LITE_TEMPLATE.text };
