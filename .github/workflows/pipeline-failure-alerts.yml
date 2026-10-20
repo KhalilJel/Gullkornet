@@ -12,6 +12,8 @@ on:
       - "Gullkornet Lite Outreach"
       - "Gullkornet Lite Market Research"
       - "Gullkornet Lite Reply Sync"
+      - "Gullkornet Lite Daily Report"
+      - "Gullkornet Lite Readiness"
     types: [completed]
     branches: [main]
 

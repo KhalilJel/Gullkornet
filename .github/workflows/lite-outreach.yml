@@ -3,20 +3,20 @@ name: Gullkornet Lite Outreach
 # Sends the fixed, owner-approved Lite template to "Lite Ready" Airtable rows.
 # One coordinated run a day, every day: up to the daily limit (95, rolling 24 h, account-wide, so
 # earlier sends are subtracted) spread evenly over 11:00-12:00 Europe/Oslo, about one every 38 s.
-# GitHub cron is UTC and best-effort, so several triggers cover summer (UTC+2) and winter (UTC+1)
-# time: the code (src/lite/schedule.ts) lets a run start at most 30 minutes before 11:00 Oslo and
-# wait, and every trigger outside 10:30-12:00 Oslo ends before any provider or CRM call. The
-# concurrency group runs one at a time, so a later trigger only continues the same slot or no-ops.
+# GitHub delivers this repository's scheduled events hours late and drops most of them (measured
+# 14-20 Oct: hourly crons arrived 3-4 times a day at random times). So there is a trigger every
+# hour of the night and morning, and a scheduled run may start up to 285 minutes before 11:00 Oslo
+# and wait (src/lite/schedule.ts; summer and winter time). Manual runs keep a 30-minute lead.
+# Every trigger outside its lead window ends before any provider or CRM call. The concurrency group
+# runs one at a time; a later trigger, or the owner's reserve dispatch, only continues the same slot
+# with the capacity left (rolling 24 h, quota, delivery health, every recipient gate) or no-ops.
 # Scheduled sending remains off unless its secret is enabled. Manual one_off_date (today, Oslo)
 # runs the owner's one-off: the same limits, spread over the next 60 minutes. Manual pilot_send
 # permits one explicitly enabled run of up to 2 messages. Manual preview never sends or writes.
 on:
   schedule:
-    - cron: "35 8 * * *"
-    - cron: "50 8 * * *"
-    - cron: "35 9 * * *"
-    - cron: "50 9 * * *"
-    - cron: "5 10 * * *"
+    - cron: "7 0-10 * * *"
+    - cron: "37 0-10 * * *"
   workflow_dispatch:
     inputs:
       preview:
@@ -56,7 +56,9 @@ jobs:
   send:
     runs-on: ubuntu-latest
     # 30 min lead + 60 min slot + setup and the last send's checks.
-    timeout-minutes: 105
+    # Scheduled: up to 285 min wait + 60 min slot + setup, inside GitHub's 6 h job limit.
+    # Manual: 30 min lead + 60 min slot + setup.
+    timeout-minutes: ${{ github.event_name == 'schedule' && 355 || 105 }}
     env:
       GULLKORNET_LITE_ENABLE_LIVE_SEND: ${{ secrets.GULLKORNET_LITE_ENABLE_LIVE_SEND }}
       GULLKORNET_LITE_DAILY_LIMIT: ${{ vars.GULLKORNET_LITE_DAILY_LIMIT || '95' }}
@@ -66,6 +68,7 @@ jobs:
       GULLKORNET_LITE_HOURLY_LIMIT: "95"
       GULLKORNET_LITE_MAX_PER_RUN: "95"
       GULLKORNET_LITE_MIN_SPACING_SECONDS: "30"
+      GULLKORNET_LITE_MAX_LEAD_MINUTES: ${{ github.event_name == 'schedule' && '285' || '30' }}
       GULLKORNET_LITE_ORG_FORMS: ${{ vars.GULLKORNET_LITE_ORG_FORMS || 'AS,ASA' }}
       RESEND_DAILY_QUOTA: ${{ vars.RESEND_DAILY_QUOTA }}
       RESEND_MONTHLY_QUOTA: ${{ vars.RESEND_MONTHLY_QUOTA }}

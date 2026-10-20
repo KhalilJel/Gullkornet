@@ -29,8 +29,13 @@ export const LITE_DEFAULTS = Object.freeze({
 // Sanity bounds only, to catch typos such as an extra zero.
 const SANITY = Object.freeze({ maxDaily: 1000, maxHourly: 100, maxPerRun: 100, minSpacingSeconds: 20 });
 
-/** A scheduled run may start this long before the slot and wait for it (GitHub cron is late more often than early). */
+/** A manual run may start this long before the slot and wait for it. */
 export const SLOT_LEAD_MS = 30 * 60 * 1000;
+/**
+ * GitHub delivers this repository's scheduled events hours late and drops most of them, so a
+ * scheduled run may arrive up to this long before the slot and wait (job limit 6 h: wait + 60 min slot).
+ */
+export const MAX_SCHEDULED_LEAD_MS = 285 * 60 * 1000;
 /** The owner-authorised one-off run sends within this long of its start. */
 export const ONE_OFF_DURATION_MS = 60 * 60 * 1000;
 
@@ -103,7 +108,7 @@ export function dailyLiteSlot(nowMs: number, cfg: Pick<LiteSendConfig, "startHou
  * oneOffDate (YYYY-MM-DD, Oslo) is the owner's one-off authorisation: it must be today and gives
  * [now, now + 60 min). A stale or malformed date refuses, so a re-run on another day cannot reuse it.
  */
-export function resolveLiteSlot(nowMs: number, cfg: Pick<LiteSendConfig, "startHour" | "endHour">, oneOffDate?: string): LiteSlot | undefined {
+export function resolveLiteSlot(nowMs: number, cfg: Pick<LiteSendConfig, "startHour" | "endHour">, oneOffDate?: string, leadMs = SLOT_LEAD_MS): LiteSlot | undefined {
   const date = oneOffDate?.trim();
   if (date) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("One-off date must be YYYY-MM-DD.");
@@ -111,7 +116,7 @@ export function resolveLiteSlot(nowMs: number, cfg: Pick<LiteSendConfig, "startH
     return { kind: "one_off", startMs: nowMs, endMs: nowMs + ONE_OFF_DURATION_MS };
   }
   const slot = dailyLiteSlot(nowMs, cfg);
-  if (nowMs < slot.startMs - SLOT_LEAD_MS || nowMs >= slot.endMs) return undefined;
+  if (nowMs < slot.startMs - leadMs || nowMs >= slot.endMs) return undefined;
   return slot;
 }
 
@@ -149,4 +154,26 @@ export function theoreticalDailyCapacity(cfg: LiteSendConfig): number {
   const windowMs = (cfg.endHour - cfg.startHour) * 60 * 60 * 1000;
   const bySpacing = Math.floor(windowMs / cfg.minSpacingMs);
   return Math.min(cfg.dailyLimit, cfg.resendDailyQuota, cfg.hourlyLimit * (cfg.endHour - cfg.startHour), bySpacing);
+}
+
+/** Ledger entries that will still be inside the rolling 24 h window at atMs (they limit a slot ending then). */
+export function countedAt(entries: SendLedgerEntry[], atMs: number): number {
+  return entries.filter(e => Date.parse(e.created_at) > atMs - 24 * 60 * 60 * 1000 && Date.parse(e.created_at) <= atMs).length;
+}
+
+/**
+ * When the next send becomes allowed by the daily, quota and hourly limits as older entries roll out
+ * of their windows (undefined when nothing in the ledger is blocking). Spacing is not considered.
+ */
+export function capacityFreesAt(entries: SendLedgerEntry[], cfg: LiteSendConfig, nowMs: number): number | undefined {
+  const times = entries.map(e => Date.parse(e.created_at)).filter(ts => ts <= nowMs).sort((a, b) => a - b);
+  const frees = (windowMs: number, limit: number): number | undefined => {
+    const inWindow = times.filter(ts => nowMs - ts < windowMs);
+    if (inWindow.length < limit) return undefined;
+    return inWindow[inWindow.length - limit]! + windowMs;
+  };
+  const day = frees(24 * 60 * 60 * 1000, Math.min(cfg.dailyLimit, cfg.resendDailyQuota));
+  const hour = frees(60 * 60 * 1000, cfg.hourlyLimit);
+  if (day === undefined && hour === undefined) return undefined;
+  return Math.max(day ?? 0, hour ?? 0);
 }

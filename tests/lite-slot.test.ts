@@ -118,3 +118,78 @@ test("a later trigger in the same slot continues the plan and never exceeds the 
   assert.ok(second.sent <= 35);
   assert.ok(run.ledger.length + later.ledger.length <= 95);
 });
+
+// ---------- Steady daily operation (20.10.2026 onwards) ----------
+import { DeliveryStopError } from "../src/lite/delivery-health.js";
+import { MAX_SCHEDULED_LEAD_MS } from "../src/lite/schedule.js";
+
+function assertRollingLimits(all: SendLedgerEntry[], limit = 95) {
+  const times = all.map(e => Date.parse(e.created_at)).sort((a, b) => a - b);
+  times.forEach((t, i) => {
+    const inWindow = times.filter(u => u <= t && t - u < 24 * 3_600_000).length;
+    assert.ok(inWindow <= limit, `rolling 24 h count ${inWindow} at ${new Date(t).toISOString()}`);
+    if (i > 0) assert.ok(t - times[i - 1]! >= 30_000, "spacing");
+  });
+}
+
+test("transition: 42 sent 20.10 at 13:45 Oslo gives 53 on 21.10, then a full 95 every day", async () => {
+  const one = Array.from({ length: 42 }, (_, i) => sentAt(Date.parse("2026-10-20T11:45:35Z") + i * 37_900, i));
+  const run = dryRunDeps(Date.parse("2026-10-21T08:40:00Z"), records(400));
+  run.deps.fetchLedger = async () => [...one, ...run.ledger];
+  const results: number[] = [];
+  for (const day of ["2026-10-21", "2026-10-22", "2026-10-23"]) {
+    run.advance(Date.parse(`${day}T08:40:00Z`) - run.deps.now());
+    const slot = resolveLiteSlot(run.deps.now(), cfg)!;
+    const before = run.ledger.length;
+    const summary = await runLiteSend(run.deps, cfg, { slot });
+    results.push(run.ledger.length - before);
+    assert.ok(run.ledger.slice(before).every(e => Date.parse(e.created_at) >= slot.startMs && Date.parse(e.created_at) < slot.endMs));
+    if (day === "2026-10-21") assert.equal(summary.target, 53);
+  }
+  assert.deepEqual(results, [53, 95, 95]);
+  assertRollingLimits([...one, ...run.ledger]);
+  assert.equal(new Set(run.outbox.map(o => o.email.to)).size, run.outbox.length, "no address twice");
+});
+
+test("a start a few minutes earlier than yesterday waits for yesterday's sends to roll out", async () => {
+  const yesterday = Array.from({ length: 95 }, (_, i) => sentAt(Date.parse("2026-10-21T09:05:00Z") + i * 34_000, i));
+  const start = Date.parse("2026-10-22T09:00:00Z");
+  const run = dryRunDeps(start, records(150));
+  run.deps.fetchLedger = async () => [...yesterday, ...run.ledger];
+  const summary = await runLiteSend(run.deps, cfg, { slot: resolveLiteSlot(start, cfg)! });
+  assert.equal(summary.target, 95);
+  assert.ok(summary.sent >= 90, `sent ${summary.sent}`);
+  assertRollingLimits([...yesterday, ...run.ledger]);
+});
+
+test("a delivery-health stop that lifts inside the slot is waited out; one that outlasts it stops the run", async () => {
+  const start = Date.parse("2026-10-21T09:00:00Z");
+  const slot = resolveLiteSlot(start, cfg)!;
+  const lifts = start + 20 * 60_000;
+  const run = dryRunDeps(start, records(150));
+  run.deps.fetchLedger = async () => {
+    if (run.deps.now() < lifts) throw new DeliveryStopError("Delivery-health stop: unconfirmed bounce.", lifts);
+    return [...run.ledger];
+  };
+  const summary = await runLiteSend(run.deps, cfg, { slot });
+  assert.ok(run.ledger.every(e => Date.parse(e.created_at) > lifts), "nothing sent while the stop held");
+  assert.equal(summary.target, 95);
+  assert.ok(summary.sent > 60 && summary.sent <= 95, `sent ${summary.sent}`);
+
+  const late = dryRunDeps(start, records(10));
+  late.deps.fetchLedger = async () => { throw new DeliveryStopError("Delivery-health stop: complaint.", slot.endMs + 3_600_000); };
+  await assert.rejects(runLiteSend(late.deps, cfg, { slot }), /complaint/);
+  const unknown = dryRunDeps(start, records(10));
+  unknown.deps.fetchLedger = async () => { throw new DeliveryStopError("Delivery-health stop: rate.", undefined); };
+  await assert.rejects(runLiteSend(unknown.deps, cfg, { slot }), /rate/);
+  assert.equal(late.outbox.length + unknown.outbox.length, 0);
+});
+
+test("scheduled runs may arrive up to 285 minutes early and wait; later or earlier arrivals no-op", () => {
+  const lead = MAX_SCHEDULED_LEAD_MS;
+  assert.ok(resolveLiteSlot(Date.parse("2026-10-21T04:16:00Z"), cfg, undefined, lead), "06:16 Oslo CEST waits");
+  assert.equal(resolveLiteSlot(Date.parse("2026-10-21T04:14:00Z"), cfg, undefined, lead), undefined);
+  assert.ok(resolveLiteSlot(Date.parse("2026-10-26T05:16:00Z"), cfg, undefined, lead), "06:16 Oslo CET waits");
+  assert.equal(resolveLiteSlot(Date.parse("2026-10-26T11:00:00Z"), cfg, undefined, lead), undefined, "12:00 Oslo CET is too late");
+  assert.equal(resolveLiteSlot(Date.parse("2026-10-21T04:16:00Z"), cfg), undefined, "manual runs keep the 30-minute lead");
+});

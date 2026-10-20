@@ -64,3 +64,24 @@ export function assessDeliveryHealth(history: HealthEntry[], bounces: Map<string
   }
   return { ok: true, recipientScoped: scoped };
 }
+
+/** A delivery-health stop; liftsAtMs is when it ends if no new event arrives (undefined: not within 31 days). */
+export class DeliveryStopError extends Error {
+  constructor(message: string, readonly liftsAtMs?: number) { super(message); }
+}
+
+/** First moment at which the policy no longer stops sending, assuming no new provider events. */
+export function deliveryStopLiftsAt(history: HealthEntry[], bounces: Map<string, BounceInfo>, nowMs: number): number | undefined {
+  const candidates = new Set<number>();
+  for (const e of history) {
+    const ts = Date.parse(e.created_at);
+    if (!Number.isFinite(ts) || !FAILURES.has(e.last_event ?? "")) continue;
+    candidates.add(ts + DAY_MS + 1);
+    candidates.add(ts + 30 * DAY_MS + 1);
+  }
+  for (const at of [...candidates].filter(t => t > nowMs).sort((a, b) => a - b)) {
+    if (at > nowMs + 31 * DAY_MS) break;
+    if (assessDeliveryHealth(history, bounces, at).ok) return at;
+  }
+  return undefined;
+}

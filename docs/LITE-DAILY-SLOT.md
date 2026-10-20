@@ -27,3 +27,27 @@ The run checks the last 30 days of Resend history before it reads the queue:
 - A confirmed-permanent bounce or a Resend `suppressed` event is recipient-scoped. Do Not Contact is ticked and verified on the exact-address rows, which also blocks the business domain, and sending continues.
 
 `Gullkornet Lite Delivery Check` prints the verdict ("targeted policy") and each event's bounce type and SMTP code, without addresses.
+
+## Reliable daily start and steady 95 (20 October 2026)
+
+**Why scheduled runs did not start.** GitHub delivers this repository's scheduled events hours late and drops most of them. Measured 14–20 October: `lite-reply-sync` (cron hourly 07–21 UTC) actually started 3–4 times a day, at times such as 00:18, 12:42, 14:39 and 20:34 UTC, some outside its cron hours. The five 08:35–10:05 UTC Lite triggers produced no run at all on 20 October. A run that arrived after 12:00 Oslo simply no-oped.
+
+**Fix.**
+- Triggers run every 30 minutes from 00:07 to 10:37 UTC.
+- A scheduled run may start up to 285 minutes before 11:00 Oslo and wait. The job limit is 355 minutes, inside GitHub's 6 h limit. The repository is public, so waiting costs no Actions minutes.
+- The concurrency group keeps exactly one live run. A later arrival, or the owner's reserve dispatch, either continues the same slot with the capacity left or no-ops.
+- Manual runs keep the 30-minute lead.
+
+**Capacity across days.**
+- The target is the daily limit minus the account messages that will still count when the slot ends.
+- Each send checks the rolling limits at its own moment. When yesterday's slot messages are still inside 24 h, the run waits for the next one to roll out, but only if that happens inside the slot.
+- A delivery-health stop that lifts inside the slot (24 h after the failed email) is waited out. A stop that outlasts the slot, or any new event, still stops the run.
+- Result:
+  - 21 October: target 53, because the 42 one-off messages from 20 October still count.
+  - 22 October onwards: 95 a day, with no message over 95 in any rolling 24 h and at least 30 s between messages (tested).
+
+**Monitoring.**
+- `Gullkornet Lite Readiness`, before the slot, never sends or writes. It runs every gate over the first 150 Lite Ready rows and fails unless at least 115 are eligible. It also prints the queue size, days of supply and the first research expiry.
+- `Gullkornet Lite Daily Report`, after the slot, prints the Lite messages accepted by Resend in the slot, their latest delivery event, the capacity and what is missing. A missed start or a shortfall fails the job.
+- Both open the existing pipeline alert issue on failure.
+- Every live run prints wall time per dependency: delivery health, Airtable lookup and claim, reply check, Brreg, DNS and Resend send.

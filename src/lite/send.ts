@@ -6,7 +6,8 @@ import { LITE_MARKER, LITE_READY_STATUS } from "./intake.js";
 import { assessResearch, segmentFromNotes, withResearchRef, type LiteSegment, type SegmentResearch } from "./market-research.js";
 import { assessLiteRecipient } from "./recipient-policy.js";
 import { withSentDate } from "./retention.js";
-import { assertLiteCapacity, countLedger, isWithinLiteWindow, type LiteSendConfig, type LiteSlot } from "./schedule.js";
+import { assertLiteCapacity, capacityFreesAt, countedAt, countLedger, isWithinLiteWindow, type LiteSendConfig, type LiteSlot } from "./schedule.js";
+import { DeliveryStopError } from "./delivery-health.js";
 import { assertLiteTemplateCompliant, LITE_FROM, LITE_TEMPLATE } from "./template.js";
 
 export type LiteQueueRecord = { id: string; fields: Record<string, unknown> };
@@ -142,11 +143,24 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
     summary.stoppedBy = "outside_window";
     return summary;
   }
-  let ledger = [...await deps.fetchLedger()];
+  // A delivery-health stop that lifts inside the slot (24 h after the failed email) is waited out;
+  // one that outlasts the slot, a new event, or an outage stops the run as before.
+  const fetchLedgerOrWait = async (): Promise<SendLedgerEntry[]> => {
+    for (;;) {
+      try {
+        return await deps.fetchLedger();
+      } catch (error) {
+        if (!(slot && error instanceof DeliveryStopError && error.liftsAtMs !== undefined && error.liftsAtMs + 5_000 < slot.endMs - cfg.minSpacingMs)) throw error;
+        deps.log(`${error.message} It lifts at ${new Date(error.liftsAtMs).toISOString()}, inside the slot; waiting.`);
+        await deps.sleep(error.liftsAtMs + 5_000 - deps.now());
+      }
+    }
+  };
+  let ledger = [...await fetchLedgerOrWait()];
   // Keep locally accepted messages even if the provider list has not caught up yet.
   const accepted: SendLedgerEntry[] = [];
   const refreshLedger = async () => {
-    const fresh = await deps.fetchLedger(); // also enforces live delivery health; an outage stops here
+    const fresh = await fetchLedgerOrWait(); // also enforces live delivery health; an outage stops here
     ledger = [...fresh, ...accepted.filter(local => !(local.to ?? []).every(to => sentWithinLedger(fresh, to)))];
   };
   const queue = await deps.fetchQueue();
@@ -158,29 +172,45 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
   let paceStartMs = 0;
   let intervalMs = 0;
   if (slot) {
+    // What the rolling 24 h limits allow by the end of the slot: sends from yesterday's slot roll out
+    // during today's, so the target counts only those still inside the window when the slot ends.
+    // Each send still checks the limits at its own moment and waits for the next roll-out if needed.
     const counts = countLedger(ledger, deps.now());
-    maxThisRun = Math.max(0, Math.min(cfg.maxPerRun, cfg.dailyLimit - counts.lastDay, cfg.resendDailyQuota - counts.lastDay));
+    const carried = countedAt(ledger, slot.endMs);
+    maxThisRun = Math.max(0, Math.min(cfg.maxPerRun, cfg.dailyLimit - carried, cfg.resendDailyQuota - carried));
     summary.target = maxThisRun;
     paceStartMs = deps.now();
     intervalMs = maxThisRun > 0 ? Math.max(cfg.minSpacingMs, Math.floor((slot.endMs - paceStartMs) / maxThisRun)) : 0;
-    deps.log(`Slot plan (${slot.kind}): sentLast24h=${counts.lastDay} dailyLimit=${cfg.dailyLimit} resendDailyQuota=${cfg.resendDailyQuota} ` +
+    deps.log(`Slot plan (${slot.kind}): sentLast24h=${counts.lastDay} stillCountedAtSlotEnd=${carried} dailyLimit=${cfg.dailyLimit} resendDailyQuota=${cfg.resendDailyQuota} ` +
       `target=${maxThisRun} queue=${queue.length} intervalSec=${Math.round(intervalMs / 1000)} ends=${new Date(slot.endMs).toISOString()}`);
     if (maxThisRun === 0) { summary.stoppedBy = "limit"; return summary; }
   }
+  /** Slot runs: true when a send is allowed now, after waiting for older sends to roll out if that happens inside the slot. */
+  const waitForCapacity = async (spacing: boolean): Promise<boolean> => {
+    for (;;) {
+      const counts = countLedger(ledger, deps.now());
+      try {
+        assertLiteCapacity(spacing ? counts : { ...counts, newestMs: undefined }, cfg, deps.now());
+        return true;
+      } catch (error) {
+        if (!(error instanceof SendDeferredError)) throw error;
+        const freesAt = capacityFreesAt(ledger, cfg, deps.now());
+        const spacingAt = spacing && counts.newestMs !== undefined ? counts.newestMs + cfg.minSpacingMs : 0;
+        const at = Math.max(freesAt ?? 0, spacingAt);
+        if (!slot || at <= deps.now() || at + 1_000 >= slot.endMs) { deps.log("Deferred: " + error.message); return false; }
+        await deps.sleep(at + 1_000 - deps.now());
+      }
+    }
+  };
 
   for (const record of queue) {
     if (!options.preview && summary.sent >= maxThisRun) { summary.stoppedBy = maxThisRun < cfg.maxPerRun ? "limit" : "max_per_run"; break; }
     if (options.preview && options.previewLimit !== undefined && summary.scanned >= options.previewLimit) break;
     if (slot) {
       if (!inWindow()) { summary.stoppedBy = "outside_window"; break; }
-      // Spacing is handled by the pace below; daily, hourly and quota limits stop the run here.
-      const counts = countLedger(ledger, deps.now());
-      try {
-        assertLiteCapacity({ ...counts, newestMs: undefined }, cfg, deps.now());
-      } catch (error) {
-        if (!(error instanceof SendDeferredError)) throw error;
-        summary.stoppedBy = "limit"; deps.log("Deferred: " + error.message); break;
-      }
+      // Spacing is handled by the pace below; daily, hourly and quota limits wait for roll-out or stop the run.
+      if (!await waitForCapacity(false)) { summary.stoppedBy = "limit"; break; }
+      if (!inWindow()) { summary.stoppedBy = "outside_window"; break; }
     } else if (!options.preview) {
       if (!isWithinLiteWindow(deps.now(), cfg)) { summary.stoppedBy = "outside_window"; break; }
       try {
@@ -254,22 +284,22 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
       if (dueAt >= slot.endMs) { summary.stoppedBy = "outside_window"; break; }
       if (dueAt > deps.now()) await deps.sleep(dueAt - deps.now());
       if (!inWindow()) { summary.stoppedBy = "outside_window"; break; }
-      try {
-        assertLiteCapacity(countLedger(ledger, deps.now()), cfg, deps.now());
-      } catch (error) {
-        if (!(error instanceof SendDeferredError)) throw error;
-        summary.stoppedBy = "limit"; deps.log("Deferred: " + error.message); break;
-      }
+      if (!await waitForCapacity(true)) { summary.stoppedBy = "limit"; break; }
+      if (!inWindow()) { summary.stoppedBy = "outside_window"; break; }
     }
 
     // Checks before a pacing wait can be minutes old. Refresh policy, account-wide capacity,
     // reservations and replies after that wait, before claiming or sending this message.
     await refreshLedger();
     if (sentWithinLedger(ledger, email)) { summary.skipped.recentlySent++; continue; }
-    try { assertLiteCapacity(countLedger(ledger, deps.now()), cfg, deps.now()); }
-    catch (error) {
-      if (!(error instanceof SendDeferredError)) throw error;
-      summary.stoppedBy = "limit"; deps.log("Deferred: " + error.message); break;
+    if (slot) {
+      if (!await waitForCapacity(true)) { summary.stoppedBy = "limit"; break; }
+    } else {
+      try { assertLiteCapacity(countLedger(ledger, deps.now()), cfg, deps.now()); }
+      catch (error) {
+        if (!(error instanceof SendDeferredError)) throw error;
+        summary.stoppedBy = "limit"; deps.log("Deferred: " + error.message); break;
+      }
     }
     try { assertLiteRecipientApproved(await deps.lookupRecords(email), email, options.allowedOrgForms); }
     catch (error) {

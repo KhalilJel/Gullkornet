@@ -1,0 +1,61 @@
+name: Gullkornet Lite Readiness
+
+# Read-only, before the daily slot: runs every send gate (recipient policy, research, freshness,
+# reply status in one batch) over the first 150 Lite Ready rows, never sends or writes, and fails
+# unless at least 115 are eligible (95 for the slot + 20 to replace rows refused at send time).
+# A failure opens the existing pipeline alert issue. Also prints the total Lite Ready queue,
+# Lite Recheck rows, days of supply at 95/day and the first research expiry. Its own concurrency
+# group, so it never waits behind (or holds up) a live run.
+on:
+  schedule:
+    - cron: "5 3,5,7 * * *"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Rows to check (oldest first)"
+        required: true
+        default: "150"
+        type: string
+      min_eligible:
+        description: "Eligible rows required"
+        required: true
+        default: "115"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gullkornet-lite-readiness
+  cancel-in-progress: false
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GULLKORNET_LITE_ORG_FORMS: ${{ vars.GULLKORNET_LITE_ORG_FORMS || 'AS,ASA' }}
+      RESEND_DAILY_QUOTA: ${{ vars.RESEND_DAILY_QUOTA }}
+      RESEND_MONTHLY_QUOTA: ${{ vars.RESEND_MONTHLY_QUOTA }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
+      GULLKORNET_LITE_RESEARCH_KEY: ${{ secrets.GULLKORNET_LITE_RESEARCH_KEY }}
+      GULLKORNET_AIRTABLE_BASE_ID: ${{ vars.GULLKORNET_AIRTABLE_BASE_ID }}
+      GULLKORNET_AIRTABLE_TABLE: ${{ vars.GULLKORNET_AIRTABLE_TABLE || 'Leads' }}
+      OPENOUTREACH_REPLY_STATUS_URL: ${{ vars.OPENOUTREACH_REPLY_STATUS_URL }}
+      OPENOUTREACH_REPLY_STATUS_TOKEN: ${{ secrets.OPENOUTREACH_REPLY_STATUS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Readiness preview (never sends or writes)
+        env:
+          LIMIT: ${{ inputs.limit || '150' }}
+          MIN_ELIGIBLE: ${{ inputs.min_eligible || '115' }}
+        run: |
+          umask 077
+          case "$LIMIT" in ''|*[!0-9]*) echo "limit must be a number"; exit 1 ;; esac
+          case "$MIN_ELIGIBLE" in ''|*[!0-9]*) echo "min_eligible must be a number"; exit 1 ;; esac
+          npm run --silent send:lite -- --preview --limit "$LIMIT" --min-eligible "$MIN_ELIGIBLE"
