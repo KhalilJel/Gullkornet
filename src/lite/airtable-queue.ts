@@ -1,3 +1,4 @@
+import { fetchReadWithRetry } from "./http-retry.js";
 import { assertAirtableWritesAllowed } from "../domain/airtable-write-guard.js";
 import { approvalLookupFormula } from "../integrations/airtable-send-approval.js";
 import { LITE_READY_STATUS } from "./intake.js";
@@ -8,10 +9,10 @@ import { parsePilotPreviewIds } from "./pilot-preview.js";
 const FIELDS = ["Email", "Website", "Company", "Lead Status", "Do Not Contact", "Research Notes"];
 
 async function getJson(url: URL, cfg: AirtableConfig): Promise<{ records: LiteQueueRecord[]; offset?: string }> {
-  const response = await (cfg.fetchImpl ?? fetch)(url.toString(), {
-    headers: { Authorization: `Bearer ${cfg.apiToken}` },
-    signal: AbortSignal.timeout(15000)
-  });
+  // Reads only: a single timeout or 5xx is retried briefly; a lasting outage still refuses to send.
+  const response = await fetchReadWithRetry(cfg.fetchImpl ?? fetch, url.toString(), {
+    headers: { Authorization: `Bearer ${cfg.apiToken}` }
+  }, 15000, cfg.retryPausesMs);
   if (!response.ok) throw new Error(`Airtable request failed (HTTP ${response.status}). Refusing to send.`);
   const payload = await response.json().catch(() => null) as { records?: unknown; offset?: unknown } | null;
   if (!payload || !Array.isArray(payload.records)) throw new Error("Airtable returned an invalid response. Refusing to send.");

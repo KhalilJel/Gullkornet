@@ -1,4 +1,5 @@
 import { Resolver } from "node:dns/promises";
+import { fetchReadWithRetry, READ_RETRY_PAUSES_MS } from "./http-retry.js";
 import { emailDomain } from "../domain/email-domain.js";
 import { toLiteCandidate } from "./brreg-lite.js";
 import { DEFAULT_LITE_ORG_FORMS, normalizeOrgForm } from "./recipient-policy.js";
@@ -30,6 +31,8 @@ const boundedResolveMx = (domain: string) => resolver.resolveMx(domain);
 
 export type FreshnessDeps = {
   fetchImpl?: typeof fetch;
+  /** Pauses between retries of a failed Brreg read (tests pass []). */
+  retryPausesMs?: readonly number[];
   resolveMxImpl?: (domain: string) => Promise<Array<{ exchange: string; priority: number }>>;
 };
 
@@ -46,11 +49,12 @@ export async function checkBrregStillValid(
   notes: string,
   email: string,
   allowedOrgForms: readonly string[] = DEFAULT_LITE_ORG_FORMS,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  retryPausesMs: readonly number[] = READ_RETRY_PAUSES_MS
 ): Promise<FreshnessReason | undefined> {
   const orgnr = orgnrFromNotes(notes);
   if (!orgnr) return "NO_ORGNR";
-  const response = await fetchImpl(`${API}/${orgnr}`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15000) });
+  const response = await fetchReadWithRetry(fetchImpl, `${API}/${orgnr}`, { headers: { accept: "application/json" } }, 15000, retryPausesMs);
   // 404: never existed or removed; 410: deleted from the register.
   if (response.status === 404 || response.status === 410) return "UNIT_GONE";
   if (!response.ok) throw new Error(`Brreg lookup failed (HTTP ${response.status}). Refusing to send.`);
@@ -108,7 +112,7 @@ export async function checkLiteFreshness(
   allowedOrgForms?: readonly string[],
   deps: FreshnessDeps = {}
 ): Promise<FreshnessReason | undefined> {
-  const registry = await checkBrregStillValid(notes, email, allowedOrgForms, deps.fetchImpl);
+  const registry = await checkBrregStillValid(notes, email, allowedOrgForms, deps.fetchImpl, deps.retryPausesMs);
   if (registry) return registry;
   const mx = await mailServerStatus(email, deps.resolveMxImpl);
   return mx === "ok" ? undefined : mx === "none" ? "NO_MAIL_SERVER" : "DNS_TEMPORARY";
