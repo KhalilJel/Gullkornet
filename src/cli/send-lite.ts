@@ -1,6 +1,6 @@
 import { Resolver } from "node:dns/promises";
 import { fetchRecentSendLedger, sendOneEmail } from "../integrations/outbound-email.js";
-import { assertRecipientHasNotReplied } from "../integrations/reply-status.js";
+import { assertRecipientHasNotReplied, fetchRepliedBatch, REPLY_STATUS_BATCH_MAX } from "../integrations/reply-status.js";
 import { fetchLiteQueue, fetchLiteRowsByStatus, fetchPilotPreviewRows, lookupLiteRecords, markLiteReady, markLiteSent } from "../lite/airtable-queue.js";
 import { parsePilotPreviewIds } from "../lite/pilot-preview.js";
 import { assertConfirmedResendSending } from "../lite/resend-pilot.js";
@@ -48,13 +48,20 @@ function timingSummary(): string {
  * bounces, bursts and a high 30-day failure rate stop the run; a permanent invalid address or a
  * Resend suppression is reserved (Do Not Contact, verified) and the run may continue.
  */
-async function enforceDeliveryHealth(apiKey: string, airtable: ReturnType<typeof airtableConfigFromEnv>, env: NodeJS.ProcessEnv): Promise<void> {
+async function enforceDeliveryHealth(apiKey: string, airtable: ReturnType<typeof airtableConfigFromEnv>, env: NodeJS.ProcessEnv) {
   const now = Date.now();
-  const history = await fetchResendEmailsSince(apiKey, now - 30 * 24 * 60 * 60 * 1000);
+  // Sequential provider reads, at most five per second, below the verified 10 requests/s plan.
+  let nextRead = 0;
+  const providerFetch: typeof fetch = async (input, init) => {
+    if (Date.now() < nextRead) await sleep(nextRead - Date.now());
+    nextRead = Date.now() + 200;
+    return fetch(input, init);
+  };
+  const history = await fetchResendEmailsSince(apiKey, now - 30 * 24 * 60 * 60 * 1000, providerFetch);
   const bounces = new Map<string, BounceInfo>();
   for (const e of history) {
     if (e.last_event !== "bounced" || !e.id || now - Date.parse(e.created_at) >= 24 * 60 * 60 * 1000) continue;
-    const info = await fetchBounceInfo(apiKey, e.id);
+    const info = await fetchBounceInfo(apiKey, e.id, providerFetch);
     if (info) bounces.set(e.id, info);
   }
   const verdict = assessDeliveryHealth(history, bounces, now);
@@ -65,11 +72,12 @@ async function enforceDeliveryHealth(apiKey: string, airtable: ReturnType<typeof
       await markDoNotContact(airtable, row.recordId, env);
       console.log(`Reserved ${row.recordId} after a ${failure.event} event (recipient-scoped; Do Not Contact verified).`);
     }
-    if (states.some(r => r.exactAddress) && !exactAddressBlocked(rowStates(await lookupLiteRecords(airtable, failure.recipient), failure.recipient))) {
+    if (!exactAddressBlocked(rowStates(await lookupLiteRecords(airtable, failure.recipient), failure.recipient))) {
       throw new Error("A failed recipient could not be confirmed reserved. Refusing to send.");
     }
   }
   console.log(`Delivery health: ok (${verdict.recipientScoped.length} recipient-scoped failure(s) in 24 h reserved; ${history.length} emails in 30 days checked).`);
+  return history;
 }
 
 async function main(): Promise<void> {
@@ -102,17 +110,27 @@ async function main(): Promise<void> {
   if (!preview && !resendKey) throw new Error("RESEND_API_KEY is required for live sending.");
 
   const research = await loadResearchIndex();
+  const previewReplies = new Map<string, boolean>();
+  async function preparePreviewReplies(rows: Awaited<ReturnType<typeof fetchLiteQueue>>) {
+    if (!preview) return rows;
+    const selected = previewLimit === undefined ? rows : rows.slice(0, previewLimit);
+    const emails = [...new Set(selected.map(r => String(r.fields.Email ?? "").trim().toLowerCase()).filter(Boolean))];
+    for (let i = 0; i < emails.length; i += REPLY_STATUS_BATCH_MAX) {
+      const answers = await timed("reply_batch", fetchRepliedBatch)(emails.slice(i, i + REPLY_STATUS_BATCH_MAX), env);
+      for (const [email, replied] of answers) previewReplies.set(email, replied);
+    }
+    return rows;
+  }
 
   const summary = await runLiteSend({
     now: () => Date.now(),
     sleep,
     fetchLedger: async () => {
-      const entries = resendKey ? await fetchRecentSendLedger(resendKey) : [];
-      if (!preview) await enforceDeliveryHealth(resendKey, airtable, env);
-      return entries;
+      if (!preview) return enforceDeliveryHealth(resendKey, airtable, env);
+      return resendKey ? fetchRecentSendLedger(resendKey) : [];
     },
     fetchQueue: async () => {
-      if (pilotIds) return fetchPilotPreviewRows(airtable, pilotIds);
+      if (pilotIds) return preparePreviewReplies(await fetchPilotPreviewRows(airtable, pilotIds));
       if (!preview) {
         // Controlled retry: Lite Recheck rows whose date has come go back to Lite Ready and through every gate again.
         const due = dueRechecks(await fetchLiteRowsByStatus(airtable, LITE_RECHECK_STATUS), Date.now());
@@ -121,10 +139,16 @@ async function main(): Promise<void> {
         }
         if (due.length) console.log(`Released ${due.length} Lite Recheck row(s) for a new check.`);
       }
-      return fetchLiteQueue(airtable);
+      return preparePreviewReplies(await fetchLiteQueue(airtable));
     },
     lookupRecords: timed("airtable_lookup", (email: string) => lookupLiteRecords(airtable, email)),
-    assertNotReplied: timed("reply_check", (email: string) => withTransientRetry(() => assertRecipientHasNotReplied(email, env), sleep)),
+    assertNotReplied: timed("reply_check", async (email: string) => {
+      if (!preview) return withTransientRetry(() => assertRecipientHasNotReplied(email, env), sleep);
+      // Only a read-only preview may use this snapshot. Live sends always query afresh.
+      const replied = previewReplies.get(email.trim().toLowerCase());
+      if (replied === undefined) throw new Error("Preview reply-status batch left out an address.");
+      if (replied) throw new Error("Recipient has replied. Follow-up/outreach is blocked.");
+    }),
     findResearch: segment => research.get(segment.key),
     checkFreshness: (email, notes) => checkLiteFreshness(notes, email, allowedOrgForms, {
       fetchImpl: timed("brreg", (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => fetch(input, init)),
