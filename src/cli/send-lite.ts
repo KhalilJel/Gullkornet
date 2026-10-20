@@ -1,7 +1,7 @@
 import { Resolver } from "node:dns/promises";
 import { fetchRecentSendLedger, sendOneEmail } from "../integrations/outbound-email.js";
 import { assertRecipientHasNotReplied, fetchRepliedBatch, REPLY_STATUS_BATCH_MAX } from "../integrations/reply-status.js";
-import { fetchLiteQueue, fetchLiteRowsByStatus, fetchPilotPreviewRows, lookupLiteRecords, markLiteReady, markLiteSent } from "../lite/airtable-queue.js";
+import { countLiteRowsCreatedSince, fetchLiteQueue, fetchLiteRowsByStatus, fetchPilotPreviewRows, lookupLiteRecords, markLiteReady, markLiteSent } from "../lite/airtable-queue.js";
 import { parsePilotPreviewIds } from "../lite/pilot-preview.js";
 import { assertConfirmedResendSending } from "../lite/resend-pilot.js";
 import { exactAddressBlocked, fetchBounceInfo, fetchResendEmailsSince, markDoNotContact, rowStates } from "../lite/delivery-check.js";
@@ -11,7 +11,7 @@ import { checkLiteFreshness, type FreshnessReason } from "../lite/freshness.js";
 import { dueRechecks, staleUpdate, writeLiteStatus } from "../lite/stale.js";
 import { LITE_RESEARCH_MAX_AGE_DAYS, loadResearchIndex } from "../lite/market-research.js";
 import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
-import { loadLiteSendConfig, MAX_SCHEDULED_LEAD_MS, resolveLiteSlot, SLOT_LEAD_MS } from "../lite/schedule.js";
+import { countLedger, loadLiteSendConfig, MAX_SCHEDULED_LEAD_MS, resolveLiteSlot, SLOT_LEAD_MS } from "../lite/schedule.js";
 import { runLiteSend, withTransientRetry } from "../lite/send.js";
 
 // npm run send:lite            -> no-op with switch off; otherwise owner-confirmed operation up to 95/day,
@@ -199,9 +199,14 @@ async function main(): Promise<void> {
     const expiries = [...research.values()].map(r => Date.parse(r.researchedAt) + LITE_RESEARCH_MAX_AGE_DAYS * 86_400_000).filter(Number.isFinite);
     const firstExpiry = expiries.length ? new Date(Math.min(...expiries)).toISOString().slice(0, 10) : "none";
     const estimate = Math.floor(ready * rate);
+    // Net supply over the last 24 h: new rows that would qualify at today's rate, minus what the
+    // account sent (every send uses one qualified row).
+    const added = await countLiteRowsCreatedSince(airtable, 24);
+    const sentLastDay = resendKey ? countLedger(await fetchRecentSendLedger(resendKey), Date.now()).lastDay : undefined;
+    const netQualified = sentLastDay === undefined ? "-" : String(Math.round(added * rate) - sentLastDay);
     console.log(`Readiness: liteReady=${ready} liteRecheck=${recheck} checked=${summary.scanned} eligible=${eligible} ` +
       `eligibleRate=${(100 * rate).toFixed(0)}% estimatedEligibleQueue=${estimate} daysAt95=${(estimate / 95).toFixed(1)} ` +
-      `required=${minEligible} firstResearchExpiry=${firstExpiry}`);
+      `required=${minEligible} firstResearchExpiry=${firstExpiry} addedLast24h=${added} sentLast24h=${sentLastDay ?? "-"} netQualifiedLast24h=${netQualified}`);
     if (eligible < minEligible) {
       console.error(`Readiness failed: ${eligible} eligible of ${summary.scanned} checked, ${minEligible} required (95 + reserve). Refill the Lite Ready queue.`);
       process.exitCode = 1;
