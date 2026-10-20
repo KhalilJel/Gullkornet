@@ -5,10 +5,14 @@ import {
 import { airtableConfigFromEnv } from "../lite/intake.js";
 import { assessDeliveryHealth, type BounceInfo } from "../lite/delivery-health.js";
 import { fetchBounceInfo } from "../lite/delivery-check.js";
+import { analyzeBounces, bounceFeatures, type AnalysisRow } from "../lite/bounce-analysis.js";
+import { Resolver } from "node:dns/promises";
 
-// npm run lite:delivery-check -- [--days 7] [--apply-suppression]
+// npm run lite:delivery-check -- [--days 7] [--apply-suppression] [--analyze]
 // Read-only by default: lists the Resend events that trip the delivery-health stop, with the
 // provider's diagnostic fields and the matching Airtable rows' state. No addresses are printed.
+// --analyze compares the 30-day bounces with the deliveries that went through, per coarse feature
+// (local part, website domain match, free mail, source, MX family); it prints counts only.
 // --apply-suppression ticks Do Not Contact on the exact-address rows of bounced, complained or
 // suppressed recipients that are not already DNC (verified from Airtable's answer).
 
@@ -40,6 +44,8 @@ async function main(): Promise<void> {
   console.log(verdict.ok
     ? `Delivery-health stop (targeted policy): not active; ${verdict.recipientScoped.length} recipient-scoped failure(s) to reserve.`
     : `Delivery-health stop (targeted policy): ACTIVE: ${verdict.reason}`);
+
+  if (process.argv.includes("--analyze")) await analyze(history, airtable);
 
   const failedSet = new Set<string>(FAILED_EVENTS);
   const failed = emails.filter(e => failedSet.has(e.last_event ?? ""));
@@ -75,6 +81,31 @@ async function main(): Promise<void> {
   }
   console.log(`Failed events: ${failed.length} (${FAILED_EVENTS.map(k => `${k}=${byEvent.get(k) ?? 0}`).join(" ")}). ` +
     `${apply ? "Suppression applied." : `Rows that would get Do Not Contact: ${unblocked}.`}`);
+}
+
+async function analyze(history: Awaited<ReturnType<typeof fetchResendEmailsSince>>, airtable: ReturnType<typeof airtableConfigFromEnv>): Promise<void> {
+  const resolver = new Resolver({ timeout: 3000, tries: 2 });
+  const mxCache = new Map<string, string[] | undefined>();
+  const rows: AnalysisRow[] = [];
+  for (const entry of history) {
+    const email = (entry.to ?? [])[0]?.trim().toLowerCase();
+    if (!email || !["delivered", "bounced", "opened", "clicked", "suppressed", "complained"].includes(entry.last_event ?? "")) continue;
+    const exact = (await lookupLiteRecords(airtable, email)).find(r => typeof r.fields.Email === "string" && r.fields.Email.trim().toLowerCase() === email);
+    const domain = email.split("@")[1] ?? "";
+    if (!mxCache.has(domain)) {
+      mxCache.set(domain, await resolver.resolveMx(domain).then(mx => mx.sort((a, b) => a.priority - b.priority).map(m => m.exchange), (error: NodeJS.ErrnoException) =>
+        error.code === "ENOTFOUND" || error.code === "ENODATA" ? [] : undefined));
+    }
+    rows.push({
+      features: bounceFeatures(email, String(exact?.fields["Research Notes"] ?? ""), typeof exact?.fields.Website === "string" ? exact.fields.Website : undefined, mxCache.get(domain)),
+      failed: entry.last_event === "bounced" || entry.last_event === "suppressed"
+    });
+  }
+  const failed = rows.filter(r => r.failed).length;
+  console.log(`Bounce analysis (30 days): ${rows.length} settled sends, ${failed} bounced or suppressed (${(100 * failed / Math.max(1, rows.length)).toFixed(1)}%).`);
+  for (const line of analyzeBounces(rows)) {
+    console.log(`  ${line.feature}=${line.value}: sent=${line.sent} failed=${line.failed} rate=${(100 * line.rate).toFixed(1)}%`);
+  }
 }
 
 main().catch(error => {
