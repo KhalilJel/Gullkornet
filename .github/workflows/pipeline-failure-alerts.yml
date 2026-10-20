@@ -14,6 +14,7 @@ on:
       - "Gullkornet Lite Reply Sync"
       - "Gullkornet Lite Daily Report"
       - "Gullkornet Lite Readiness"
+      - "Gullkornet Lite Clock"
     types: [completed]
     branches: [main]
 
