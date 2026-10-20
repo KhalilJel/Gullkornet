@@ -119,6 +119,25 @@ export async function fetchLiteRowsByStatus(cfg: AirtableConfig, status: string,
   throw new Error("Too many Lite rows to read safely; reply sync stopped.");
 }
 
+/** Lite rows (any status) created in Airtable during the last `hours` hours: the intake's gross supply. */
+export async function countLiteRowsCreatedSince(cfg: AirtableConfig, hours: number, maxPages = 20): Promise<number> {
+  if (!Number.isInteger(hours) || hours < 1 || hours > 24 * 30) throw new Error("hours must be 1-720.");
+  let count = 0;
+  let offset: string | undefined;
+  for (let page = 0; page < maxPages; page++) {
+    const url = tableUrl(cfg);
+    url.searchParams.set("filterByFormula", `AND(FIND("[GK-LITE]", {Research Notes}), IS_AFTER(CREATED_TIME(), DATEADD(NOW(), -${hours}, 'hours')))`);
+    url.searchParams.set("pageSize", "100");
+    url.searchParams.append("fields[]", "Lead Status");
+    if (offset) url.searchParams.set("offset", offset);
+    const result = await getJson(url, cfg);
+    count += result.records.length;
+    offset = result.offset;
+    if (!offset) return count;
+  }
+  throw new Error("Too many new Lite rows to count safely.");
+}
+
 /** Sent -> Replied, verified from Airtable's response. typecast adds the option if the field lacks it. */
 export async function markLiteReplied(cfg: AirtableConfig, recordId: string, env: NodeJS.ProcessEnv = process.env): Promise<void> {
   assertAirtableWritesAllowed(env);
