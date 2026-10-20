@@ -82,16 +82,26 @@ async function main(): Promise<void> {
       const offset = pool.length ? (Math.floor(Date.now() / 86_400_000) * cap) % pool.length : 0;
       const websiteOnly = [...pool.slice(offset), ...pool.slice(0, offset)].slice(0, cap);
       let matched = 0;
+      let failed = 0;
       for (const unit of websiteOnly) {
-        const registry = await lookupBrregByWebsite(unit.websiteUrl!);
-        if (!registry || registry.organizationNumber !== unit.organizationNumber) continue;
-        matched++;
-        const place = { companyName: unit.companyName, websiteUrl: unit.websiteUrl, city: unit.city, industry: unit.industry, sourceUrl: unit.sourceUrl };
-        const research = await researchContactAndDraft(place);
-        const candidate = placesToLiteCandidate(place, research.emails, registry, allowedOrgForms, "website");
-        if (candidate) candidates.push(candidate);
+        // One unit whose lookup fails (Brreg 5xx, an unreachable site) is skipped, not the whole run;
+        // it stays unknown and comes round again in a later run.
+        try {
+          const registry = await lookupBrregByWebsite(unit.websiteUrl!);
+          if (!registry || registry.organizationNumber !== unit.organizationNumber) continue;
+          matched++;
+          const place = { companyName: unit.companyName, websiteUrl: unit.websiteUrl, city: unit.city, industry: unit.industry, sourceUrl: unit.sourceUrl };
+          const research = await researchContactAndDraft(place);
+          const candidate = placesToLiteCandidate(place, research.emails, registry, allowedOrgForms, "website");
+          if (candidate) candidates.push(candidate);
+        } catch (error) {
+          failed++;
+          console.log(`Website unit skipped: ${error instanceof Error ? error.message : "lookup failed"}`);
+          // A broad outage ends the website supplement; the candidates found so far are still synced.
+          if (failed > 20 && failed > websiteOnly.length / 4) { console.log(`Website lookups failing (${failed}); website supplement stopped.`); break; }
+        }
       }
-      console.log(`Website-only units: ${websiteOnly.length}; website maps back to the unit: ${matched}`);
+      console.log(`Website-only units: ${websiteOnly.length}; website maps back to the unit: ${matched}; lookups failed: ${failed}`);
     }
   } else if (source === "places") {
     const input = arg("input");
