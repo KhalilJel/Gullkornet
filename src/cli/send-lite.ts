@@ -195,8 +195,8 @@ async function main(): Promise<void> {
     `target=${summary.target ?? "-"} slot=${slot?.kind ?? "-"} stoppedBy=${summary.stoppedBy}`);
 
   if (minEligible !== undefined) {
-    const ready = (await fetchLiteRowsByStatus(airtable, LITE_READY_STATUS)).filter(r => r.fields["Do Not Contact"] !== true).length;
-    const recheck = (await fetchLiteRowsByStatus(airtable, LITE_RECHECK_STATUS)).length;
+    const ready = (await fetchLiteRowsByStatus(airtable, LITE_READY_STATUS, 30)).filter(r => r.fields["Do Not Contact"] !== true).length;
+    const recheck = (await fetchLiteRowsByStatus(airtable, LITE_RECHECK_STATUS, 30)).length;
     const eligible = summary.eligibleInPreview ?? 0;
     const rate = summary.scanned ? eligible / summary.scanned : 0;
     const expiries = [...research.values()].map(r => Date.parse(r.researchedAt) + LITE_RESEARCH_MAX_AGE_DAYS * 86_400_000).filter(Number.isFinite);
