@@ -142,7 +142,13 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
     summary.stoppedBy = "outside_window";
     return summary;
   }
-  const ledger = [...await deps.fetchLedger()];
+  let ledger = [...await deps.fetchLedger()];
+  // Keep locally accepted messages even if the provider list has not caught up yet.
+  const accepted: SendLedgerEntry[] = [];
+  const refreshLedger = async () => {
+    const fresh = await deps.fetchLedger(); // also enforces live delivery health; an outage stops here
+    ledger = [...fresh, ...accepted.filter(local => !(local.to ?? []).every(to => sentWithinLedger(fresh, to)))];
+  };
   const queue = await deps.fetchQueue();
   let eligible = 0;
 
@@ -230,15 +236,16 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
       }
       continue;
     }
-    try {
-      await deps.assertNotReplied(email);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("Recipient has replied")) { summary.skipped.replied++; continue; }
-      throw error;
-    }
     if (sentWithinLedger(ledger, email)) { summary.skipped.recentlySent++; continue; }
 
-    if (options.preview) { eligible++; continue; }
+    if (options.preview) {
+      try { await deps.assertNotReplied(email); }
+      catch (error) {
+        if (error instanceof Error && error.message.includes("Recipient has replied")) { summary.skipped.replied++; continue; }
+        throw error;
+      }
+      eligible++; continue;
+    }
 
     if (slot) {
       // Every gate has passed; wait for this send's place in the even spread (gate time is absorbed by the wait).
@@ -255,6 +262,26 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
       }
     }
 
+    // Checks before a pacing wait can be minutes old. Refresh policy, account-wide capacity,
+    // reservations and replies after that wait, before claiming or sending this message.
+    await refreshLedger();
+    if (sentWithinLedger(ledger, email)) { summary.skipped.recentlySent++; continue; }
+    try { assertLiteCapacity(countLedger(ledger, deps.now()), cfg, deps.now()); }
+    catch (error) {
+      if (!(error instanceof SendDeferredError)) throw error;
+      summary.stoppedBy = "limit"; deps.log("Deferred: " + error.message); break;
+    }
+    try { assertLiteRecipientApproved(await deps.lookupRecords(email), email, options.allowedOrgForms); }
+    catch (error) {
+      if (error instanceof LiteRefusedError) { summary.skipped.refused++; continue; }
+      throw error;
+    }
+    try { await deps.assertNotReplied(email); }
+    catch (error) {
+      if (error instanceof Error && error.message.includes("Recipient has replied")) { summary.skipped.replied++; continue; }
+      throw error;
+    }
+    if (!inWindow()) { summary.stoppedBy = "outside_window"; break; }
     const prepared: PreparedEmail = { from: LITE_FROM, to: email, subject: LITE_TEMPLATE.subject, text: LITE_TEMPLATE.text };
     // Claim the row (Sent) before sending: a row that is not Lite Ready never re-enters the queue,
     // so a later failure can at worst leave one row marked Sent without an email, never send twice.
@@ -279,7 +306,9 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
       }
       throw error;
     }
-    ledger.push({ created_at: new Date(deps.now()).toISOString(), to: [email] });
+    const entry = { created_at: new Date(deps.now()).toISOString(), to: [email] };
+    accepted.push(entry);
+    ledger.push(entry);
     summary.sent++;
     if (slot) deps.log(`Sent ${summary.sent}/${maxThisRun} at ${new Date(deps.now()).toISOString()}`);
   }

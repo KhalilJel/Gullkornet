@@ -22,11 +22,13 @@ async function main(): Promise<void> {
   const airtable = airtableConfigFromEnv(process.env);
   const now = Date.now();
 
-  const emails = await fetchResendEmailsSince(apiKey, now - days * 24 * 60 * 60 * 1000);
+  // The policy always needs the complete 30-day denominator, irrespective of the display range.
+  const history = await fetchResendEmailsSince(apiKey, now - 30 * 24 * 60 * 60 * 1000);
+  const emails = history.filter(e => Date.parse(e.created_at) >= now - days * 24 * 60 * 60 * 1000);
   const byEvent = new Map<string, number>();
   for (const e of emails) byEvent.set(e.last_event ?? "unknown", (byEvent.get(e.last_event ?? "unknown") ?? 0) + 1);
   console.log(`Resend emails in the last ${days} days: ${emails.length} (${[...byEvent].map(([k, v]) => `${k}=${v}`).join(" ")})`);
-  const last24 = emails.filter(e => now - Date.parse(e.created_at) < 24 * 60 * 60 * 1000);
+  const last24 = history.filter(e => now - Date.parse(e.created_at) < 24 * 60 * 60 * 1000);
   console.log(`Last 24 h: ${last24.length} emails.`);
   const lifts = stopLiftsAt(emails, now);
   console.log(lifts === undefined ? "Old global rule: no failure in 24 h." : `Old global rule would stop until ${new Date(lifts).toISOString()}.`);
@@ -34,7 +36,7 @@ async function main(): Promise<void> {
   for (const e of last24) {
     if (e.last_event === "bounced" && e.id) { const info = await fetchBounceInfo(apiKey, e.id); if (info) bounces.set(e.id, info); }
   }
-  const verdict = assessDeliveryHealth(emails, bounces, now);
+  const verdict = assessDeliveryHealth(history, bounces, now);
   console.log(verdict.ok
     ? `Delivery-health stop (targeted policy): not active; ${verdict.recipientScoped.length} recipient-scoped failure(s) to reserve.`
     : `Delivery-health stop (targeted policy): ACTIVE: ${verdict.reason}`);
