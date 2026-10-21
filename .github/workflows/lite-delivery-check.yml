@@ -23,6 +23,11 @@ on:
         required: false
         default: false
         type: boolean
+      recent:
+        description: "List the N newest sends with their fresh provider status (0 = off, max 50)"
+        required: false
+        default: "0"
+        type: string
 
 permissions:
   contents: read
@@ -57,10 +62,12 @@ jobs:
           DAYS: ${{ inputs.days }}
           APPLY: ${{ inputs.apply_suppression }}
           ANALYZE: ${{ inputs.analyze }}
+          RECENT: ${{ inputs.recent }}
         run: |
           umask 077
           case "$DAYS" in ''|*[!0-9]*) echo "days must be a number"; exit 1 ;; esac
           args=(--days "$DAYS")
           if [ "$APPLY" = "true" ]; then args+=(--apply-suppression); fi
           if [ "$ANALYZE" = "true" ]; then args+=(--analyze); fi
+          case "$RECENT" in ''|0) ;; *[!0-9]*) echo "recent must be a number"; exit 1 ;; *) args+=(--recent "$RECENT") ;; esac
           npm run --silent lite:delivery-check -- "${args[@]}"
