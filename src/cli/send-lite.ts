@@ -44,9 +44,9 @@ function timingSummary(): string {
 }
 
 /**
- * Delivery-health stop (delivery-health.ts): complaints, provider failures and a 30-day failure rate
- * above 4 % stop the run; every bounce and every Resend suppression is reserved (Do Not Contact,
- * verified before the run continues) and the run goes on.
+ * Delivery-health stop (delivery-health.ts): a spam complaint or a provider send failure in the last
+ * 24 h stops the run; every bounce and every Resend suppression is reserved (Do Not Contact, verified
+ * before the run continues) and the run goes on. There is no failure-rate stop (owner, 21.10.2026).
  */
 async function enforceDeliveryHealth(apiKey: string, airtable: ReturnType<typeof airtableConfigFromEnv>, env: NodeJS.ProcessEnv) {
   const now = Date.now();

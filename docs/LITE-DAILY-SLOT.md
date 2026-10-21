@@ -23,7 +23,7 @@ The run checks the last 30 days of Resend history before it reads the queue:
 - A spam complaint or a provider send failure in the last 24 h stops all sending.
 - A bounce in the last 24 h that is not confirmed permanent also stops all sending. "Confirmed permanent" means Resend type `Permanent`, or an SMTP code for a non-existent mailbox (5.1.1/2/3/6/10, or Microsoft's "550 5.4.1 Recipient address rejected"). `Undetermined` and `Transient` bounces count as unconfirmed.
 - More than 2 recipient-scoped failures in 24 h stop all sending (burst).
-- A 30-day failure rate (bounced, suppressed or complained) above 4 % over at least 50 emails stops all sending.
+- (Removed 21.10.2026) There is no failure-rate stop; every bounce is registered and its recipient reserved.
 - A confirmed-permanent bounce or a Resend `suppressed` event is recipient-scoped. Do Not Contact is ticked and verified on the exact-address rows, which also blocks the business domain, and sending continues.
 
 `Gullkornet Lite Delivery Check` prints the verdict ("targeted policy") and each event's bounce type and SMTP code, without addresses.
@@ -67,5 +67,5 @@ Retained:
 - Do Not Contact, earlier contact and replies block the recipient; duplicates by address, business and earlier send.
 - Lite Ready status, Lite marker and exactly one row per address.
 - The recipient filter (AS/ASA, role address, no free mail, domain matches the website, company still active with a mail server) — markedsføringsloven § 15.
-- Global stop on a spam complaint, a provider send failure, and the existing 30-day failure rate above 4 % (at least 50 emails); the reason names count and denominator.
+- Global stop on a spam complaint or a provider send failure in the last 24 h. The 30-day failure-rate stop (4 %) was also removed later on 21.10.2026 by the owner, with no replacement threshold.
 - Idempotency (claim before send, idempotency key), outage = fail closed, secrets only in GitHub secrets.
