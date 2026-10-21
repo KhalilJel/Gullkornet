@@ -44,9 +44,10 @@ function timingSummary(): string {
 }
 
 /**
- * Targeted delivery-health stop (delivery-health.ts): complaints, provider failures, unconfirmed
- * bounces, bursts and a high 30-day failure rate stop the run; a permanent invalid address or a
- * Resend suppression is reserved (Do Not Contact, verified) and the run may continue.
+ * Targeted delivery-health stop (delivery-health.ts): complaints, provider failures, transient or
+ * undetailed bounces, sender-side blocks, bursts and a high 30-day failure rate stop the run; a
+ * permanent invalid address, an Undetermined bounce or a Resend suppression is reserved (Do Not
+ * Contact, verified) and the run may continue.
  */
 async function enforceDeliveryHealth(apiKey: string, airtable: ReturnType<typeof airtableConfigFromEnv>, env: NodeJS.ProcessEnv) {
   const now = Date.now();
