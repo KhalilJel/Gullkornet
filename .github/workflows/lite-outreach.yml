@@ -1,8 +1,9 @@
 name: Gullkornet Lite Outreach
 
 # Sends the fixed, owner-approved Lite template to "Lite Ready" Airtable rows.
-# One coordinated run a day, every day: up to the daily limit (95, rolling 24 h, account-wide, so
-# earlier sends are subtracted) spread evenly over 11:00-12:00 Europe/Oslo, about one every 38 s.
+# One coordinated run a day, every day, in 11:00-12:00 Europe/Oslo: up to 95 per rolling 24 h,
+# 95 per hour and 95 per run (account-wide, so earlier sends are subtracted), as fast as Resend's API
+# accepts (a 429 is waited out and repeated with the same idempotency key).
 # GitHub delivers this repository's scheduled events hours late and drops most of them (measured
 # 14-20 Oct: hourly crons arrived 3-4 times a day at random times). So there is a trigger every
 # hour of the night and morning, and a scheduled run may start up to 285 minutes before 11:00 Oslo
@@ -10,9 +11,9 @@ name: Gullkornet Lite Outreach
 # Every trigger outside its lead window ends before any provider or CRM call. The concurrency group
 # runs one at a time; a later trigger, or the owner's reserve dispatch, only continues the same slot
 # with the capacity left (rolling 24 h, quota, delivery health, every recipient gate) or no-ops.
-# Scheduled sending remains off unless its secret is enabled. Manual one_off_date (today, Oslo)
-# runs the owner's one-off: the same limits, spread over the next 60 minutes. Manual pilot_send
-# permits one explicitly enabled run of up to 2 messages. Manual preview never sends or writes.
+# Manual one_off_date ("now" or today's date in Oslo) runs the owner's one-off at once, at any time
+# of day, within the same limits and capacity. Manual pilot_send runs up to 2 messages the same way.
+# Manual preview never sends or writes.
 on:
   schedule:
     - cron: "7 0-10 * * *"
@@ -35,12 +36,12 @@ on:
         default: ""
         type: string
       pilot_send:
-        description: "Enable this one authorized run (up to 2 messages over the next 60 minutes, requires preview=false)"
+        description: "Pilot: up to 2 messages at once (requires preview=false)"
         required: false
         default: false
         type: boolean
       one_off_date:
-        description: "Owner one-off: today's date in Oslo (YYYY-MM-DD) sends now, spread over 60 minutes (requires preview=false and the live switch)"
+        description: "Owner one-off: \"now\" or today's date in Oslo (YYYY-MM-DD) sends at once within the remaining capacity (requires preview=false)"
         required: false
         default: ""
         type: string
@@ -60,14 +61,12 @@ jobs:
     # Manual: 30 min lead + 60 min slot + setup.
     timeout-minutes: ${{ github.event_name == 'schedule' && 355 || 105 }}
     env:
-      GULLKORNET_LITE_ENABLE_LIVE_SEND: ${{ secrets.GULLKORNET_LITE_ENABLE_LIVE_SEND }}
       GULLKORNET_LITE_DAILY_LIMIT: ${{ vars.GULLKORNET_LITE_DAILY_LIMIT || '95' }}
       # Fixed with the 11-12 slot (not repository variables, which still hold the old 10-minute values).
       GULLKORNET_LITE_START_HOUR: "11"
       GULLKORNET_LITE_END_HOUR: "12"
       GULLKORNET_LITE_HOURLY_LIMIT: "95"
       GULLKORNET_LITE_MAX_PER_RUN: "95"
-      GULLKORNET_LITE_MIN_SPACING_SECONDS: "30"
       GULLKORNET_LITE_MAX_LEAD_MINUTES: ${{ github.event_name == 'schedule' && '285' || '30' }}
       GULLKORNET_LITE_ORG_FORMS: ${{ vars.GULLKORNET_LITE_ORG_FORMS || 'AS,ASA' }}
       RESEND_DAILY_QUOTA: ${{ vars.RESEND_DAILY_QUOTA }}
@@ -103,7 +102,7 @@ jobs:
           if [ -n "$PREVIEW_RECORD_IDS" ]; then args+=(--preview-record-ids "$PREVIEW_RECORD_IDS"); fi
           npm run --silent send:lite -- --preview "${args[@]}"
 
-      - name: Send Lite outreach (no-op while the kill switch is off)
+      - name: Send Lite outreach
         if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.preview)
         env:
           MANUAL_PILOT_SEND: ${{ github.event_name == 'workflow_dispatch' && inputs.pilot_send }}
@@ -114,7 +113,7 @@ jobs:
           if [ -n "$SELECTED_PREVIEW_IDS" ]; then echo "Selected preview IDs cannot be used for live sending"; exit 1; fi
           if [ -n "$ONE_OFF_DATE" ]; then export GULLKORNET_LITE_ONE_OFF_DATE="$ONE_OFF_DATE"; fi
           if [ "$MANUAL_PILOT_SEND" = "true" ]; then
-            export GULLKORNET_LITE_ENABLE_LIVE_SEND=true GULLKORNET_LITE_MAX_PER_RUN=2
+            export GULLKORNET_LITE_MAX_PER_RUN=2
             export GULLKORNET_LITE_ONE_OFF_DATE="$(TZ=Europe/Oslo date +%F)"
           fi
           npm run --silent send:lite

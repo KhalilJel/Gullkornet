@@ -9,7 +9,7 @@ Fixed-template B2B outreach: Brønnøysund -> legal recipient filter -> Airtable
 1. **Intake** (`npm run lite:intake`, workflow *Gullkornet Lite Lead Intake*). Brreg open API, Oslo + Akershus by default, org form AS/ASA, not bankrupt or being wound up, <= 249 employees. Places can supplement (`--source places --input <discover:google output>`); a Places lead needs a unique Brreg match on its website, otherwise it is dropped.
 2. **Recipient filter** (`src/lite/recipient-policy.ts`). Only role addresses from the existing allow-list (post@, info@, kontakt@, firmapost@ ...), no freemail, no cideamarketing.com, and the email domain must match the registered website when one exists. ENK and every other non-allowed form are refused; ENK cannot be configured as allowed.
 3. **De-duplication** against every Airtable row (any status, including the advanced pipeline): same address, same business domain, same org number or same duplicate key. New rows get `Lead Status = Lite Ready` and `Research Notes = [GK-LITE] source=... orgnr=... orgform=... nace=... kommune=... template=...`. NACE code and municipality record the recipient's market, which the template refers to.
-4. **Send** (`npm run send:lite`, workflow *Gullkornet Lite Outreach*). Per record: exactly one Airtable row for the address, `Lite Ready`, Lite marker, legal form, DNC unticked, no other row at the same business Sent/Replied/Contacted/Suppressed/DNC/Follow-up/Meeting/Won/Lost, the segment has fresh research, a fresh Brreg lookup shows the company still registered, active, AS/ASA and (Brreg leads) still registering this address, the email domain has an MX record (`stale` in the run log otherwise; a Brreg or DNS outage stops the run), reply-status service says no reply, not in the 24 h Resend ledger. Then mark the row `Sent` and send with an idempotency key; only a clear Resend 4xx rejection puts the row back to `Lite Ready`. Any outage stops the run.
+4. **Send** (`npm run send:lite`, workflow *Gullkornet Lite Outreach*). Per record: exactly one Airtable row for the address, `Lite Ready`, Lite marker, legal form, DNC unticked, no other row at the same business Sent/Replied/Contacted/Suppressed/DNC/Follow-up/Meeting/Won/Lost, a fresh Brreg lookup shows the company still registered, active, AS/ASA and (Brreg leads) still registering this address, the email domain has an MX record (`stale` in the run log otherwise; a Brreg or DNS outage stops the run), reply-status service says no reply, not in the 24 h Resend ledger. Then mark the row `Sent` and send with an idempotency key; only a clear Resend 4xx rejection puts the row back to `Lite Ready`. Any outage stops the run.
 
 5. **Replies** (`npm run lite:replies`, workflow *Gullkornet Lite Reply Sync*, hourly). Every `Sent` Lite row is looked up in the read-only reply-status service; answered rows become `Replied`. Sends nothing. Sales follow-up from there is manual: [LITE-SALGSOPPFOLGING.md](LITE-SALGSOPPFOLGING.md).
 6. **Audit** (`npm run lite:audit`, workflow *Gullkornet Lite Audit*, Mondays and manual). Read-only: data quality of every `Lite Ready` row (policy, duplicates by address/domain/org number, research, Brreg + MX freshness) and the sales overview (statuses, open offers, paid NOK against the 50 000 NOK goal). Record IDs and counts only.
@@ -34,7 +34,7 @@ Markedsføringsloven §§ 6-7: claims must be true and documentable when sent. L
 | "mener det finnes muligheter for å forbedre ..." | At least one gap seen on >= 30 % of examined sites, otherwise the file is marked `supportsTemplate: false`. |
 | "Vi har en konkret idé" | `followUp` in the same file, built only from those gaps. Send it by hand to positive replies. |
 
-Gates: intake keeps only leads in a documented segment (and without `--industries` it queries exactly those segments); the sender skips any row whose segment has no fresh, sufficient research (`noResearch` in the run log) and writes `research=<id>` on the row when it claims it, so every email is linked to the research it relied on. Research expires after 90 days: re-run it per segment.
+Gates: intake keeps only leads in a documented segment (and without `--industries` it queries exactly those segments). Since 21.10.2026 (owner decision) research is no longer a condition for sending; see [LITE-DAILY-SLOT.md](LITE-DAILY-SLOT.md#owner-decision-21102026-retained-rules-only).
 
 NACE codes follow SN2025 (Brreg changed codes in 2025: hairdressers are `96.210`, not the old `96.021`).
 
@@ -44,7 +44,6 @@ E-handelsloven § 9: the subject is neutral; Lite sends as `Cidea Marketing <hel
 
 | Name | Kind | Default | Meaning |
 |---|---|---|---|
-| `GULLKORNET_LITE_ENABLE_LIVE_SEND` | secret | unset | Lite kill switch. Only `true` sends. Separate from the advanced `GULLKORNET_ENABLE_LIVE_SEND`. |
 | `RESEND_DAILY_QUOTA` | variable | **required** | Daily email quota of the actual Resend plan. Sending refuses without it. |
 | `RESEND_MONTHLY_QUOTA` | variable | unset | Monthly quota; daily limit x 31 must fit. |
 | `GULLKORNET_LITE_DAILY_LIMIT` | variable | 100 | Daily target (rolling 24 h, account-wide). Can be raised up to the Resend quota. |
@@ -72,7 +71,7 @@ Window: one coordinated run every day, 11:00-12:00 Europe/Oslo ([LITE-DAILY-SLOT
 4. Go-live: pilot first ([LITE-PILOT.md](LITE-PILOT.md)): `GULLKORNET_LITE_DAILY_LIMIT=5`, `GULLKORNET_LITE_MAX_PER_RUN=1`, then set secret `GULLKORNET_LITE_ENABLE_LIVE_SEND=true`. After the pilot, raise to 15, 30, 60, 100 (sender reputation).
 5. Enable scheduled intake: `GULLKORNET_LITE_INTAKE_ENABLED=true`, then `GULLKORNET_LITE_INTAKE_SYNC=true`.
 
-Rollback: set `GULLKORNET_LITE_ENABLE_LIVE_SEND` to anything but `true`. Each row is marked `Sent` *before* its email goes out, so a row can never be sent twice. If Resend clearly refuses (HTTP 4xx), the row is put back to `Lite Ready`. If the result is unknown (timeout, 5xx), or the reset fails, the run reports it and the row stays `Sent` (unsent) until you reset it by hand.
+Rollback: disable the *Gullkornet Lite Outreach* and *Gullkornet Lite Clock* workflows (the live switch was removed on 21.10.2026). Each row is marked `Sent` *before* its email goes out, so a row can never be sent twice. If Resend clearly refuses (HTTP 4xx), the row is put back to `Lite Ready`. If the result is unknown (timeout, 5xx), or the reset fails, the run reports it and the row stays `Sent` (unsent) until you reset it by hand.
 
 ## Offline checks
 

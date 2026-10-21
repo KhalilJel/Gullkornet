@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assessDeliveryHealth, deliveryStopLiftsAt, isPermanentInvalidAddress, isRecipientScopedUndetermined, MAX_FAILURE_RATE, type BounceInfo, type HealthEntry } from "../src/lite/delivery-health.js";
+import { assessDeliveryHealth, deliveryStopLiftsAt, isPermanentInvalidAddress, MAX_FAILURE_RATE, type BounceInfo, type HealthEntry } from "../src/lite/delivery-health.js";
 
 const NOW = Date.parse("2026-10-19T18:00:00Z");
 const H = 3_600_000;
@@ -27,41 +27,32 @@ test("an isolated permanent bounce is recipient-scoped and sending may continue"
   assert.deepEqual(v.recipientScoped.map(s => s.id), [b.id]);
 });
 
-test("an isolated Undetermined bounce is recipient-scoped, not reclassified; transient, unknown, complaints and failures stop", () => {
+test("every bounce is recipient-scoped and not reclassified; complaints and provider failures still stop", () => {
   const b = mail(2, "bounced");
-  const und = assessDeliveryHealth([...delivered(100), b], new Map([[b.id!, { type: "Undetermined", subType: "Undetermined" }]]), NOW);
-  assert.ok(und.ok);
-  assert.deepEqual(und.recipientScoped, [{ id: b.id, recipient: b.to![0], event: "bounced (Undetermined)" }], "reserved like a permanent one");
+  for (const [info, label] of [
+    [{ type: "Undetermined", subType: "Undetermined" }, "bounced (Undetermined)"],
+    [{ type: "Transient", diagnosticCode: "smtp; 451 4.7.1 try later" }, "bounced (Transient)"],
+    [{ type: "Undetermined", diagnosticCode: "smtp; 554 5.7.1 rejected as spam" }, "bounced (Undetermined)"],
+    [undefined, "bounced (no detail)"]
+  ] as Array<[BounceInfo | undefined, string]>) {
+    const v = assessDeliveryHealth([...delivered(100), b], new Map(info ? [[b.id!, info]] : []), NOW);
+    assert.ok(v.ok, label);
+    assert.deepEqual(v.recipientScoped, [{ id: b.id, recipient: b.to![0], event: label }]);
+  }
   assert.equal(isPermanentInvalidAddress({ type: "Undetermined", subType: "Undetermined" }), false, "not reclassified as permanent");
-  // Undetermined with a sender-side diagnostic keeps the global stop.
-  const spam = assessDeliveryHealth([...delivered(100), b], new Map([[b.id!, { type: "Undetermined", diagnosticCode: "smtp; 554 5.7.1 rejected as spam" }]]), NOW);
-  assert.equal(spam.ok, false);
-  assert.equal(isRecipientScopedUndetermined({ type: "Undetermined", diagnosticCode: "listed on a blocklist" }), false);
-  assert.equal(isRecipientScopedUndetermined({ type: "Undetermined", diagnosticCode: [] as unknown as string }), true);
-  const transient = assessDeliveryHealth([...delivered(100), b], new Map([[b.id!, { type: "Transient", diagnosticCode: "smtp; 451 4.7.1 try later" }]]), NOW);
-  assert.equal(transient.ok, false);
-  assert.match(!transient.ok ? transient.reason : "", /not confirmed permanent \(type Transient\)/);
-  assert.equal(assessDeliveryHealth([...delivered(100), b], new Map(), NOW).ok, false, "no bounce detail: stop");
-  assert.equal(assessDeliveryHealth([...delivered(100), mail(1, "complained")], new Map(), NOW).ok, false);
+  const complaint = assessDeliveryHealth([...delivered(100), mail(1, "complained")], new Map(), NOW);
+  assert.equal(complaint.ok, false);
+  assert.match(!complaint.ok ? complaint.reason : "", /complaint/);
   assert.equal(assessDeliveryHealth([...delivered(100), mail(1, "failed")], new Map(), NOW).ok, false);
 });
 
-test("Undetermined bounces still count towards the burst limit and the 30-day rate", () => {
+test("no fixed daily count: 21.10.2026's four recipient failures in 24 h are all reserved, sending continues", () => {
   const UND: BounceInfo = { type: "Undetermined", subType: "Undetermined" };
-  // 21.10.2026: two permanent bounces from 20.10 plus one Undetermined = 3 in 24 h: burst stop,
-  // lifting when the oldest leaves the window.
-  const p1 = mail(12.3, "bounced"), p2 = mail(12.0, "bounced"), u = mail(0.1, "bounced");
-  const map = new Map<string, BounceInfo>([[p1.id!, PERMANENT], [p2.id!, PERMANENT], [u.id!, UND]]);
-  const history = [...delivered(200), p1, p2, u];
-  const v = assessDeliveryHealth(history, map, NOW);
-  assert.equal(v.ok, false);
-  assert.match(!v.ok ? v.reason : "", /3 recipient failures in 24 h/);
-  assert.equal(deliveryStopLiftsAt(history, map, NOW), Date.parse(p1.created_at) + 24 * H + 1);
-  // Rate: 5 Undetermined bounces older than 24 h in 100 emails = 5 % > 4 %.
-  const old = Array.from({ length: 5 }, () => mail(200, "bounced"));
-  const rate = assessDeliveryHealth([...delivered(95), ...old], new Map(old.map(o => [o.id!, UND] as [string, BounceInfo])), NOW);
-  assert.equal(rate.ok, false);
-  assert.match(!rate.ok ? rate.reason : "", /failure rate/);
+  const p1 = mail(12.3, "bounced"), p2 = mail(12.1, "bounced"), p3 = mail(12.0, "bounced"), u = mail(0.1, "bounced");
+  const map = new Map<string, BounceInfo>([[p1.id!, PERMANENT], [p2.id!, PERMANENT], [p3.id!, PERMANENT], [u.id!, UND]]);
+  const v = assessDeliveryHealth([...delivered(270), p1, p2, p3, u], map, NOW);
+  assert.ok(v.ok);
+  assert.equal(v.recipientScoped.length, 4);
 });
 
 test("a Resend suppression is recipient-scoped; old failures outside 24 h do not stop", () => {
@@ -70,17 +61,18 @@ test("a Resend suppression is recipient-scoped; old failures outside 24 h do not
   assert.ok(v.ok && v.recipientScoped.length === 1 && v.recipientScoped[0]!.event === "suppressed");
 });
 
-test("bursts and a high 30-day failure rate still stop everything", () => {
-  const bs = [mail(1, "bounced"), mail(2, "bounced"), mail(3, "suppressed")];
-  const map = new Map(bs.filter(b => b.last_event === "bounced").map(b => [b.id!, PERMANENT] as [string, BounceInfo]));
-  const burst = assessDeliveryHealth([...delivered(200), ...bs], map, NOW);
-  assert.equal(burst.ok, false);
-  assert.match(!burst.ok ? burst.reason : "", /3 recipient failures/);
+test("the 30-day failure rate still stops everything, with count and denominator in the reason", () => {
   // 5 old bounces in 100 emails = 5 % > 4 %, even with nothing in the last 24 h.
   const old = Array.from({ length: 5 }, () => mail(200, "bounced"));
   const rate = assessDeliveryHealth([...delivered(95), ...old], new Map(), NOW);
   assert.equal(rate.ok, false);
-  assert.match(!rate.ok ? rate.reason : "", /failure rate 5\.0 %/);
+  assert.match(!rate.ok ? rate.reason : "", /failure rate 5\.0 % \(5 of 100\)/);
+  // Undetermined bounces count towards the rate like any other.
+  const und = Array.from({ length: 5 }, () => mail(200, "bounced"));
+  assert.equal(assessDeliveryHealth([...delivered(95), ...und], new Map(und.map(o => [o.id!, { type: "Undetermined" }] as [string, BounceInfo])), NOW).ok, false);
+  // A rate stop lifts when enough failures leave the 30-day window.
+  const history = [...delivered(95), ...old];
+  assert.equal(deliveryStopLiftsAt(history, new Map(), NOW), Date.parse(old[0]!.created_at) + 30 * 24 * H + 1);
   // Today's real numbers: 7 failures in 233 sent (3.0 %) is under the limit.
   assert.ok(7 / 233 < MAX_FAILURE_RATE);
   assert.equal(assessDeliveryHealth([...delivered(226), ...Array.from({ length: 7 }, () => mail(300, "bounced"))], new Map(), NOW).ok, true);

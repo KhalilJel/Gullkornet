@@ -75,14 +75,15 @@ test("Brreg website lookup accepts only a unique registry match", async () => {
   assert.equal(await lookupBrregByWebsite("a.example", large), undefined, "250+ employees is not an SMB");
 });
 
-test("runner re-checks the window after waiting for spacing", async () => {
-  // 19:59:30 Oslo (CEST); the previous email went out 30 s ago, so the runner waits 30 s into 20:00.
-  const t = Date.parse("2026-10-17T17:59:30Z");
-  const run = dryRunDeps(t, [liteRecord("recA", { Email: "post@a.example" })]);
-  run.deps.fetchLedger = async () => [{ created_at: new Date(t - 30_000).toISOString(), to: ["post@other.example"] }];
+test("no fixed spacing: sends follow each other at once, and the window is still checked", async () => {
+  // 19:59:57 Oslo (CEST); an email went out 1 s ago. Each fake send takes 1 s.
+  const t = Date.parse("2026-10-17T17:59:57Z");
+  const run = dryRunDeps(t, ["A", "B", "C", "D", "E"].map(x => liteRecord(`rec${x}`, { Email: `post@${x.toLowerCase()}.example` })));
+  const fetch = run.deps.fetchLedger;
+  run.deps.fetchLedger = async () => [{ created_at: new Date(t - 1_000).toISOString(), to: ["post@other.example"] }, ...await fetch()];
   const summary = await runLiteSend(run.deps, dryRunConfig());
+  assert.deepEqual(run.outbox.map(o => o.email.to), ["post@a.example", "post@b.example", "post@c.example"], "one second apart, then 20:00");
   assert.equal(summary.stoppedBy, "outside_window");
-  assert.equal(run.outbox.length, 0);
 });
 
 test("Places supplement needs a registry match and prefers the website's role address", () => {
@@ -336,7 +337,8 @@ const legacyEnv = { ...baseEnv, GULLKORNET_LITE_START_HOUR: "8", GULLKORNET_LITE
 
 test("defaults give one 11-12 slot every day, 95/day in one run, within the 3000/month plan", () => {
   const cfg = loadLiteSendConfig(baseEnv);
-  assert.deepEqual([cfg.startHour, cfg.endHour, cfg.dailyLimit, cfg.hourlyLimit, cfg.maxPerRun, cfg.minSpacingMs], [11, 12, 95, 95, 95, 30_000]);
+  assert.deepEqual([cfg.startHour, cfg.endHour, cfg.dailyLimit, cfg.hourlyLimit, cfg.maxPerRun], [11, 12, 95, 95, 95]);
+  assert.ok(!("minSpacingMs" in cfg), "no self-imposed spacing");
   assert.ok(theoreticalDailyCapacity(cfg) === 95);
   assert.doesNotThrow(() => loadLiteSendConfig({ ...baseEnv, RESEND_MONTHLY_QUOTA: "3000" }), "95 x 31 = 2945 fits the free plan");
 });
@@ -361,14 +363,15 @@ test("window covers Saturday and Sunday 08:00-19:59 Oslo, summer and winter time
   assert.equal(isWithinLiteWindow(Date.parse("2026-11-01T19:00:00Z"), cfg), false, "Sun 20:00 CET");
 });
 
-test("capacity check: hourly, daily, quota and spacing", () => {
+test("capacity check: hourly, daily and quota (no spacing)", () => {
   const cfg = loadLiteSendConfig(legacyEnv);
   const now = SATURDAY_10_OSLO;
   const at = (minutesAgo: number) => ({ created_at: new Date(now - minutesAgo * 60_000).toISOString(), to: ["x@y.example"] });
-  assert.doesNotThrow(() => assertLiteCapacity(countLedger([at(2)], now), cfg, now));
-  assert.throws(() => assertLiteCapacity(countLedger([at(0.5)], now), cfg, now), SendDeferredError);
-  assert.throws(() => assertLiteCapacity(countLedger(Array.from({ length: 15 }, (_, i) => at(3 + i)), now), cfg, now), /Hourly/);
-  assert.throws(() => assertLiteCapacity(countLedger(Array.from({ length: 100 }, (_, i) => at(61 + i * 10)), now), cfg, now), /quota|Daily/);
+  assert.doesNotThrow(() => assertLiteCapacity(countLedger([at(2)], now), cfg));
+  assert.doesNotThrow(() => assertLiteCapacity(countLedger([at(0)], now), cfg), "an email a moment ago does not defer the next");
+  assert.throws(() => assertLiteCapacity(countLedger(Array.from({ length: 15 }, (_, i) => at(3 + i)), now), cfg), SendDeferredError);
+  assert.throws(() => assertLiteCapacity(countLedger(Array.from({ length: 15 }, (_, i) => at(3 + i)), now), cfg), /Hourly/);
+  assert.throws(() => assertLiteCapacity(countLedger(Array.from({ length: 100 }, (_, i) => at(61 + i * 10)), now), cfg), /quota|Daily/);
   assert.throws(() => countLedger([{ created_at: "bad" }], now), /invalid timestamp/);
 });
 
@@ -399,30 +402,30 @@ test("dry run over five synthetic leads: 2 sent, ENK refused, replied skipped, D
   assert.deepEqual(outbox.map(o => o.email.to), ["post@frisor-a.example", "kontakt@ror-b.example"]);
   assert.ok(outbox.every(o => o.email.to.endsWith(".example")), "only reserved test domains");
   assert.ok(outbox.every(o => o.email.from === "Cidea Marketing <hello@cideamarketing.com>" && o.email.text === LITE_TEMPLATE.text));
-  assert.deepEqual(summary.skipped, { refused: 1, replied: 1, recentlySent: 0, noResearch: 0, stale: 0 });
+  assert.deepEqual(summary.skipped, { refused: 1, replied: 1, recentlySent: 0, stale: 0 });
   assert.equal(summary.scanned, 4);
   assert.equal(state.get("recLiteDry00001")?.fields["Lead Status"], "Sent");
-  assert.match(String(state.get("recLiteDry00001")?.fields["Research Notes"]), / research=96\.021@oslo-akershus@2026-10-16 sent=2026-10-17$/);
+  assert.match(String(state.get("recLiteDry00001")?.fields["Research Notes"]), / kommune=0301 sent=2026-10-17$/);
   assert.equal(state.get("recLiteDry00004")?.fields["Lead Status"], "Lite Ready");
 });
 
-test("send:lite CLI with the kill switch off makes no provider or CRM call", () => {
+test("send:lite CLI without a stated Resend quota stops before any provider or CRM call", () => {
   const result = spawnSync(process.execPath, ["--import", "tsx", "src/cli/send-lite.ts"], {
     encoding: "utf8",
     timeout: 15000,
     env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", RESEND_API_KEY: "re_should_not_be_used", AIRTABLE_API_TOKEN: "x" }
   });
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /kill switch is off/);
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stderr, /RESEND_DAILY_QUOTA is required/);
 });
 
 // ---------- Workflow safety ----------
 
 import { readFile } from "node:fs/promises";
 
-test("Lite outreach workflow is gated by its own kill switch and has no push/PR trigger", async () => {
+test("Lite outreach workflow has no live switch, no spacing and no push/PR trigger", async () => {
   const wf = (await readFile(new URL("../.github/workflows/lite-outreach.yml", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
-  assert.match(wf, /GULLKORNET_LITE_ENABLE_LIVE_SEND: \$\{\{ secrets\.GULLKORNET_LITE_ENABLE_LIVE_SEND \}\}/);
+  assert.doesNotMatch(wf, /GULLKORNET_LITE_ENABLE_LIVE_SEND|MIN_SPACING|kill switch/, "owner removed the live switch and the 30 s spacing (21.10.2026)");
   assert.doesNotMatch(wf, /GULLKORNET_ENABLE_LIVE_SEND:/, "must not reuse the advanced sender switch");
   assert.doesNotMatch(wf, /^  (push|pull_request):/m);
   assert.match(wf, /send:lite -- --preview/);
@@ -535,20 +538,15 @@ test("send gate: no, stale, insufficient or mismatched research blocks the lead"
   assert.deepEqual(assessResearch(segment, { ...research, sites: research.sites.map(s => ({ ...s, status: "FETCH_ERROR" as const })) }, SATURDAY_10_OSLO), { ok: false, reason: "RESEARCH_INSUFFICIENT" });
 });
 
-test("runner skips leads without documented research and sends nothing to them", async () => {
+test("research is no longer a send condition: leads in undocumented segments are sent", async () => {
   const run = dryRunDeps(SATURDAY_10_OSLO, [
     liteRecord("recA", { Email: "post@a.example" }),
     liteRecord("recB", { Email: "post@b.example", "Research Notes": "[GK-LITE] source=brreg orgnr=900000002 orgform=AS nace=43.221 kommune=0301" }),
     liteRecord("recC", { Email: "post@c.example", "Research Notes": "[GK-LITE] source=brreg orgnr=900000003 orgform=AS" })
   ]);
   const summary = await runLiteSend(run.deps, dryRunConfig());
-  assert.equal(summary.sent, 1);
-  assert.equal(summary.skipped.noResearch, 2);
-  assert.deepEqual(run.outbox.map(o => o.email.to), ["post@a.example"]);
-
-  const none = dryRunDeps(SATURDAY_10_OSLO, [liteRecord("recA", { Email: "post@a.example" })], new Set(), []);
-  assert.equal((await runLiteSend(none.deps, dryRunConfig())).skipped.noResearch, 1);
-  assert.equal(none.outbox.length, 0);
+  assert.equal(summary.sent, 3);
+  assert.deepEqual(run.outbox.map(o => o.email.to), ["post@a.example", "post@b.example", "post@c.example"]);
 });
 
 test("research reference replaces an earlier one on the row", () => {

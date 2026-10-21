@@ -44,10 +44,9 @@ function timingSummary(): string {
 }
 
 /**
- * Targeted delivery-health stop (delivery-health.ts): complaints, provider failures, transient or
- * undetailed bounces, sender-side blocks, bursts and a high 30-day failure rate stop the run; a
- * permanent invalid address, an Undetermined bounce or a Resend suppression is reserved (Do Not
- * Contact, verified) and the run may continue.
+ * Delivery-health stop (delivery-health.ts): complaints, provider failures and a 30-day failure rate
+ * above 4 % stop the run; every bounce and every Resend suppression is reserved (Do Not Contact,
+ * verified before the run continues) and the run goes on.
  */
 async function enforceDeliveryHealth(apiKey: string, airtable: ReturnType<typeof airtableConfigFromEnv>, env: NodeJS.ProcessEnv) {
   const now = Date.now();
@@ -97,11 +96,6 @@ async function main(): Promise<void> {
   const minEligible = minIndex >= 0 ? Number(process.argv[minIndex + 1]) : undefined;
   if (minEligible !== undefined && (!preview || !Number.isInteger(minEligible) || minEligible < 1)) throw new Error("--min-eligible needs --preview and a positive integer.");
   const env = process.env;
-  if (!preview && env.GULLKORNET_LITE_ENABLE_LIVE_SEND !== "true") {
-    // Checked before any provider or CRM call.
-    console.log("Gullkornet Lite: live sending kill switch is off. Nothing sent.");
-    return;
-  }
   if (preview) console.log("Technical preview only: counts do not establish opt-in, provider permission or legal readiness. Nothing will be sent or written.");
   const cfg = loadLiteSendConfig(preview && !env.RESEND_DAILY_QUOTA ? { ...env, RESEND_DAILY_QUOTA: "1000" } : env);
   if (!preview) assertConfirmedResendSending(cfg, env);
@@ -164,7 +158,6 @@ async function main(): Promise<void> {
       if (replied === undefined) throw new Error("Preview reply-status batch left out an address.");
       if (replied) throw new Error("Recipient has replied. Follow-up/outreach is blocked.");
     }),
-    findResearch: segment => research.get(segment.key),
     checkFreshness: (email, notes) => checkLiteFreshness(notes, email, allowedOrgForms, {
       fetchImpl: timed("brreg", (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => fetch(input, init)),
       resolveMxImpl: timed("dns_mx", (domain: string) => mxResolver.resolveMx(domain))
@@ -192,7 +185,7 @@ async function main(): Promise<void> {
   // Counts only: no addresses or company names in logs.
   console.log(`Gullkornet Lite ${preview ? "preview" : "run"}: scanned=${summary.scanned} sent=${summary.sent} ` +
     `eligible=${summary.eligibleInPreview ?? "-"} refused=${summary.skipped.refused} replied=${summary.skipped.replied} ` +
-    `recentlySent=${summary.skipped.recentlySent} noResearch=${summary.skipped.noResearch} stale=${summary.skipped.stale} documentedSegments=${research.size} ` +
+    `recentlySent=${summary.skipped.recentlySent} stale=${summary.skipped.stale} documentedSegments=${research.size} ` +
     `target=${summary.target ?? "-"} slot=${slot?.kind ?? "-"} stoppedBy=${summary.stoppedBy}`);
 
   if (minEligible !== undefined) {

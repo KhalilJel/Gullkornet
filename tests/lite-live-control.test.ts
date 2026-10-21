@@ -1,49 +1,46 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DRY_RUN_RECORDS, dryRunConfig, dryRunDeps } from "../src/lite/fixtures.js";
-import { REFRESH_LEAD_MS, runLiteSend, SLOT_PLAN_MARGIN_MS } from "../src/lite/send.js";
+import { runLiteSend, sendWithinRateLimit } from "../src/lite/send.js";
 
 const start = Date.parse("2026-10-20T09:00:00Z");
 const slot = { kind: "daily" as const, startMs: start, endMs: start + 3600_000 };
 const cfg = { ...dryRunConfig(), maxPerRun: 2 };
 
-test("new delivery-health stop after the first acceptance prevents the next claim", async () => {
+test("a new delivery-health stop (complaint, failure or rate) after the first acceptance prevents the next claim", async () => {
   const run = dryRunDeps(start, DRY_RUN_RECORDS.slice(0, 2));
   const fetch = run.deps.fetchLedger;
   run.deps.fetchLedger = async () => {
-    if (run.outbox.length) throw new Error("Delivery-health stop: unknown bounce");
+    if (run.outbox.length) throw new Error("Delivery-health stop: Spam complaint in the last 24 h.");
     return fetch();
   };
-  await assert.rejects(runLiteSend(run.deps, cfg, { slot }), /unknown bounce/);
+  await assert.rejects(runLiteSend(run.deps, cfg, { slot }), /complaint/);
   assert.equal(run.outbox.length, 1);
   assert.equal(run.state.get(DRY_RUN_RECORDS[1].id)?.fields["Lead Status"], "Lite Ready");
 });
 
-test("reply check happens after pacing and fails closed on an outage", async () => {
+test("reply check runs right before each claim and fails closed on an outage", async () => {
   const run = dryRunDeps(start, DRY_RUN_RECORDS.slice(0, 2));
   run.deps.assertNotReplied = async () => {
-    if (run.outbox.length) {
-      // The second send is due half-way through the planned part of the slot; the check runs just before it.
-      assert.ok(run.deps.now() >= start + (3600_000 - SLOT_PLAN_MARGIN_MS) / 2 - REFRESH_LEAD_MS);
-      throw new Error("HTTP 503");
-    }
+    if (run.outbox.length) throw new Error("HTTP 503");
   };
   await assert.rejects(runLiteSend(run.deps, cfg, { slot }), /503/);
   assert.equal(run.outbox.length, 1);
 });
 
-test("reservation created during pacing prevents sending", async () => {
+test("a reservation made after the queue was read prevents sending", async () => {
   const run = dryRunDeps(start, DRY_RUN_RECORDS.slice(0, 2));
-  const sleep = run.deps.sleep;
-  run.deps.sleep = async ms => {
-    await sleep(ms);
+  const send = run.deps.send;
+  run.deps.send = async (email, key) => {
+    const result = await send(email, key);
     run.state.get(DRY_RUN_RECORDS[1].id)!.fields["Do Not Contact"] = true;
+    return result;
   };
   await runLiteSend(run.deps, cfg, { slot });
   assert.equal(run.outbox.length, 1);
 });
 
-test("external account sends during pacing consume capacity", async () => {
+test("external account sends during the run consume capacity", async () => {
   const run = dryRunDeps(start, DRY_RUN_RECORDS.slice(0, 2));
   const fetch = run.deps.fetchLedger;
   run.deps.fetchLedger = async () => [
@@ -62,4 +59,32 @@ test("provider list lag cannot erase locally accepted sends", async () => {
   run.deps.fetchLedger = async () => [];
   const result = await runLiteSend(run.deps, { ...cfg, dailyLimit: 1 }, { slot });
   assert.equal(result.sent, 1);
+});
+
+test("Resend's rate limit (429) is waited out and the same request repeated; other 4xx are not retried", async () => {
+  const email = { from: "a", to: "post@a.example", subject: "s", text: "t" };
+  const keys: string[] = [];
+  let slept = 0;
+  let calls = 0;
+  const limited = async (_: unknown, key: string) => {
+    keys.push(key);
+    if (++calls < 3) throw new Error("Resend send failed (HTTP 429).");
+    return { id: "ok" };
+  };
+  assert.deepEqual(await sendWithinRateLimit(limited, async ms => { slept += ms; }, email, "k1"), { id: "ok" });
+  assert.deepEqual(keys, ["k1", "k1", "k1"], "same idempotency key every time");
+  assert.ok(slept > 0);
+  let rejectedCalls = 0;
+  await assert.rejects(sendWithinRateLimit(async () => { rejectedCalls++; throw new Error("Resend send failed (HTTP 422)."); }, async () => undefined, email, "k2"), /422/);
+  assert.equal(rejectedCalls, 1);
+});
+
+test("a run sends its 95 back to back within the slot, never more than 95 per rolling 24 h", async () => {
+  const records = Array.from({ length: 120 }, (_, i) => ({ id: `recFast${i}`, fields: { Email: `post@fast${i}.example`, "Lead Status": "Lite Ready",
+    "Research Notes": `[GK-LITE] source=brreg orgnr=${900100000 + i} orgform=AS nace=12.345 kommune=9999` } }));
+  const run = dryRunDeps(start, records);
+  const result = await runLiteSend(run.deps, { ...dryRunConfig(), dailyLimit: 95, hourlyLimit: 95, maxPerRun: 95 }, { slot });
+  assert.equal(result.sent, 95);
+  const last = Date.parse(run.ledger[run.ledger.length - 1]!.created_at);
+  assert.ok(last - start < 5 * 60_000, "no fixed spacing: 95 in minutes, not an hour");
 });

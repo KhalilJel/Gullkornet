@@ -30,12 +30,16 @@ test("cron triggers: summer and winter both reach 11:00 Oslo; the other triggers
   assert.equal(dailyLiteSlot(Date.parse("2026-10-20T09:59:59.500Z"), cfg).endMs, Date.parse("2026-10-20T10:00:00Z"));
 });
 
-test("one-off needs today's Oslo date and gives exactly the next 60 minutes", () => {
+test("a manual one-off starts at once at any time of day: \"now\" or today's Oslo date", () => {
   const now = Date.parse("2026-10-19T15:30:00Z"); // 17:30 Oslo
-  assert.deepEqual(resolveLiteSlot(now, cfg, "2026-10-19"), { kind: "one_off", startMs: now, endMs: now + 60 * 60_000 });
+  const bound = 90 * 60_000; // only the manual job timeout, not a time-of-day rule
+  assert.deepEqual(resolveLiteSlot(now, cfg, "2026-10-19"), { kind: "one_off", startMs: now, endMs: now + bound });
+  assert.deepEqual(resolveLiteSlot(now, cfg, "now"), { kind: "one_off", startMs: now, endMs: now + bound });
+  const night = Date.parse("2026-10-19T01:30:00Z"); // 03:30 Oslo
+  assert.equal(resolveLiteSlot(night, cfg, "now")?.startMs, night, "no time-of-day restriction");
   assert.throws(() => resolveLiteSlot(now, cfg, "2026-10-18"), /not today/);
   assert.throws(() => resolveLiteSlot(Date.parse("2026-10-19T22:30:00Z"), cfg, "2026-10-19"), /not today/, "00:30 Oslo is the next day");
-  assert.throws(() => resolveLiteSlot(now, cfg, "19.10.2026"), /YYYY-MM-DD/);
+  assert.throws(() => resolveLiteSlot(now, cfg, "19.10.2026"), /YYYY-MM-DD or "now"/);
   assert.equal(resolveLiteSlot(now, cfg), undefined, "without the one-off, 17:30 is no slot");
 });
 
@@ -45,7 +49,7 @@ function spread(ledger: SendLedgerEntry[], slot: LiteSlot) {
   return { times, minGap: Math.min(...gaps), maxGap: Math.max(...gaps), inside: times.every(t => t >= slot.startMs && t < slot.endMs) };
 }
 
-test("a scheduled run waits for 11:00 and spreads 95 evenly to before 12:00, about every 38 s", async () => {
+test("a scheduled run waits for 11:00 and sends its 95 at once, without a fixed spacing", async () => {
   const start = Date.parse("2026-10-20T08:35:00Z"); // 10:35 Oslo
   const slot = resolveLiteSlot(start, cfg)!;
   const run = dryRunDeps(start, records(150));
@@ -55,8 +59,8 @@ test("a scheduled run waits for 11:00 and spreads 95 evenly to before 12:00, abo
   const s = spread(run.ledger, slot);
   assert.ok(s.inside, "every send inside 11:00-12:00 Oslo");
   assert.equal(s.times[0], slot.startMs, "first send at 11:00");
-  assert.ok(s.minGap >= 30_000 && s.maxGap <= 39_000, `gaps ${s.minGap}-${s.maxGap} ms`);
-  assert.ok(s.times[94] - slot.startMs < 60 * 60_000);
+  assert.ok(s.minGap < 30_000, `no 30 s spacing (min gap ${s.minGap} ms)`);
+  assert.ok(s.times[94] - slot.startMs < 5 * 60_000, "95 within minutes");
   assert.equal(new Set(run.outbox.map(o => o.email.to)).size, 95, "no address twice");
 });
 
@@ -91,7 +95,7 @@ test("rolling 24 h: a full one-off at 17:30 leaves nothing for the next day's 11
   assert.equal(run.outbox.length, 93);
 });
 
-test("slow checks cost sends, never the window or the spacing", async () => {
+test("slow checks cost sends, never the window", async () => {
   const start = Date.parse("2026-10-20T09:00:00Z");
   const slot = resolveLiteSlot(start, cfg)!;
   const run = dryRunDeps(start, records(150));
@@ -100,7 +104,7 @@ test("slow checks cost sends, never the window or the spacing", async () => {
   assert.ok(summary.sent > 40 && summary.sent < 95, `sent ${summary.sent}`);
   assert.equal(summary.stoppedBy, "outside_window");
   const s = spread(run.ledger, slot);
-  assert.ok(s.inside && s.minGap >= 30_000);
+  assert.ok(s.inside);
 });
 
 test("a later trigger in the same slot continues the plan and never exceeds the daily limit", async () => {
@@ -128,7 +132,6 @@ function assertRollingLimits(all: SendLedgerEntry[], limit = 95) {
   times.forEach((t, i) => {
     const inWindow = times.filter(u => u <= t && t - u < 24 * 3_600_000).length;
     assert.ok(inWindow <= limit, `rolling 24 h count ${inWindow} at ${new Date(t).toISOString()}`);
-    if (i > 0) assert.ok(t - times[i - 1]! >= 30_000, "spacing");
   });
 }
 
@@ -168,13 +171,13 @@ test("a delivery-health stop that lifts inside the slot is waited out; one that 
   const lifts = start + 20 * 60_000;
   const run = dryRunDeps(start, records(150));
   run.deps.fetchLedger = async () => {
-    if (run.deps.now() < lifts) throw new DeliveryStopError("Delivery-health stop: unconfirmed bounce.", lifts);
+    if (run.deps.now() < lifts) throw new DeliveryStopError("Delivery-health stop: 30-day failure rate 4.1 % (12 of 290) is above 4 %.", lifts);
     return [...run.ledger];
   };
   const summary = await runLiteSend(run.deps, cfg, { slot });
   assert.ok(run.ledger.every(e => Date.parse(e.created_at) > lifts), "nothing sent while the stop held");
   assert.equal(summary.target, 95);
-  assert.ok(summary.sent > 60 && summary.sent <= 95, `sent ${summary.sent}`);
+  assert.equal(summary.sent, 95, "the rest of the slot is plenty without a fixed spacing");
 
   const late = dryRunDeps(start, records(10));
   late.deps.fetchLedger = async () => { throw new DeliveryStopError("Delivery-health stop: complaint.", slot.endMs + 3_600_000); };
@@ -194,7 +197,7 @@ test("scheduled runs may arrive up to 285 minutes early and wait; later or earli
   assert.equal(resolveLiteSlot(Date.parse("2026-10-21T04:16:00Z"), cfg), undefined, "manual runs keep the 30-minute lead");
 });
 
-test("14 simulated days with varying start (0-25 min late) and send pace: no persistent shortfall, never above 95 per 24 h", async () => {
+test("14 simulated days with varying start (0-25 min late) and check times: 95 every day, never above 95 per 24 h", async () => {
   // Deterministic pseudo-random sequence (seeded), so the test is repeatable.
   let seed = 20261021;
   const rand = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
@@ -213,15 +216,11 @@ test("14 simulated days with varying start (0-25 min late) and send pace: no per
     perDay.push(run.ledger.length - before);
   }
   assertRollingLimits(run.ledger);
-  // Day 5 starts 25 minutes late (35 minutes at >= 30 s spacing allow fewer), every other day reaches 95.
-  perDay.forEach((n, i) => { if (i !== 4) assert.ok(n >= 94, `day ${i + 1}: ${n} (${perDay.join(",")})`); });
-  assert.ok(perDay[4]! >= 60, `late day: ${perDay[4]}`);
-  assert.equal(perDay[5], 95, "the day after a late start recovers fully");
-  const ordinary = perDay.filter((_, i) => i !== 4);
-  assert.ok(ordinary.filter(n => n === 95).length >= ordinary.length - 1, `at most one day one short: ${perDay.join(",")}`);
+  // Without a fixed spacing even the day that starts 25 minutes late reaches 95.
+  assert.deepEqual(perDay, Array(14).fill(95), perDay.join(","));
 });
 
-test("30 simulated days with gate times as measured in production: 95 on every day that starts on time", async () => {
+test("30 simulated days with gate times as measured in production: 95 every day, late starts included", async () => {
   // Measured 20 Oct 2026 (readiness run 39476610873): Brreg max 0.6 s, DNS max 0.9 s, Airtable 0.2 s.
   // Modelled generously as 0.5-7.5 s per record, 3 % of records 20 s; start 0-4 min late; two days 25 min late.
   let seed = 20261021;
@@ -239,7 +238,5 @@ test("30 simulated days with gate times as measured in production: 95 on every d
     perDay.push(run.ledger.length - before);
   }
   assertRollingLimits(run.ledger);
-  // A 25-minute late start leaves 35 minutes at >= 30 s spacing; every other day sends exactly 95.
-  perDay.forEach((n, i) => assert.equal(n, i === 4 || i === 17 ? n : 95, `day ${i + 1}: ${perDay.join(",")}`));
-  assert.ok(perDay[4]! >= 60 && perDay[17]! >= 60);
+  assert.deepEqual(perDay, Array(30).fill(95), perDay.join(","));
 });
