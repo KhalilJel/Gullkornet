@@ -1,16 +1,12 @@
 import type { SendLedgerEntry } from "../integrations/outbound-email.js";
 
 // Delivery-health policy. Owner decisions: 19.10.2026 (targeted policy), 21.10.2026 (no stop on a
-// single bounce, no fixed daily count of recipient failures).
-//   complained, failed                         -> global stop (reputation / provider fault)
+// single bounce, no fixed daily count of recipient failures, no 30-day failure-rate stop).
+//   complained, failed (last 24 h)             -> global stop (spam complaint / provider fault)
 //   any bounce, suppressed                     -> recipient-scoped: that address is reserved (Do Not
 //                                                 Contact, verified; it also blocks its business) and
-//                                                 other sending continues. Every one still counts
-//                                                 towards the 30-day failure rate below.
-//   30-day failure rate above MAX_FAILURE_RATE over at least MIN_RATE_SAMPLE emails -> global stop
+//                                                 other sending continues.
 
-export const MAX_FAILURE_RATE = 0.04;
-export const MIN_RATE_SAMPLE = 50;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type HealthEntry = SendLedgerEntry & { id?: string };
@@ -51,11 +47,6 @@ export function assessDeliveryHealth(history: HealthEntry[], bounces: Map<string
       event = isPermanentInvalidAddress(info) ? "bounced (permanent)" : `bounced (${info?.type ?? "no detail"})`;
     }
     scoped.push({ id: e.id, recipient, event });
-  }
-  const monthly = history.filter(e => nowMs - Date.parse(e.created_at) < 30 * DAY_MS && e.last_event !== "canceled" && e.last_event !== "scheduled");
-  const failed = monthly.filter(e => FAILURES.has(e.last_event ?? "")).length;
-  if (monthly.length >= MIN_RATE_SAMPLE && failed / monthly.length > MAX_FAILURE_RATE) {
-    return { ok: false, reason: `30-day failure rate ${(100 * failed / monthly.length).toFixed(1)} % (${failed} of ${monthly.length}) is above ${MAX_FAILURE_RATE * 100} %.` };
   }
   return { ok: true, recipientScoped: scoped };
 }

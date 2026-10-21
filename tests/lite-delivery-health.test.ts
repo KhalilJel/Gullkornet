@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assessDeliveryHealth, deliveryStopLiftsAt, isPermanentInvalidAddress, MAX_FAILURE_RATE, type BounceInfo, type HealthEntry } from "../src/lite/delivery-health.js";
+import { assessDeliveryHealth, deliveryStopLiftsAt, isPermanentInvalidAddress, type BounceInfo, type HealthEntry } from "../src/lite/delivery-health.js";
 
 const NOW = Date.parse("2026-10-19T18:00:00Z");
 const H = 3_600_000;
@@ -61,21 +61,20 @@ test("a Resend suppression is recipient-scoped; old failures outside 24 h do not
   assert.ok(v.ok && v.recipientScoped.length === 1 && v.recipientScoped[0]!.event === "suppressed");
 });
 
-test("the 30-day failure rate still stops everything, with count and denominator in the reason", () => {
-  // 5 old bounces in 100 emails = 5 % > 4 %, even with nothing in the last 24 h.
-  const old = Array.from({ length: 5 }, () => mail(200, "bounced"));
-  const rate = assessDeliveryHealth([...delivered(95), ...old], new Map(), NOW);
-  assert.equal(rate.ok, false);
-  assert.match(!rate.ok ? rate.reason : "", /failure rate 5\.0 % \(5 of 100\)/);
-  // Undetermined bounces count towards the rate like any other.
-  const und = Array.from({ length: 5 }, () => mail(200, "bounced"));
-  assert.equal(assessDeliveryHealth([...delivered(95), ...und], new Map(und.map(o => [o.id!, { type: "Undetermined" }] as [string, BounceInfo])), NOW).ok, false);
-  // A rate stop lifts when enough failures leave the 30-day window.
-  const history = [...delivered(95), ...old];
-  assert.equal(deliveryStopLiftsAt(history, new Map(), NOW), Date.parse(old[0]!.created_at) + 30 * 24 * H + 1);
-  // Today's real numbers: 7 failures in 233 sent (3.0 %) is under the limit.
-  assert.ok(7 / 233 < MAX_FAILURE_RATE);
-  assert.equal(assessDeliveryHealth([...delivered(226), ...Array.from({ length: 7 }, () => mail(300, "bounced"))], new Map(), NOW).ok, true);
-  // A small sample never trips the rate on its own.
-  assert.equal(assessDeliveryHealth([...delivered(10), mail(100, "bounced"), mail(120, "bounced")], new Map(), NOW).ok, true);
+test("no failure-rate stop: 21.10.2026's 12 failures in 283 (4.2 %) and far worse rates only reserve recipients", () => {
+  const old = Array.from({ length: 11 }, () => mail(200, "bounced"));
+  const fresh = mail(0.1, "bounced");
+  const v = assessDeliveryHealth([...delivered(271), ...old, fresh], new Map([[fresh.id!, { type: "Undetermined" }]]), NOW);
+  assert.ok(v.ok, "4.2 % no longer stops");
+  assert.deepEqual(v.recipientScoped.map(r => r.id), [fresh.id], "the bounce in the last 24 h is reserved");
+  const many = Array.from({ length: 30 }, () => mail(100, "bounced"));
+  assert.ok(assessDeliveryHealth([...delivered(70), ...many], new Map(), NOW).ok, "even 30 % only reserves");
+});
+
+test("complaints and provider failures still stop for 24 h after the event", () => {
+  const c = mail(2, "complained");
+  const history = [...delivered(100), c];
+  const v = assessDeliveryHealth(history, new Map(), NOW);
+  assert.equal(v.ok, false);
+  assert.equal(deliveryStopLiftsAt(history, new Map(), NOW), Date.parse(c.created_at) + 24 * H + 1);
 });

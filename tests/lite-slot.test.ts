@@ -171,7 +171,7 @@ test("a delivery-health stop that lifts inside the slot is waited out; one that 
   const lifts = start + 20 * 60_000;
   const run = dryRunDeps(start, records(150));
   run.deps.fetchLedger = async () => {
-    if (run.deps.now() < lifts) throw new DeliveryStopError("Delivery-health stop: 30-day failure rate 4.1 % (12 of 290) is above 4 %.", lifts);
+    if (run.deps.now() < lifts) throw new DeliveryStopError("Delivery-health stop: Spam complaint in the last 24 h.", lifts);
     return [...run.ledger];
   };
   const summary = await runLiteSend(run.deps, cfg, { slot });

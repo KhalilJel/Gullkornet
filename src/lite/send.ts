@@ -161,7 +161,7 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
     summary.stoppedBy = "outside_window";
     return summary;
   }
-  // A delivery-health stop (complaint, provider failure, 30-day rate) that lifts inside the slot is waited out;
+  // A delivery-health stop (complaint or provider failure in the last 24 h) that lifts inside the slot is waited out;
   // one that outlasts the slot, a new event, or an outage stops the run as before.
   const fetchLedgerOrWait = async (): Promise<SendLedgerEntry[]> => {
     for (;;) {
