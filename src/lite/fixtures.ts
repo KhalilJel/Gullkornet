@@ -16,7 +16,7 @@ export const DRY_RUN_RECORDS: LiteQueueRecord[] = [
 export const DRY_RUN_REPLIED = new Set(["info@svart-c.example"]);
 
 export function dryRunConfig(): LiteSendConfig {
-  return { startHour: 8, endHour: 20, dailyLimit: 100, hourlyLimit: 15, maxPerRun: 5, minSpacingMs: 60_000, resendDailyQuota: 100 };
+  return { startHour: 8, endHour: 20, dailyLimit: 100, hourlyLimit: 15, maxPerRun: 5, resendDailyQuota: 100 };
 }
 
 /**
@@ -35,7 +35,7 @@ export function dryRunResearch(nowMs: number): SegmentResearch {
 }
 
 /** In-memory dependencies: a fake clock, fake Resend and fake Airtable. Nothing leaves the process. */
-export function dryRunDeps(startMs: number, records = DRY_RUN_RECORDS, replied = DRY_RUN_REPLIED, research: SegmentResearch[] = [dryRunResearch(startMs)]) {
+export function dryRunDeps(startMs: number, records = DRY_RUN_RECORDS, replied = DRY_RUN_REPLIED) {
   let clock = startMs;
   const ledger: SendLedgerEntry[] = [];
   const outbox: Array<{ email: PreparedEmail; key: string }> = [];
@@ -50,7 +50,6 @@ export function dryRunDeps(startMs: number, records = DRY_RUN_RECORDS, replied =
       return [...state.values()].filter(r => String(r.fields.Email ?? "").toLowerCase().endsWith("@" + domain));
     },
     assertNotReplied: async email => { if (replied.has(email)) throw new Error("Recipient has replied. Follow-up/outreach is blocked."); },
-    findResearch: segment => research.find(r => r.segment.key === segment.key),
     checkFreshness: async () => undefined,
     send: async (email, key) => {
       outbox.push({ email, key });

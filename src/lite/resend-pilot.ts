@@ -15,9 +15,9 @@ export function assertConfirmedResendSending(cfg: LiteSendConfig, env: NodeJS.Pr
   if (env.GITHUB_EVENT_NAME === "pull_request" || env.GITHUB_EVENT_NAME === "pull_request_target") {
     throw new Error("Live sending is forbidden in pull-request environments.");
   }
-  if (cfg.dailyLimit > 95 || cfg.maxPerRun > 95 || cfg.hourlyLimit > 95 || cfg.minSpacingMs < 30_000 ||
+  if (cfg.dailyLimit > 95 || cfg.maxPerRun > 95 || cfg.hourlyLimit > 95 ||
       cfg.startHour !== 11 || cfg.endHour !== 12 || LITE_TEMPLATE_VERSION !== "2026-10-15.6") {
-    throw new Error("Confirmed Resend operation permits at most 95/day, 95/run, 95/hour, 30-second spacing, 11-12 Oslo and template 2026-10-15.6.");
+    throw new Error("Confirmed Resend operation permits at most 95 per rolling 24 h, 95/run, 95/hour, the 11-12 Oslo daily slot and template 2026-10-15.6.");
   }
 }
 

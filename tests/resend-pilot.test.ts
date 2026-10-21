@@ -4,14 +4,13 @@ import { assertConfirmedResendSending, assertResendDeliveryHealthy, RESEND_PILOT
 import { loadLiteSendConfig } from "../src/lite/schedule.js";
 
 const cfg = loadLiteSendConfig({ RESEND_DAILY_QUOTA: "100", GULLKORNET_LITE_DAILY_LIMIT: "5", GULLKORNET_LITE_MAX_PER_RUN: "1" });
-test("confirmed operation enforces daily/run/time/spacing limits and refuses PR environments", () => {
+test("confirmed operation enforces 24 h/run/hour/slot limits and refuses PR environments", () => {
   assert.doesNotThrow(() => assertConfirmedResendSending(cfg, {}));
   assert.doesNotThrow(() => assertConfirmedResendSending({ ...cfg, dailyLimit: 95, maxPerRun: 95, hourlyLimit: 95 }, {}));
   assert.doesNotThrow(() => assertConfirmedResendSending(loadLiteSendConfig({ RESEND_DAILY_QUOTA: "100" }), {}), "the defaults are the confirmed profile");
-  assert.throws(() => assertConfirmedResendSending({ ...cfg, dailyLimit: 96 }, {}), /95\/day/);
+  assert.throws(() => assertConfirmedResendSending({ ...cfg, dailyLimit: 96 }, {}), /95 per rolling 24 h/);
   assert.throws(() => assertConfirmedResendSending({ ...cfg, maxPerRun: 96 }, {}), /95\/run/);
   assert.throws(() => assertConfirmedResendSending({ ...cfg, hourlyLimit: 96 }, {}), /95\/hour/);
-  assert.throws(() => assertConfirmedResendSending({ ...cfg, minSpacingMs: 29_000 }, {}), /spacing/);
   assert.throws(() => assertConfirmedResendSending({ ...cfg, startHour: 8, endHour: 20 }, {}), /11-12/);
   assert.throws(() => assertConfirmedResendSending(cfg, { GITHUB_EVENT_NAME: "pull_request" }), /forbidden/);
   assert.equal(RESEND_PILOT_IDS.length, 5);

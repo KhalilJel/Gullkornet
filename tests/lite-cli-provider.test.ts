@@ -14,10 +14,11 @@ function run(live: string, args: string[] = []) {
   });
 }
 
-test("Lite scheduled runs remain harmless no-ops while live is off", () => {
+test("there is no live switch any more: an invalid configuration still fails before any network or CRM access", () => {
   const result = run("false");
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /kill switch is off/);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.doesNotMatch(result.stdout, /kill switch/);
+  assert.match(result.stderr, /RESEND_DAILY_QUOTA/);
   assert.doesNotMatch(result.stdout + result.stderr, /UNEXPECTED_NETWORK/);
 });
 

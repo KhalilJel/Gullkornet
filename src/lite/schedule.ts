@@ -2,7 +2,8 @@ import { osloClock, SendDeferredError } from "../integrations/send-schedule.js";
 import type { SendLedgerEntry } from "../integrations/outbound-email.js";
 
 // Lite schedule: every day (Mon-Sun), one coordinated run in the 11:00 (inclusive) to 12:00
-// (exclusive) Europe/Oslo slot that spreads the day's sends evenly across the hour.
+// (exclusive) Europe/Oslo slot. No self-imposed spacing: sends go out as fast as Resend's API accepts
+// them (a 429 is waited out), within 95 per rolling 24 h, 95 per hour and 95 per run.
 // The daily number is a configurable target, not a code ceiling, but it can never exceed the
 // configured Resend daily quota, and a monthly quota (when given) must cover 31 days of it.
 
@@ -12,7 +13,6 @@ export type LiteSendConfig = {
   dailyLimit: number;
   hourlyLimit: number;
   maxPerRun: number;
-  minSpacingMs: number;
   resendDailyQuota: number;
   resendMonthlyQuota?: number;
 };
@@ -22,12 +22,11 @@ export const LITE_DEFAULTS = Object.freeze({
   endHour: 12,
   dailyLimit: 95,
   hourlyLimit: 95,
-  maxPerRun: 95,
-  minSpacingSeconds: 30
+  maxPerRun: 95
 });
 
 // Sanity bounds only, to catch typos such as an extra zero.
-const SANITY = Object.freeze({ maxDaily: 1000, maxHourly: 100, maxPerRun: 100, minSpacingSeconds: 20 });
+const SANITY = Object.freeze({ maxDaily: 1000, maxHourly: 100, maxPerRun: 100 });
 
 /** A manual run may start this long before the slot and wait for it. */
 export const SLOT_LEAD_MS = 30 * 60 * 1000;
@@ -36,8 +35,11 @@ export const SLOT_LEAD_MS = 30 * 60 * 1000;
  * scheduled run may arrive up to this long before the slot and wait (job limit 6 h: wait + 60 min slot).
  */
 export const MAX_SCHEDULED_LEAD_MS = 285 * 60 * 1000;
-/** The owner-authorised one-off run sends within this long of its start. */
-export const ONE_OFF_DURATION_MS = 60 * 60 * 1000;
+/**
+ * A manual one-off has no time-of-day or duration rule of its own: it sends at once until its capacity
+ * is used or the queue is empty. This bound only keeps it inside the manual job timeout (105 min).
+ */
+export const ONE_OFF_DURATION_MS = 90 * 60 * 1000;
 
 function intFrom(env: NodeJS.ProcessEnv, name: string, fallback?: number): number {
   const raw = env[name]?.trim();
@@ -56,7 +58,6 @@ export function loadLiteSendConfig(env: NodeJS.ProcessEnv = process.env): LiteSe
   const dailyLimit = intFrom(env, "GULLKORNET_LITE_DAILY_LIMIT", LITE_DEFAULTS.dailyLimit);
   const hourlyLimit = intFrom(env, "GULLKORNET_LITE_HOURLY_LIMIT", LITE_DEFAULTS.hourlyLimit);
   const maxPerRun = intFrom(env, "GULLKORNET_LITE_MAX_PER_RUN", LITE_DEFAULTS.maxPerRun);
-  const spacingSeconds = intFrom(env, "GULLKORNET_LITE_MIN_SPACING_SECONDS", LITE_DEFAULTS.minSpacingSeconds);
   // No default: the operator must state the real Resend plan before anything is sent.
   const resendDailyQuota = intFrom(env, "RESEND_DAILY_QUOTA");
   const monthlyRaw = env.RESEND_MONTHLY_QUOTA?.trim();
@@ -66,7 +67,6 @@ export function loadLiteSendConfig(env: NodeJS.ProcessEnv = process.env): LiteSe
   if (dailyLimit < 1 || dailyLimit > SANITY.maxDaily) throw new Error(`GULLKORNET_LITE_DAILY_LIMIT must be 1-${SANITY.maxDaily}.`);
   if (hourlyLimit < 1 || hourlyLimit > SANITY.maxHourly) throw new Error(`GULLKORNET_LITE_HOURLY_LIMIT must be 1-${SANITY.maxHourly}.`);
   if (maxPerRun < 1 || maxPerRun > SANITY.maxPerRun) throw new Error(`GULLKORNET_LITE_MAX_PER_RUN must be 1-${SANITY.maxPerRun}.`);
-  if (spacingSeconds < SANITY.minSpacingSeconds) throw new Error(`GULLKORNET_LITE_MIN_SPACING_SECONDS must be at least ${SANITY.minSpacingSeconds}.`);
   if (resendDailyQuota < 1) throw new Error("RESEND_DAILY_QUOTA must be at least 1.");
   if (dailyLimit > resendDailyQuota) {
     throw new Error("GULLKORNET_LITE_DAILY_LIMIT exceeds RESEND_DAILY_QUOTA. Raise the Resend plan or lower the limit.");
@@ -78,7 +78,7 @@ export function loadLiteSendConfig(env: NodeJS.ProcessEnv = process.env): LiteSe
   if (hourlyLimit * windowHours < dailyLimit) {
     throw new Error("Hourly limit x send window hours is below the daily limit; the daily target is unreachable.");
   }
-  return { startHour, endHour, dailyLimit, hourlyLimit, maxPerRun, minSpacingMs: spacingSeconds * 1000, resendDailyQuota, resendMonthlyQuota };
+  return { startHour, endHour, dailyLimit, hourlyLimit, maxPerRun, resendDailyQuota, resendMonthlyQuota };
 }
 
 /** Every weekday including Saturday and Sunday. */
@@ -105,13 +105,14 @@ export function dailyLiteSlot(nowMs: number, cfg: Pick<LiteSendConfig, "startHou
 
 /**
  * The slot this run may send in, or undefined when it is not its time (a no-op, not a failure).
- * oneOffDate (YYYY-MM-DD, Oslo) is the owner's one-off authorisation: it must be today and gives
- * [now, now + 60 min). A stale or malformed date refuses, so a re-run on another day cannot reuse it.
+ * oneOffDate starts a manual one-off at once, at any time of day: "now", or today's date in Oslo
+ * (YYYY-MM-DD). Another date refuses, so a re-run of an old one-off on a later day cannot send.
  */
 export function resolveLiteSlot(nowMs: number, cfg: Pick<LiteSendConfig, "startHour" | "endHour">, oneOffDate?: string, leadMs = SLOT_LEAD_MS): LiteSlot | undefined {
   const date = oneOffDate?.trim();
   if (date) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("One-off date must be YYYY-MM-DD.");
+    if (date.toLowerCase() === "now") return { kind: "one_off", startMs: nowMs, endMs: nowMs + ONE_OFF_DURATION_MS };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("One-off date must be YYYY-MM-DD or \"now\".");
     if (date !== osloClock(nowMs).date) throw new Error(`One-off date ${date} is not today in Europe/Oslo. Refusing to send.`);
     return { kind: "one_off", startMs: nowMs, endMs: nowMs + ONE_OFF_DURATION_MS };
   }
@@ -139,21 +140,16 @@ export function countLedger(entries: SendLedgerEntry[], nowMs: number): LedgerCo
   return { lastHour, lastDay, newestMs };
 }
 
-/** Throws SendDeferredError (a normal "not now") when any limit or the spacing would be broken by one more send. */
-export function assertLiteCapacity(counts: LedgerCounts, cfg: LiteSendConfig, nowMs: number): void {
+/** Throws SendDeferredError (a normal "not now") when one more send would break a limit or the Resend quota. */
+export function assertLiteCapacity(counts: LedgerCounts, cfg: LiteSendConfig): void {
   if (counts.lastDay >= cfg.resendDailyQuota) throw new SendDeferredError("Resend daily quota reached.");
   if (counts.lastDay >= cfg.dailyLimit) throw new SendDeferredError(`Daily limit reached (${cfg.dailyLimit}/24h).`);
   if (counts.lastHour >= cfg.hourlyLimit) throw new SendDeferredError(`Hourly limit reached (${cfg.hourlyLimit}/h).`);
-  if (counts.newestMs !== undefined && nowMs - counts.newestMs < cfg.minSpacingMs) {
-    throw new SendDeferredError("Minimum spacing since the previous email has not passed.");
-  }
 }
 
 /** Upper bound on sends per day the configuration allows (used by tests and the run summary). */
 export function theoreticalDailyCapacity(cfg: LiteSendConfig): number {
-  const windowMs = (cfg.endHour - cfg.startHour) * 60 * 60 * 1000;
-  const bySpacing = Math.floor(windowMs / cfg.minSpacingMs);
-  return Math.min(cfg.dailyLimit, cfg.resendDailyQuota, cfg.hourlyLimit * (cfg.endHour - cfg.startHour), bySpacing);
+  return Math.min(cfg.dailyLimit, cfg.resendDailyQuota, cfg.hourlyLimit * (cfg.endHour - cfg.startHour));
 }
 
 /** Ledger entries that will still be inside the rolling 24 h window at atMs (they limit a slot ending then). */

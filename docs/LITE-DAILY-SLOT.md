@@ -5,7 +5,7 @@ Owner instruction: send up to 95 a day from Cidea Marketing, spread evenly betwe
 ## How it runs
 
 - `lite-outreach.yml` has five UTC triggers (08:35, 08:50, 09:35, 09:50, 10:05). In summer (UTC+2) the first four fall between 10:35 and 11:50 Oslo. In winter (UTC+1) the last three fall between 10:35 and 11:05. A trigger outside 10:30-12:00 Oslo ends before any provider or CRM call. A run that starts before 11:00 waits for it. The concurrency group runs one at a time. A later trigger in the same slot continues within the same limits, and after 12:00 it does nothing. The old `*/10 6-18` cron is removed.
-- At the start the run reads the Resend ledger once. It sets `target = min(95, daily limit - sent in last 24 h, Resend daily quota - sent in last 24 h)` and spreads the target evenly over the rest of the slot (95 → about every 38 s). Every gate runs before the wait, so the wait absorbs gate time. A slow queue sends fewer and never sends after 12:00. The minimum spacing is 30 s.
+- At the start the run reads the Resend ledger. It sets `target = min(95, daily limit - sent in last 24 h, Resend daily quota - sent in last 24 h)` and sends as fast as Resend's API accepts (no fixed spacing since 21.10.2026; an HTTP 429 is waited out and repeated with the same idempotency key). When a limit is reached it waits for older sends to leave the rolling window if that happens before 12:00. Every check runs before that wait, so check time never carries into the next day. It never sends after 12:00.
 - Job timeout: 105 minutes (30 min lead + 60 min slot + setup).
 - Hourly limit, maximum per run and spacing are fixed in the workflow. The repository variables `GULLKORNET_LITE_MAX_PER_RUN` (2) and `GULLKORNET_LITE_HOURLY_LIMIT` are no longer read. `GULLKORNET_LITE_DAILY_LIMIT`, `RESEND_DAILY_QUOTA` and `RESEND_MONTHLY_QUOTA` still are. 95 × 31 = 2945 fits the 3000/month plan.
 - Manual `one_off_date` (today in Oslo) runs the owner's one-off. It sends now under the same limits, spread over 60 minutes. A different date refuses.
@@ -14,7 +14,7 @@ Owner instruction: send up to 95 a day from Cidea Marketing, spread evenly betwe
 
 Both the daily limit and the Resend quota check count the last 24 hours, not the calendar day. An afternoon one-off therefore holds back the next day's 11:00 slot. Every email sent at, say, 17:30-18:30 still counts at 11:00-12:00 the next day. If the one-off sends the day's full 95, the next day's slot sends nothing. Normal operation resumes the day after. This is deliberate: it respects the provider limit instead of treating 11:00 as a fresh day.
 
-Stop: set `GULLKORNET_LITE_ENABLE_LIVE_SEND` to anything but `true`.
+Stop: disable the *Gullkornet Lite Outreach* workflow (and *Gullkornet Lite Clock*) in GitHub Actions. The `GULLKORNET_LITE_ENABLE_LIVE_SEND` switch was removed on 21.10.2026.
 
 ## Delivery-health stop (targeted, 19 October 2026)
 
@@ -44,10 +44,28 @@ The run checks the last 30 days of Resend history before it reads the queue:
 - A delivery-health stop that lifts inside the slot (24 h after the failed email) is waited out. A stop that outlasts the slot, or any new event, still stops the run.
 - Result:
   - 21 October: target 53, because the 42 one-off messages from 20 October still count.
-  - 22 October onwards: 95 a day, with no message over 95 in any rolling 24 h and at least 30 s between messages (tested).
+  - 22 October onwards: 95 a day, with no message over 95 in any rolling 24 h (tested; no fixed spacing since 21.10.2026).
 
 **Monitoring.**
 - `Gullkornet Lite Readiness`, before the slot, never sends or writes. It runs every gate over the first 150 Lite Ready rows and fails unless at least 115 are eligible. It also prints the queue size, days of supply and the first research expiry.
 - `Gullkornet Lite Daily Report`, after the slot, prints the Lite messages accepted by Resend in the slot, their latest delivery event, the capacity and what is missing. A missed start or a shortfall fails the job.
 - Both open the existing pipeline alert issue on failure.
 - Every live run prints wall time per dependency: delivery health, Airtable lookup and claim, reply check, Brreg, DNS and Resend send.
+
+## Owner decision 21.10.2026: retained rules only
+
+Removed (self-imposed send stops):
+- The fixed stop at more than 2 recipient failures in 24 h.
+- The automatic global stop after one isolated bounce (any type). Every bounce and every Resend suppression now reserves the recipient: Do Not Contact on the exact-address row, verified from Airtable before the run continues; the send-time lookup then blocks every row on the same business domain. The bounce is not reclassified (Undetermined stays Undetermined).
+- Market research as a condition for sending (research files and the research workflow remain as documentation).
+- The 30-second minimum spacing. Resend's real API limit applies: a 429 is waited out and repeated with the same idempotency key.
+- The live switch `GULLKORNET_LITE_ENABLE_LIVE_SEND`, and the 60-minute limit on manual one-offs. A one-off (`one_off_date` = `now` or today's Oslo date) starts at once at any time of day and sends until its capacity is used (bounded only by the 105-minute manual job timeout).
+
+Retained:
+- 95 per rolling 24 h, 95 per hour, 95 per run; Resend's real daily/monthly quota and API limit.
+- Stop when the queue is empty or no remaining recipient passes the retained checks.
+- Do Not Contact, earlier contact and replies block the recipient; duplicates by address, business and earlier send.
+- Lite Ready status, Lite marker and exactly one row per address.
+- The recipient filter (AS/ASA, role address, no free mail, domain matches the website, company still active with a mail server) — markedsføringsloven § 15.
+- Global stop on a spam complaint, a provider send failure, and the existing 30-day failure rate above 4 % (at least 50 emails); the reason names count and denominator.
+- Idempotency (claim before send, idempotency key), outage = fail closed, secrets only in GitHub secrets.
