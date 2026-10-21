@@ -88,3 +88,30 @@ test("a run sends its 95 back to back within the slot, never more than 95 per ro
   const last = Date.parse(run.ledger[run.ledger.length - 1]!.created_at);
   assert.ok(last - start < 5 * 60_000, "no fixed spacing: 95 in minutes, not an hour");
 });
+
+test("Resend's own quota answer wins: the row goes back to the queue and the run stops cleanly", async () => {
+  const run = dryRunDeps(start, DRY_RUN_RECORDS.slice(0, 2));
+  const logs: string[] = [];
+  run.deps.log = m => { logs.push(m); };
+  const send = run.deps.send;
+  run.deps.send = async (email, key) => {
+    if (run.outbox.length >= 1) throw new Error("Resend send failed (HTTP 429 daily_quota_exceeded).");
+    return send(email, key);
+  };
+  const result = await runLiteSend(run.deps, cfg, { slot });
+  assert.equal(result.sent, 1);
+  assert.equal(result.stoppedBy, "limit");
+  assert.equal(run.state.get(DRY_RUN_RECORDS[1].id)?.fields["Lead Status"], "Lite Ready", "put back, nothing lost");
+  assert.ok(logs.some(l => /Resend quota reached/.test(l)));
+});
+
+test("a quota 429 is not retried as a rate limit, a plain 429 is", async () => {
+  const { isQuotaExceeded, isRateLimited, isDefiniteRejection } = await import("../src/lite/send.js");
+  const quota = new Error("Resend send failed (HTTP 429 monthly_quota_exceeded).");
+  const rate = new Error("Resend send failed (HTTP 429 rate_limit_exceeded).");
+  const bare = new Error("Resend send failed (HTTP 429).");
+  assert.ok(isQuotaExceeded(quota) && isDefiniteRejection(quota) && !isRateLimited(quota));
+  assert.ok(isRateLimited(rate) && !isDefiniteRejection(rate));
+  assert.ok(isRateLimited(bare) && !isDefiniteRejection(bare));
+  assert.ok(isDefiniteRejection(new Error("Resend send failed (HTTP 422 validation_error).")));
+});

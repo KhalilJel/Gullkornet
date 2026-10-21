@@ -8,7 +8,7 @@ test("confirmed operation enforces 24 h/run/hour/slot limits and refuses PR envi
   assert.doesNotThrow(() => assertConfirmedResendSending(cfg, {}));
   assert.doesNotThrow(() => assertConfirmedResendSending({ ...cfg, dailyLimit: 95, maxPerRun: 95, hourlyLimit: 95 }, {}));
   assert.doesNotThrow(() => assertConfirmedResendSending(loadLiteSendConfig({ RESEND_DAILY_QUOTA: "100" }), {}), "the defaults are the confirmed profile");
-  assert.throws(() => assertConfirmedResendSending({ ...cfg, dailyLimit: 96 }, {}), /95 per rolling 24 h/);
+  assert.throws(() => assertConfirmedResendSending({ ...cfg, dailyLimit: 96 }, {}), /95 per Oslo calendar day/);
   assert.throws(() => assertConfirmedResendSending({ ...cfg, maxPerRun: 96 }, {}), /95\/run/);
   assert.throws(() => assertConfirmedResendSending({ ...cfg, hourlyLimit: 96 }, {}), /95\/hour/);
   assert.throws(() => assertConfirmedResendSending({ ...cfg, startHour: 8, endHour: 20 }, {}), /11-12/);

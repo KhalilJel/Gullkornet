@@ -238,7 +238,9 @@ export async function sendOneEmail(email: PreparedEmail, apiKey: string, idempot
   const body: unknown = await response.json().catch(() => ({}));
   if (!response.ok) {
     // Provider error bodies can echo recipient addresses or message metadata; keep them out of logs.
-    throw new Error(`Resend send failed (HTTP ${response.status}).`);
+    // Only Resend's error code (e.g. daily_quota_exceeded) is kept, and only when it is a plain token.
+    const name = typeof body === "object" && body !== null && typeof (body as { name?: unknown }).name === "string" ? (body as { name: string }).name : "";
+    throw new Error(`Resend send failed (HTTP ${response.status}${/^[a-z_]{1,60}$/.test(name) ? " " + name : ""}).`);
   }
   if (typeof body !== "object" || body === null || !("id" in body) || typeof (body as { id: unknown }).id !== "string") {
     throw new Error("Resend returned an unexpected success response without an email ID.");

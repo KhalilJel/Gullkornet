@@ -4,16 +4,17 @@ import { dailyLiteSlot, type LiteSendConfig } from "./schedule.js";
 import { LITE_TEMPLATE } from "./template.js";
 
 // What a day's Lite slot actually did, from the provider's own list: accepted Lite messages in the
-// slot, their latest delivery event, and the shortfall against what the rolling limits allowed.
+// slot, their latest delivery event, and the shortfall against the day's goal (95 per calendar day in
+// Europe/Oslo, minus what the account sent earlier that day).
 // Counts only; no addresses.
 
 export type DailyReport = {
   date: string;
   slotStartMs: number;
   slotEndMs: number;
-  /** Account messages from before the slot that still counted against the 24 h limit when the slot ended. */
+  /** Account messages earlier the same Oslo day, before the slot (they count against the day's goal). */
   carriedIn: number;
-  /** What the rolling daily limit and provider quota allowed in the slot. */
+  /** What the day's goal and the provider's daily quota left for the slot. */
   capacity: number;
   accepted: number;
   byEvent: Record<string, number>;
@@ -34,7 +35,7 @@ export function buildDailyReport(history: ResendEmailEntry[], date: string, nowM
   const slot = dailyLiteSlot(Date.parse(`${date}T10:30:00Z`), cfg);
   const ts = (e: ResendEmailEntry) => Date.parse(e.created_at);
   const inSlot = history.filter(e => ts(e) >= slot.startMs && ts(e) < slot.endMs);
-  const carriedIn = history.filter(e => ts(e) > slot.endMs - 24 * 3_600_000 && ts(e) < slot.startMs && e.last_event !== "canceled").length;
+  const carriedIn = history.filter(e => ts(e) < slot.startMs && osloClock(ts(e)).date === date && e.last_event !== "canceled").length;
   const capacity = Math.max(0, Math.min(cfg.maxPerRun, cfg.dailyLimit, cfg.resendDailyQuota) - carriedIn);
   const lite = inSlot.filter(isLiteEmail);
   const byEvent: Record<string, number> = {};

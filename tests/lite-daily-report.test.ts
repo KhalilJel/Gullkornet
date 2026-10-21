@@ -10,15 +10,19 @@ const mail = (iso: string, last_event = "delivered", subject: string = LITE_TEMP
 const at = (start: string, n: number, stepMs: number, ev = "delivered") =>
   Array.from({ length: n }, (_, i) => mail(new Date(Date.parse(start) + i * stepMs).toISOString(), ev));
 
-test("21.10: 42 carried in from the 20.10 one-off leave 53; 53 accepted is ok", () => {
+test("calendar-day goal: yesterday's sends are not subtracted, earlier sends the same Oslo day are", () => {
   const history = [...at("2026-10-20T11:45:35Z", 42, 37_900), ...at("2026-10-21T09:00:10Z", 52, 67_000), mail("2026-10-21T09:59:00Z", "bounced")];
   const r = buildDailyReport(history, "2026-10-21", Date.parse("2026-10-21T10:30:00Z"), cfg);
-  assert.equal(r.carriedIn, 42);
-  assert.equal(r.capacity, 53);
+  assert.equal(r.carriedIn, 0, "20.10's 42 belong to another day");
+  assert.equal(r.capacity, 95);
   assert.equal(r.accepted, 53);
   assert.deepEqual(r.byEvent, { delivered: 52, bounced: 1 });
-  assert.equal(r.status, "ok");
-  assert.equal(r.outsideSlot, 0);
+  assert.equal(r.status, "shortfall");
+  // A one-off at 02:03 Oslo the same day counts against that day's goal.
+  const early = buildDailyReport([...at("2026-10-21T00:03:37Z", 5, 60_000), ...at("2026-10-21T09:00:10Z", 90, 30_000)], "2026-10-21", Date.parse("2026-10-21T10:30:00Z"), cfg);
+  assert.equal(early.carriedIn, 5);
+  assert.equal(early.capacity, 90);
+  assert.equal(early.status, "ok");
 });
 
 test("a missed start and a shortfall are flagged after the slot; before its end it is pending", () => {

@@ -3,9 +3,11 @@ import type { SendLedgerEntry } from "../integrations/outbound-email.js";
 
 // Lite schedule: every day (Mon-Sun), one coordinated run in the 11:00 (inclusive) to 12:00
 // (exclusive) Europe/Oslo slot. No self-imposed spacing: sends go out as fast as Resend's API accepts
-// them (a 429 is waited out), within 95 per rolling 24 h, 95 per hour and 95 per run.
-// The daily number is a configurable target, not a code ceiling, but it can never exceed the
-// configured Resend daily quota, and a monthly quota (when given) must cover 31 days of it.
+// them (a 429 is waited out). The daily goal (95) counts the calendar day in Europe/Oslo across all
+// runs, automatic and manual; yesterday's sends are not subtracted (owner decision 21.10.2026).
+// Resend's own daily and monthly quotas are counted separately in UTC days and months, and Resend's
+// answer when a quota is reached always wins. 95 per hour and 95 per run still apply. The goal can
+// never exceed the configured Resend daily quota, and a monthly quota must cover 31 days of it.
 
 export type LiteSendConfig = {
   startHour: number;
@@ -121,29 +123,53 @@ export function resolveLiteSlot(nowMs: number, cfg: Pick<LiteSendConfig, "startH
   return slot;
 }
 
-export type LedgerCounts = { lastHour: number; lastDay: number; newestMs?: number };
+/**
+ * Account-wide counts from the Resend ledger (advanced and Lite sends share the provider quota).
+ * - today: sends on the current calendar day in Europe/Oslo (our daily goal, owner decision 21.10.2026;
+ *   yesterday's sends are not subtracted).
+ * - utcDay / utcMonth: sends in the provider's own periods for its daily and monthly quota.
+ * - lastHour: the 95-per-hour rule.
+ */
+export type LedgerCounts = { lastHour: number; today: number; utcDay: number; utcMonth: number; newestMs?: number };
 
-/** Account-wide counts from the Resend ledger (advanced and Lite sends share one quota). Fails closed on bad timestamps. */
+/** Fails closed on bad or future timestamps. */
 export function countLedger(entries: SendLedgerEntry[], nowMs: number): LedgerCounts {
+  const todayOslo = osloClock(nowMs).date;
+  const nowIso = new Date(nowMs).toISOString();
   let lastHour = 0;
-  let lastDay = 0;
+  let today = 0;
+  let utcDay = 0;
+  let utcMonth = 0;
   let newestMs: number | undefined;
   for (const entry of entries) {
     const ts = Date.parse(entry.created_at);
     if (!Number.isFinite(ts)) throw new Error("Send ledger contains an invalid timestamp. Refusing to send.");
     const age = nowMs - ts;
     if (age < 0) throw new Error("Send ledger contains a future-dated entry. Refusing to send.");
+    const iso = new Date(ts).toISOString();
     if (age < 60 * 60 * 1000) lastHour++;
-    if (age < 24 * 60 * 60 * 1000) lastDay++;
+    if (osloClock(ts).date === todayOslo) today++;
+    if (iso.slice(0, 10) === nowIso.slice(0, 10)) utcDay++;
+    if (iso.slice(0, 7) === nowIso.slice(0, 7)) utcMonth++;
     if (newestMs === undefined || ts > newestMs) newestMs = ts;
   }
-  return { lastHour, lastDay, newestMs };
+  return { lastHour, today, utcDay, utcMonth, newestMs };
 }
 
-/** Throws SendDeferredError (a normal "not now") when one more send would break a limit or the Resend quota. */
+/** How many more sends today's goal and the provider quotas allow now (the hourly rule aside). */
+export function remainingToday(counts: LedgerCounts, cfg: LiteSendConfig): number {
+  return Math.max(0, Math.min(
+    cfg.dailyLimit - counts.today,
+    cfg.resendDailyQuota - counts.utcDay,
+    cfg.resendMonthlyQuota === undefined ? Infinity : cfg.resendMonthlyQuota - counts.utcMonth
+  ));
+}
+
+/** Throws SendDeferredError (a normal "not now") when one more send would pass the goal, a quota or the hourly rule. */
 export function assertLiteCapacity(counts: LedgerCounts, cfg: LiteSendConfig): void {
-  if (counts.lastDay >= cfg.resendDailyQuota) throw new SendDeferredError("Resend daily quota reached.");
-  if (counts.lastDay >= cfg.dailyLimit) throw new SendDeferredError(`Daily limit reached (${cfg.dailyLimit}/24h).`);
+  if (counts.utcDay >= cfg.resendDailyQuota) throw new SendDeferredError("Resend daily quota reached (UTC day).");
+  if (cfg.resendMonthlyQuota !== undefined && counts.utcMonth >= cfg.resendMonthlyQuota) throw new SendDeferredError("Resend monthly quota reached (UTC month).");
+  if (counts.today >= cfg.dailyLimit) throw new SendDeferredError(`Daily goal reached (${cfg.dailyLimit} today, Europe/Oslo).`);
   if (counts.lastHour >= cfg.hourlyLimit) throw new SendDeferredError(`Hourly limit reached (${cfg.hourlyLimit}/h).`);
 }
 
@@ -152,24 +178,13 @@ export function theoreticalDailyCapacity(cfg: LiteSendConfig): number {
   return Math.min(cfg.dailyLimit, cfg.resendDailyQuota, cfg.hourlyLimit * (cfg.endHour - cfg.startHour));
 }
 
-/** Ledger entries that will still be inside the rolling 24 h window at atMs (they limit a slot ending then). */
-export function countedAt(entries: SendLedgerEntry[], atMs: number): number {
-  return entries.filter(e => Date.parse(e.created_at) > atMs - 24 * 60 * 60 * 1000 && Date.parse(e.created_at) <= atMs).length;
-}
-
 /**
- * When the next send becomes allowed by the daily, quota and hourly limits as older entries roll out
- * of their windows (undefined when nothing in the ledger is blocking). Spacing is not considered.
+ * When the hourly rule lets the next send through as older sends leave the last hour (undefined when it
+ * is not the hourly rule that blocks). The daily goal and the quotas only reset with a new day or month.
  */
 export function capacityFreesAt(entries: SendLedgerEntry[], cfg: LiteSendConfig, nowMs: number): number | undefined {
-  const times = entries.map(e => Date.parse(e.created_at)).filter(ts => ts <= nowMs).sort((a, b) => a - b);
-  const frees = (windowMs: number, limit: number): number | undefined => {
-    const inWindow = times.filter(ts => nowMs - ts < windowMs);
-    if (inWindow.length < limit) return undefined;
-    return inWindow[inWindow.length - limit]! + windowMs;
-  };
-  const day = frees(24 * 60 * 60 * 1000, Math.min(cfg.dailyLimit, cfg.resendDailyQuota));
-  const hour = frees(60 * 60 * 1000, cfg.hourlyLimit);
-  if (day === undefined && hour === undefined) return undefined;
-  return Math.max(day ?? 0, hour ?? 0);
+  const counts = countLedger(entries, nowMs);
+  if (remainingToday(counts, cfg) === 0 || counts.lastHour < cfg.hourlyLimit) return undefined;
+  const lastHour = entries.map(e => Date.parse(e.created_at)).filter(ts => ts <= nowMs && nowMs - ts < 3_600_000).sort((a, b) => a - b);
+  return lastHour[lastHour.length - cfg.hourlyLimit]! + 3_600_000;
 }
