@@ -3,6 +3,7 @@ import { assertAirtableWritesAllowed } from "../domain/airtable-write-guard.js";
 import type { SendLedgerEntry } from "../integrations/outbound-email.js";
 import type { AirtableConfig } from "./intake.js";
 import type { LiteQueueRecord } from "./send.js";
+import { fetchReadWithRetry } from "./http-retry.js";
 
 // Read-only investigation of the Resend events that trip the delivery-health stop
 // (resend-pilot.ts). Output carries no addresses: a recipient is a short hash plus the
@@ -82,15 +83,21 @@ export async function markDoNotContact(cfg: AirtableConfig, recordId: string, en
   if (payload?.id !== recordId || payload.fields?.["Do Not Contact"] !== true) throw new Error("Airtable's Do Not Contact state could not be verified.");
 }
 
+/**
+ * Pauses (increasing) before repeating a Resend read that hit a network error, a timeout, 429 or 5xx.
+ * A lasting failure still throws, so nothing is decided on missing history.
+ */
+export const RESEND_READ_PAUSES_MS: readonly number[] = Object.freeze([2_000, 5_000, 15_000]);
+
 /** Resend's sent-email list back to `sinceMs` (bounded pages); fails closed on a malformed page. */
-export async function fetchResendEmailsSince(apiKey: string, sinceMs: number, fetchImpl: typeof fetch = fetch, maxPages = 30): Promise<ResendEmailEntry[]> {
+export async function fetchResendEmailsSince(apiKey: string, sinceMs: number, fetchImpl: typeof fetch = fetch, maxPages = 30, pausesMs: readonly number[] = RESEND_READ_PAUSES_MS): Promise<ResendEmailEntry[]> {
   const entries: ResendEmailEntry[] = [];
   let after: string | undefined;
   for (let page = 0; page < maxPages; page++) {
     const url = new URL("https://api.resend.com/emails");
     url.searchParams.set("limit", "100");
     if (after) url.searchParams.set("after", after);
-    const response = await fetchImpl(url.toString(), { headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(15000) });
+    const response = await fetchReadWithRetry(fetchImpl, url.toString(), { headers: { Authorization: `Bearer ${apiKey}` } }, 15000, pausesMs);
     if (!response.ok) throw new Error(`Resend email list failed (HTTP ${response.status}).`);
     const payload = await response.json().catch(() => null) as { data?: unknown; has_more?: unknown } | null;
     if (!payload || !Array.isArray(payload.data)) throw new Error("Resend returned an invalid email list.");
@@ -108,10 +115,10 @@ export async function fetchResendEmailsSince(apiKey: string, sinceMs: number, fe
 }
 
 /** The bounce classification of one email (type, subType, diagnosticCode); fails closed on an API error. */
-export async function fetchBounceInfo(apiKey: string, id: string, fetchImpl: typeof fetch = fetch): Promise<{ type?: string; subType?: string; diagnosticCode?: string } | undefined> {
-  const response = await fetchImpl(`https://api.resend.com/emails/${encodeURIComponent(id)}`, {
-    headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(15000)
-  });
+export async function fetchBounceInfo(apiKey: string, id: string, fetchImpl: typeof fetch = fetch, pausesMs: readonly number[] = RESEND_READ_PAUSES_MS): Promise<{ type?: string; subType?: string; diagnosticCode?: string } | undefined> {
+  const response = await fetchReadWithRetry(fetchImpl, `https://api.resend.com/emails/${encodeURIComponent(id)}`, {
+    headers: { Authorization: `Bearer ${apiKey}` }
+  }, 15000, pausesMs);
   if (!response.ok) throw new Error(`Resend email detail failed (HTTP ${response.status}). Refusing to send.`);
   const payload = await response.json().catch(() => null) as { bounce?: Record<string, unknown> } | null;
   const b = payload?.bounce;

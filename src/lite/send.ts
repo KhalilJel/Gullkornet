@@ -149,8 +149,18 @@ export type LiteRunOptions = {
  * run: an unavailable check is never read as "allowed". preview=true runs every gate and sends nothing.
  */
 export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, options: LiteRunOptions = {}): Promise<LiteRunSummary> {
-  assertLiteTemplateCompliant();
   const summary: LiteRunSummary = { sent: 0, scanned: 0, skipped: { refused: 0, replied: 0, recentlySent: 0, stale: 0 }, stoppedBy: "queue_empty" };
+  try {
+    return await runLiteSendInto(summary, deps, cfg, options);
+  } catch (error) {
+    // A stop (lasting outage, delivery-health stop, claim failure) always reports what was accepted.
+    deps.log(`Run stopped after ${summary.sent} accepted: ${error instanceof Error ? error.message : "unknown error"}`);
+    throw error;
+  }
+}
+
+async function runLiteSendInto(summary: LiteRunSummary, deps: LiteSendDeps, cfg: LiteSendConfig, options: LiteRunOptions): Promise<LiteRunSummary> {
+  assertLiteTemplateCompliant();
   const slot = options.preview ? undefined : options.slot;
   const inWindow = () => slot ? deps.now() >= slot.startMs && deps.now() < slot.endMs : isWithinLiteWindow(deps.now(), cfg);
   if (slot && deps.now() < slot.startMs && deps.now() < slot.endMs) {
@@ -326,14 +336,16 @@ export async function runLiteSend(deps: LiteSendDeps, cfg: LiteSendConfig, optio
 
 /**
  * The reply service opens an IMAP connection per lookup and answers 503 now and then under a burst
- * of lookups. Retry a 503 twice after a pause; any other answer, or a third 503, stops the run as before.
+ * of lookups, and a network call can fail once. Retry a 503 or a network error / timeout twice after
+ * a pause; any other answer, or a third failure, stops the run as before.
  */
 export async function withTransientRetry<T>(call: () => Promise<T>, wait: (ms: number) => Promise<void>, pausesMs = [10_000, 30_000]): Promise<T> {
   for (const pause of pausesMs) {
     try {
       return await call();
     } catch (error) {
-      if (!(error instanceof Error && /HTTP 503\b/.test(error.message))) throw error;
+      const transient = error instanceof TypeError || (error instanceof Error && (/HTTP 503\b/.test(error.message) || error.name === "TimeoutError" || error.name === "AbortError"));
+      if (!transient) throw error;
       await wait(pause);
     }
   }
