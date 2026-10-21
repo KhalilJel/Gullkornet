@@ -3,8 +3,12 @@ import type { SendLedgerEntry } from "../integrations/outbound-email.js";
 // Targeted delivery-health policy (owner-authorised 19.10.2026). The old rule stopped all sending for
 // 24 h after any failure. Now:
 //   complained, failed                         -> global stop (reputation / provider fault)
-//   bounced, not confirmed permanent            -> global stop (cause unknown, may be sender-side)
-//   bounced permanent (invalid mailbox), suppressed -> recipient-scoped: that address is reserved
+//   bounced Transient, or with no bounce detail -> global stop (cause unknown, may be sender-side)
+//   bounced Undetermined whose diagnostic names a sender-side block (5.7.x, spam, blocklist,
+//     policy, reputation)                        -> global stop
+//   bounced permanent (invalid mailbox), suppressed,
+//   bounced Undetermined (owner-authorised 21.10.2026; not reclassified as permanent)
+//                                                -> recipient-scoped: that address is reserved
 //                                                  (Do Not Contact, which also blocks its business)
 //                                                  and other sending may continue
 //   more than MAX_RECIPIENT_FAILURES_24H recipient-scoped failures in 24 h -> global stop (burst)
@@ -33,6 +37,17 @@ export function isPermanentInvalidAddress(info: BounceInfo | undefined): boolean
   return INVALID_MAILBOX_CODES.test(code);
 }
 
+// An Undetermined bounce whose diagnostic points at the sender (content, reputation, policy) is not
+// a recipient problem and keeps the global stop.
+const SENDER_SIDE_BLOCK = /\b5\.7\.\d+\b|spam|block|blacklist|denylist|policy|reputation|rejected due to/i;
+
+/** Resend could not classify the bounce, and its diagnostic does not name a sender-side block. */
+export function isRecipientScopedUndetermined(info: BounceInfo | undefined): boolean {
+  if (!info || info.type !== "Undetermined") return false;
+  const code = Array.isArray(info.diagnosticCode) ? info.diagnosticCode.join(" ") : String(info.diagnosticCode ?? "");
+  return !SENDER_SIDE_BLOCK.test(code);
+}
+
 const FAILURES = new Set(["bounced", "complained", "failed", "suppressed"]);
 
 export function assessDeliveryHealth(history: HealthEntry[], bounces: Map<string, BounceInfo>, nowMs: number): HealthVerdict {
@@ -48,6 +63,11 @@ export function assessDeliveryHealth(history: HealthEntry[], bounces: Map<string
     if (!e.id || !recipient) return { ok: false, reason: "A recent failure has no ID or recipient; cannot scope it." };
     if (e.last_event === "bounced") {
       const info = bounces.get(e.id);
+      if (isRecipientScopedUndetermined(info) && !isPermanentInvalidAddress(info)) {
+        // Still a failure: it counts towards the burst limit below and the 30-day rate.
+        scoped.push({ id: e.id, recipient, event: "bounced (Undetermined)" });
+        continue;
+      }
       if (!isPermanentInvalidAddress(info)) {
         return { ok: false, reason: `Bounce in the last 24 h is not confirmed permanent (type ${info?.type ?? "unknown"}).` };
       }
