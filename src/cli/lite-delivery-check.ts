@@ -8,11 +8,12 @@ import { fetchBounceInfo } from "../lite/delivery-check.js";
 import { analyzeBounces, bounceFeatures, type AnalysisRow } from "../lite/bounce-analysis.js";
 import { Resolver } from "node:dns/promises";
 
-// npm run lite:delivery-check -- [--days 7] [--apply-suppression] [--analyze]
+// npm run lite:delivery-check -- [--days 7] [--apply-suppression] [--analyze] [--recent 5]
 // Read-only by default: lists the Resend events that trip the delivery-health stop, with the
 // provider's diagnostic fields and the matching Airtable rows' state. No addresses are printed.
 // --analyze compares the 30-day bounces with the deliveries that went through, per coarse feature
 // (local part, website domain match, free mail, source, MX family); it prints counts only.
+// --recent N lists the N newest sends one by one with their fresh provider status (hash, no address).
 // --apply-suppression ticks Do Not Contact on the exact-address rows of bounced, complained or
 // suppressed recipients that are not already DNC (verified from Airtable's answer).
 
@@ -46,6 +47,24 @@ async function main(): Promise<void> {
     : `Delivery-health stop (targeted policy): ACTIVE: ${verdict.reason}`);
 
   if (process.argv.includes("--analyze")) await analyze(history, airtable);
+  const recentIndex = process.argv.indexOf("--recent");
+  if (recentIndex >= 0) {
+    const n = Number(process.argv[recentIndex + 1]);
+    if (!Number.isInteger(n) || n < 1 || n > 50) throw new Error("--recent must be 1-50.");
+    const newest = [...history].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, n);
+    console.log(`Newest ${newest.length} sends, fresh status from Resend:`);
+    for (const entry of newest) {
+      const recipient = (entry.to ?? [])[0]?.trim().toLowerCase() ?? "";
+      let detail = "-";
+      if (entry.id) {
+        const response = await fetch(`https://api.resend.com/emails/${encodeURIComponent(entry.id)}`, {
+          headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(15000)
+        });
+        detail = response.ok ? providerDetail(await response.json() as Record<string, unknown>, recipient) : `detail HTTP ${response.status}`;
+      }
+      console.log(`- ${entry.created_at} recipient=${recipient ? recipientRef(recipient) : "none"} listEvent=${entry.last_event ?? "-"} detail=${detail}`);
+    }
+  }
 
   const failedSet = new Set<string>(FAILED_EVENTS);
   const failed = emails.filter(e => failedSet.has(e.last_event ?? ""));
