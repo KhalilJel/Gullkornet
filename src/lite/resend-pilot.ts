@@ -17,7 +17,7 @@ export function assertConfirmedResendSending(cfg: LiteSendConfig, env: NodeJS.Pr
   }
   if (cfg.dailyLimit > 95 || cfg.maxPerRun > 95 || cfg.hourlyLimit > 95 ||
       cfg.startHour !== 11 || cfg.endHour !== 12 || LITE_TEMPLATE_VERSION !== "2026-10-15.6") {
-    throw new Error("Confirmed Resend operation permits at most 95 per rolling 24 h, 95/run, 95/hour, the 11-12 Oslo daily slot and template 2026-10-15.6.");
+    throw new Error("Confirmed Resend operation permits at most 95 per Oslo calendar day, 95/run, 95/hour, the 11-12 Oslo daily slot and template 2026-10-15.6.");
   }
 }
 

@@ -1,7 +1,7 @@
 name: Gullkornet Lite Outreach
 
 # Sends the fixed, owner-approved Lite template to "Lite Ready" Airtable rows.
-# One coordinated run a day, every day, in 11:00-12:00 Europe/Oslo: up to 95 per rolling 24 h,
+# One coordinated run a day, every day, in 11:00-12:00 Europe/Oslo: up to 95 per Oslo calendar day,
 # 95 per hour and 95 per run (account-wide, so earlier sends are subtracted), as fast as Resend's API
 # accepts (a 429 is waited out and repeated with the same idempotency key).
 # GitHub delivers this repository's scheduled events hours late and drops most of them (measured
@@ -10,7 +10,7 @@ name: Gullkornet Lite Outreach
 # and wait (src/lite/schedule.ts; summer and winter time). Manual runs keep a 30-minute lead.
 # Every trigger outside its lead window ends before any provider or CRM call. The concurrency group
 # runs one at a time; a later trigger, or the owner's reserve dispatch, only continues the same slot
-# with the capacity left (rolling 24 h, quota, delivery health, every recipient gate) or no-ops.
+# with the capacity left (the day's goal, Resend quotas, delivery health, every recipient gate) or no-ops.
 # Manual one_off_date ("now" or today's date in Oslo) runs the owner's one-off at once, at any time
 # of day, within the same limits and capacity. Manual pilot_send runs up to 2 messages the same way.
 # Manual preview never sends or writes.

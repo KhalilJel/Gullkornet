@@ -62,10 +62,17 @@ Removed (self-imposed send stops):
 - The live switch `GULLKORNET_LITE_ENABLE_LIVE_SEND`, and the 60-minute limit on manual one-offs. A one-off (`one_off_date` = `now` or today's Oslo date) starts at once at any time of day and sends until its capacity is used (bounded only by the 105-minute manual job timeout).
 
 Retained:
-- 95 per rolling 24 h, 95 per hour, 95 per run; Resend's real daily/monthly quota and API limit.
+- 95 per hour, 95 per run; Resend's real daily/monthly quota and API limit. (The 95 per rolling 24 h was replaced later the same day by 95 per Oslo calendar day, see below.)
 - Stop when the queue is empty or no remaining recipient passes the retained checks.
 - Do Not Contact, earlier contact and replies block the recipient; duplicates by address, business and earlier send.
 - Lite Ready status, Lite marker and exactly one row per address.
 - The recipient filter (AS/ASA, role address, no free mail, domain matches the website, company still active with a mail server) — markedsføringsloven § 15.
 - Global stop on a spam complaint or a provider send failure in the last 24 h. The 30-day failure-rate stop (4 %) was also removed later on 21.10.2026 by the owner, with no replacement threshold.
 - Idempotency (claim before send, idempotency key), outage = fail closed, secrets only in GitHub secrets.
+
+## Owner decision 21.10.2026 (evening): calendar-day goal
+
+- The own limit of 95 per rolling 24 h is removed. The goal is 95 first-touch emails per **calendar day in Europe/Oslo**; every run that day (automatic 11:00, 11:20 reserve, manual one-offs) counts towards the same goal, account-wide. Yesterday's sends are not subtracted.
+- Resend's quotas are counted separately in the provider's periods: daily quota per **UTC day**, monthly quota per **UTC month** (the run reads the history back to the start of the UTC month). Resend's own answer wins: a `429 daily_quota_exceeded` / `monthly_quota_exceeded` puts the row back to Lite Ready and stops the run cleanly (no retry). A plain 429 rate limit is still waited out with the same idempotency key.
+- Unchanged: 95 per hour, 95 per run, recipient filter, Do Not Contact / contact / reply blocks, duplicates, complaint and provider-failure stop, reservations, idempotency, the 11:00-12:00 slot and the clock (10:40 dispatch, 11:20 reserve; 25.10.2026 first winter-time day: 10:40 Oslo = 09:40 UTC).
+- Assumption to verify on Resend's dashboard: that the daily quota resets per UTC day. If Resend counts a rolling 24 h instead, it refuses with its quota error and the run stops cleanly with the rows back in the queue.

@@ -371,7 +371,9 @@ test("capacity check: hourly, daily and quota (no spacing)", () => {
   assert.doesNotThrow(() => assertLiteCapacity(countLedger([at(0)], now), cfg), "an email a moment ago does not defer the next");
   assert.throws(() => assertLiteCapacity(countLedger(Array.from({ length: 15 }, (_, i) => at(3 + i)), now), cfg), SendDeferredError);
   assert.throws(() => assertLiteCapacity(countLedger(Array.from({ length: 15 }, (_, i) => at(3 + i)), now), cfg), /Hourly/);
-  assert.throws(() => assertLiteCapacity(countLedger(Array.from({ length: 100 }, (_, i) => at(61 + i * 10)), now), cfg), /quota|Daily/);
+  assert.throws(() => assertLiteCapacity(countLedger(Array.from({ length: 95 }, (_, i) => at(61 + i * 5)), now), cfg), /Daily goal reached \(95 today, Europe\/Oslo\)/);
+  // Yesterday (Oslo) does not count against today's goal.
+  assert.doesNotThrow(() => assertLiteCapacity(countLedger(Array.from({ length: 95 }, (_, i) => at(11 * 60 + i)), now), cfg));
   assert.throws(() => countLedger([{ created_at: "bad" }], now), /invalid timestamp/);
 });
 

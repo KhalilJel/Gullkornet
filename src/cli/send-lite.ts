@@ -57,7 +57,9 @@ async function enforceDeliveryHealth(apiKey: string, airtable: ReturnType<typeof
     nextRead = Date.now() + 200;
     return fetch(input, init);
   };
-  const history = await fetchResendEmailsSince(apiKey, now - 30 * 24 * 60 * 60 * 1000, providerFetch);
+  // 30 days for reservations, and at least the whole UTC month for Resend's monthly quota.
+  const monthStart = Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), 1);
+  const history = await fetchResendEmailsSince(apiKey, Math.min(now - 30 * 24 * 60 * 60 * 1000, monthStart), providerFetch);
   const bounces = new Map<string, BounceInfo>();
   for (const e of history) {
     if (e.last_event !== "bounced" || !e.id || now - Date.parse(e.created_at) >= 24 * 60 * 60 * 1000) continue;
@@ -201,7 +203,7 @@ async function main(): Promise<void> {
     // Net supply over the last 24 h: new rows that would qualify at today's rate, minus what the
     // account sent (every send uses one qualified row).
     const added = await countLiteRowsCreatedSince(airtable, 24);
-    const sentLastDay = resendKey ? countLedger(await fetchRecentSendLedger(resendKey), Date.now()).lastDay : undefined;
+    const sentLastDay = resendKey ? (await fetchRecentSendLedger(resendKey)).filter(e => Date.now() - Date.parse(e.created_at) < 86_400_000).length : undefined;
     const netQualified = sentLastDay === undefined ? "-" : String(Math.round(added * rate) - sentLastDay);
     console.log(`Readiness: liteReady=${ready} liteRecheck=${recheck} checked=${summary.scanned} eligible=${eligible} ` +
       `eligibleRate=${(100 * rate).toFixed(0)}% ${counted ? "qualifiedQueueCounted" : "estimatedEligibleQueue"}=${estimate} daysAt95=${(estimate / 95).toFixed(1)} ` +

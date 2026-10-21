@@ -5,7 +5,7 @@ import { SendDeferredError } from "../integrations/send-schedule.js";
 import { LITE_MARKER, LITE_READY_STATUS } from "./intake.js";
 import { assessLiteRecipient } from "./recipient-policy.js";
 import { withSentDate } from "./retention.js";
-import { assertLiteCapacity, capacityFreesAt, countedAt, countLedger, isWithinLiteWindow, type LiteSendConfig, type LiteSlot } from "./schedule.js";
+import { assertLiteCapacity, capacityFreesAt, countLedger, isWithinLiteWindow, remainingToday, type LiteSendConfig, type LiteSlot } from "./schedule.js";
 import { DeliveryStopError } from "./delivery-health.js";
 import { assertLiteTemplateCompliant, LITE_FROM, LITE_TEMPLATE } from "./template.js";
 
@@ -70,14 +70,19 @@ export function sentWithinLedger(entries: SendLedgerEntry[], recipient: string):
   return entries.some(entry => (entry.to ?? []).some(to => typeof to === "string" && to.trim().toLowerCase() === email));
 }
 
-/** Resend answered 4xx other than 429 (sendOneEmail's message), so the email was certainly not accepted. */
-export function isDefiniteRejection(error: unknown): boolean {
-  return error instanceof Error && /^Resend send failed \(HTTP 4(?!29)\d\d\)/.test(error.message);
+/** Resend refused because its own daily or monthly quota is used up: the email was not accepted. */
+export function isQuotaExceeded(error: unknown): boolean {
+  return error instanceof Error && /^Resend send failed \(HTTP 429 (?:daily|monthly)_quota_exceeded\)/.test(error.message);
 }
 
-/** Resend's rate limit (HTTP 429): the request was not processed and may be repeated. */
+/** Resend answered 4xx other than a plain 429, or refused on its quota: the email was certainly not accepted. */
+export function isDefiniteRejection(error: unknown): boolean {
+  return error instanceof Error && (/^Resend send failed \(HTTP 4(?!29)\d\d\b/.test(error.message) || isQuotaExceeded(error));
+}
+
+/** Resend's rate limit (HTTP 429, not a quota): the request was not processed and may be repeated. */
 export function isRateLimited(error: unknown): boolean {
-  return error instanceof Error && /^Resend send failed \(HTTP 429\)/.test(error.message);
+  return error instanceof Error && /^Resend send failed \(HTTP 429\b/.test(error.message) && !isQuotaExceeded(error);
 }
 
 /**
@@ -194,19 +199,18 @@ async function runLiteSendInto(summary: LiteRunSummary, deps: LiteSendDeps, cfg:
   const queue = await deps.fetchQueue();
   let eligible = 0;
 
-  // The target is what the rolling 24 h limit and the Resend quota still allow by the end of the slot
-  // (account-wide: sends still inside the window when the slot ends are subtracted).
+  // The target is today's goal minus what the account already sent today (Europe/Oslo, every run
+  // counted together), capped by Resend's quotas in their own periods (UTC day and month) and 95 per run.
   let maxThisRun = cfg.maxPerRun;
   if (slot) {
     const counts = countLedger(ledger, deps.now());
-    const carried = countedAt(ledger, slot.endMs);
-    maxThisRun = Math.max(0, Math.min(cfg.maxPerRun, cfg.dailyLimit - carried, cfg.resendDailyQuota - carried));
+    maxThisRun = Math.min(cfg.maxPerRun, remainingToday(counts, cfg));
     summary.target = maxThisRun;
-    deps.log(`Slot plan (${slot.kind}): sentLast24h=${counts.lastDay} stillCountedAtSlotEnd=${carried} dailyLimit=${cfg.dailyLimit} resendDailyQuota=${cfg.resendDailyQuota} ` +
-      `target=${maxThisRun} queue=${queue.length} ends=${new Date(slot.endMs).toISOString()}`);
+    deps.log(`Slot plan (${slot.kind}): sentToday(Oslo)=${counts.today} dailyGoal=${cfg.dailyLimit} resendUtcDay=${counts.utcDay}/${cfg.resendDailyQuota} ` +
+      `resendUtcMonth=${counts.utcMonth}/${cfg.resendMonthlyQuota ?? "-"} target=${maxThisRun} queue=${queue.length} ends=${new Date(slot.endMs).toISOString()}`);
     if (maxThisRun === 0) { summary.stoppedBy = "limit"; return summary; }
   }
-  /** True when one more send is allowed now, or (slot runs) older sends roll out before the slot ends. */
+  /** True when one more send is allowed now, or (slot runs) the hourly rule frees up before the slot ends. */
   const capacityReachable = (): boolean => {
     try { assertLiteCapacity(countLedger(ledger, deps.now()), cfg); return true; }
     catch (error) {
@@ -217,7 +221,7 @@ async function runLiteSendInto(summary: LiteRunSummary, deps: LiteSendDeps, cfg:
       return false;
     }
   };
-  /** Slot runs: true when a send is allowed now, after waiting for older sends to roll out if that happens inside the slot. */
+  /** Slot runs: true when a send is allowed now, after waiting for the hourly rule to free up if that happens inside the slot. */
   const waitForCapacity = async (): Promise<boolean> => {
     for (;;) {
       try {
@@ -320,6 +324,12 @@ async function runLiteSendInto(summary: LiteRunSummary, deps: LiteSendDeps, cfg:
         await deps.markReady(recordId);
       } catch {
         throw new Error("Send failed and the row could not be put back to Lite Ready. It stays Sent; reconcile by hand if it should be retried.");
+      }
+      if (isQuotaExceeded(error)) {
+        // The provider's quota decides, whatever our own count says: stop here, nothing lost.
+        summary.stoppedBy = "limit";
+        deps.log(`Resend quota reached (${error instanceof Error ? error.message : ""}); ${recordId} is back in the queue. Stopping.`);
+        return summary;
       }
       throw error;
     }
