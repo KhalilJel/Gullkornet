@@ -10,34 +10,35 @@ Follow the locked plan in order. Do not deviate before all phases are completed.
 
 Implement → test/verify → document → commit → verify → next phase.
 
-## Phase status
+## Current status — 2026-10-10
 
-- [x] Phase 0 — Architecture and guardrails
-- [x] Phase 1 — Hermes
-- [x] Phase 2 — Agent Reach
-- [x] Phase 3 — Firecrawl
-- [x] Phase 4 — JEV Ultrafast foundation
-- [x] Phase 5 — TypeSafe + JEV autonomous decision layer
-- [x] Phase 6 — Browser Use
-- [x] Phase 7 — KeeLead
-- [x] Phase 8 — OpenOutreach
-- [x] Phase 9 — End-to-end integration (COMPLETE)
-- [x] Phase 10 — End-to-end testing (COMPLETE)
-- [x] Phase 11 — Production (COMPLETE; runtime safety flags operator-verified false on 2026-10-09)
-- [ ] Phase 12 — Autonomous Cidea AI Sales Engine (IN PROGRESS; Steps 1–9 implemented and merged, Step 10 next)
+- [x] Phases 0–11 — foundation, integrations, end-to-end testing, and production-readiness controls.
+- [x] Phase 12 — Autonomous Cidea AI Sales Engine engineering and controlled, non-sending dry-run acceptance.
+- [ ] Production sending — **NOT APPROVED**. It remains separately gated and must not be enabled as part of this status update.
 
-## Current phase
+The Phase 12 dry-run scope is complete. The synthetic acceptance workflow verifies the discovery-to-review pipeline, suppression and human-review gates, duplicate protection, persistence behavior, privacy-safe structured logging, and that scheduled sending remains hard-disabled while OpenOutSend remains ingest-only. Final-main acceptance evidence is documented in `docs/PHASE-12-PLAN.md` and `docs/PHASE-12-PRODUCTION-READINESS.md`.
 
-Phase 11 — Production is COMPLETE on main. The operator confirmed `OPENOUTREACH_ALLOW_SEND=false` and `OPENOUTREACH_STARTUP_ACCEPTANCE_TEST=false` in the Railway UI on 2026-10-09; the connector redacts values, so this is operator-verified. Phase 12 was explicitly authorized on 2026-10-09. Steps 1–5 are complete; Step 4 uses the owner-approved in-repository `src/integrations/website-audit.ts` provider and adds provenance-rich evidence. Step 5 implements explainable qualification with score/status/reasons, routes uncertain cases to review, and persists rejected decisions to a restrictive-permission artifact. All four checks passed on final Step 5 PR head `c2a69cf315b5df737619b0e430403c464ce247db`: CI typecheck/tests, Phase 10 E2E including the bounded live dry-run non-sending assertion, Phase 11 readiness, and KeeLead Live Acceptance. Step 5 was merged as `2f7dd0d3233e796e0917949529e2614ebc6e3176`. Step 6 is complete and merged as PR #79 (merge commit `bde2740bc7d6d87dac4f7eb9d3af85d46f20a638`). The approved Norwegian interest-first template remains generic, while source-linked observations and timestamps are stored as internal-only evidence. Website findings are not inserted into customer-facing draft text; weak research stays in manual review. All four checks passed on final Step 6 PR head `c4d43516098f21c67f30f6caba5af4eafb4e1a08`. Step 7 is complete and merged as PR #81 (merge commit `50103283a3256a6b7301febd0739a43995c8e86f`). Airtable upsert is idempotent, paginates, matches legacy rows, preserves protected outreach history and suppression states, retries transient reads, and never blindly retries writes. CI/tests, Phase 10 non-sending E2E, Phase 11 readiness, and KeeLead Live Acceptance all passed on final PR head `3d9629821502eeb7cbbacc6e9a4273448a0c2f30`. Step 8 is next. No prospect emails, DNS/MX changes, Railway config changes, or deployments were made. The runtime still requires human review for current research results. No prospect emails, DNS/MX changes, Railway config changes, or deployments were made.
+### Remaining pre-pilot gates
+
+1. Add a dependency lockfile and use deterministic installation in CI.
+2. Define a prospect/research/draft retention and deletion policy.
+3. Prevent the sender CLI preview from writing recipient details and draft content into shared logs; define a safe local preview path.
+4. Reverify the relevant Railway safety flags directly in the Railway UI immediately before any separately authorized live pilot.
+5. Keep scheduled/bulk sending disabled and OpenOutSend ingest-only until a separate explicit authorization and reviewed change.
+
+No real prospect emails were sent for Phase 12 acceptance. No DNS/MX or Railway configuration changes were made. These controls do not block selling Cidea Leads as a reviewed lead-research/qualification service, provided customer delivery follows the current approved, non-sending workflow and applicable privacy requirements.
+
+The detailed phase notes below preserve implementation history; where an older section says a phase is “current” or “next,” use this dated status summary and the Phase 12 closeout/readiness documents as the current source of truth.
 
 ## Current architecture boundary
 
 Website Intelligence Engine is a dedicated website intelligence service, not the lead generation engine.
 
-- Gullkornet / KeeLead: finds and enriches prospects.
-- Website Intelligence Engine: analyzes prospect websites and produces evidence-backed improvement opportunities.
-- Hermes: orchestrates the AI workflow.
-- OpenOutreach: handles qualification, personalization and outreach when its phase is reached.
+- **Cidea Leads (customer-facing service):** a paid service that delivers researched, qualified leads to clients.
+- **Gullkornet / KeeLead:** the lead discovery, enrichment, verification and qualification engine; used both for Cidea's own acquisition and to fulfil Cidea Leads client work.
+- **Website Intelligence Engine:** analyzes prospect websites and produces evidence-backed improvement opportunities; it is not the lead-discovery engine.
+- **Hermes:** orchestrates the AI workflow.
+- **OpenOutreach:** currently remains an ingest-only, non-sending boundary; any live outreach requires separate approval and completion of the pre-pilot gates.
 
 Deployment decision:
 
