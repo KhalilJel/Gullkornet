@@ -35,6 +35,13 @@ jobs:
       - name: Build Docker image with pinned OpenOutSend and runtime tests
         run: docker build --tag gullkornet-phase11-reply-monitor .
 
+      - name: IMAP reachability from GitHub (comparison point for a monitor TimeoutError)
+        shell: bash
+        run: |
+          start=$(date +%s.%N)
+          greeting=$(timeout 20 openssl s_client -quiet -connect imap.migadu.com:993 -servername imap.migadu.com </dev/null 2>/dev/null | head -c 4 || true)
+          echo "imap.migadu.com:993 greeting='${greeting}' seconds=$(echo "$(date +%s.%N) - $start" | bc)"
+
       - name: Verify deployed read-only reply monitor is healthy
         shell: bash
         run: |
