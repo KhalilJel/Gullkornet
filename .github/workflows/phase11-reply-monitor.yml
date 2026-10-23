@@ -35,13 +35,24 @@ jobs:
       - name: Build Docker image with pinned OpenOutSend and runtime tests
         run: docker build --tag gullkornet-phase11-reply-monitor .
 
+      - name: IMAP reachability from GitHub (comparison point for a monitor TimeoutError)
+        shell: bash
+        run: |
+          start=$(date +%s.%N)
+          greeting=$(timeout 20 openssl s_client -quiet -connect imap.migadu.com:993 -servername imap.migadu.com </dev/null 2>/dev/null | head -c 4 || true)
+          echo "imap.migadu.com:993 greeting='${greeting}' seconds=$(echo "$(date +%s.%N) - $start" | bc)"
+
       - name: Verify deployed read-only reply monitor is healthy
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused \
+          code=$(curl --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused \
             https://openoutreach-production-ab8b.up.railway.app/health \
-            -o /tmp/openoutreach-health.json
+            -o /tmp/openoutreach-health.json -w '%{http_code}' || echo 000)
+          echo "health HTTP $code"
+          jq -c '{ok, reply_monitor: (.reply_monitor | {status, last_check_at, last_success_at, last_error_code, last_error_stage, last_counts})}' /tmp/openoutreach-health.json \
+            || echo "health body is not service JSON (edge or proxy error)"
+          test "$code" = 200
           jq -e '
             .ok == true and
             .reply_monitor.status == "running" and

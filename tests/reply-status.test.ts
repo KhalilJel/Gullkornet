@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertRecipientHasNotReplied } from "../src/integrations/reply-status.js";
+import { assertRecipientHasNotReplied, fetchRepliedBatch } from "../src/integrations/reply-status.js";
 
 const env = {
   OPENOUTREACH_REPLY_STATUS_URL: "https://openoutreach-production-ab8b.up.railway.app/v1/reply-status",
@@ -94,4 +94,18 @@ test("reply-status never falls back to the ingest token", async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("a 503 names the service's own reason code but never echoes free text", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = (async () => Response.json({ error: "REPLY_MONITOR_UNHEALTHY" }, { status: 503 })) as typeof fetch;
+    await assert.rejects(assertRecipientHasNotReplied("pilot@example.no", env), /HTTP 503 \(REPLY_MONITOR_UNHEALTHY\)\. Refusing to send\./);
+    globalThis.fetch = (async () => Response.json({ error: "leak person@example.no", failure_type: "x y" }, { status: 503 })) as typeof fetch;
+    await assert.rejects(assertRecipientHasNotReplied("pilot@example.no", env), /failed with HTTP 503\. Refusing to send\./);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  const lookupFailed = (async () => Response.json({ error: "REPLY_LOOKUP_FAILED", failure_type: "LoginError" }, { status: 503 })) as typeof fetch;
+  await assert.rejects(fetchRepliedBatch(["pilot@example.no"], env, lookupFailed), /batch failed with HTTP 503 \(REPLY_LOOKUP_FAILED\/LoginError\)\./);
 });

@@ -4,6 +4,17 @@ export type ReplyStatusResponse = {
   send_triggered: false;
 };
 
+/**
+ * The service's own reason for refusing (e.g. REPLY_MONITOR_UNHEALTHY, or REPLY_LOOKUP_FAILED with the
+ * exception type). Only fixed-format codes are kept, so a body can never put text into public logs.
+ */
+export async function replyStatusFailureReason(response: Response): Promise<string> {
+  const payload = await response.json().catch(() => null) as { error?: unknown; failure_type?: unknown } | null;
+  const code = typeof payload?.error === "string" && /^[A-Z_]{1,60}$/.test(payload.error) ? payload.error : "";
+  const type = typeof payload?.failure_type === "string" && /^[A-Za-z_]{1,60}$/.test(payload.failure_type) ? payload.failure_type : "";
+  return code ? ` (${code}${type ? `/${type}` : ""})` : "";
+}
+
 /** Read-only lookup: true when the business has replied. Throws (fails closed) on any doubt. */
 export async function fetchRecipientReplied(
   recipient: string,
@@ -36,7 +47,7 @@ export async function fetchRecipientReplied(
     signal: AbortSignal.timeout(15000)
   });
   if (!response.ok) {
-    throw new Error(`OpenOutSend reply-status check failed with HTTP ${response.status}. Refusing to send.`);
+    throw new Error(`OpenOutSend reply-status check failed with HTTP ${response.status}${await replyStatusFailureReason(response)}. Refusing to send.`);
   }
 
   const payload: unknown = await response.json().catch(() => null);
@@ -93,7 +104,7 @@ export async function fetchRepliedBatch(
     body: JSON.stringify({ emails }),
     signal: AbortSignal.timeout(120000)
   });
-  if (!response.ok) throw new Error(`OpenOutSend reply-status batch failed with HTTP ${response.status}.`);
+  if (!response.ok) throw new Error(`OpenOutSend reply-status batch failed with HTTP ${response.status}${await replyStatusFailureReason(response)}.`);
   const payload = await response.json().catch(() => null) as { replied_by_email?: unknown; mode?: unknown; send_triggered?: unknown } | null;
   if (!payload || payload.mode !== "read_only_reply_check" || payload.send_triggered !== false ||
       typeof payload.replied_by_email !== "object" || payload.replied_by_email === null) {
