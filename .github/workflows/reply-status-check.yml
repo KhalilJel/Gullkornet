@@ -40,7 +40,7 @@ jobs:
           base="${OPENOUTREACH_REPLY_STATUS_URL%/v1/reply-status}"
           code=$(curl --silent --show-error --max-time 20 -o /tmp/health.json -w '%{http_code}' "$base/health" || echo 000)
           echo "health HTTP $code"
-          jq -c '{ok, service, reply_monitor: (.reply_monitor | {status, last_check_at, last_success_at, last_error_code, last_counts})}' /tmp/health.json 2>/dev/null || echo "health body is not service JSON (edge or proxy error)"
+          jq -c '{ok, service, reply_monitor: (.reply_monitor | {status, last_check_at, last_success_at, last_error_code, last_error_stage, last_counts})}' /tmp/health.json 2>/dev/null || echo "health body is not service JSON (edge or proxy error)"
 
       - name: Reply-status check (read-only)
         run: npm run --silent check:reply-status

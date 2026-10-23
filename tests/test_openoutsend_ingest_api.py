@@ -136,6 +136,18 @@ class ReplyMonitorTests(unittest.TestCase):
         self.assertEqual(state["last_error_code"], "RuntimeError")
         self.assertNotIn("sensitive mailbox details", json.dumps(state))
 
+    def test_monitor_names_the_failing_stage_without_exception_text(self):
+        probe = unittest.mock.Mock(side_effect=TimeoutError("imap host and account details"))
+        state = api.run_reply_monitor_once(mailbox_probe=probe, mail_pass_runner=unittest.mock.Mock())
+        self.assertEqual((state["last_error_code"], state["last_error_stage"]), ("TimeoutError", "probe"))
+        runner = unittest.mock.Mock(side_effect=TimeoutError("details"))
+        state = api.run_reply_monitor_once(mailbox_probe=unittest.mock.Mock(), mail_pass_runner=runner)
+        self.assertEqual(state["last_error_stage"], "mail_pass")
+        self.assertNotIn("details", json.dumps(state))
+        state = api.run_reply_monitor_once(mailbox_probe=unittest.mock.Mock(),
+                                           mail_pass_runner=unittest.mock.Mock(return_value=(0, 0, 0)))
+        self.assertEqual((state["status"], state["last_error_stage"]), ("running", None))
+
     def test_monitor_disabled_never_calls_mailbox_or_mail_pass(self):
         os.environ[api.REPLY_MONITOR_ENABLED_ENV] = "false"
         probe = unittest.mock.Mock()

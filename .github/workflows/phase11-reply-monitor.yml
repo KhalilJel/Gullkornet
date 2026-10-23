@@ -50,7 +50,7 @@ jobs:
             https://openoutreach-production-ab8b.up.railway.app/health \
             -o /tmp/openoutreach-health.json -w '%{http_code}' || echo 000)
           echo "health HTTP $code"
-          jq -c '{ok, reply_monitor: (.reply_monitor | {status, last_check_at, last_success_at, last_error_code, last_counts})}' /tmp/openoutreach-health.json \
+          jq -c '{ok, reply_monitor: (.reply_monitor | {status, last_check_at, last_success_at, last_error_code, last_error_stage, last_counts})}' /tmp/openoutreach-health.json \
             || echo "health body is not service JSON (edge or proxy error)"
           test "$code" = 200
           jq -e '

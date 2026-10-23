@@ -371,20 +371,35 @@ def _handle_reply_status_batch(handler: "IngestHandler", batch: list[Any]) -> No
     handler._respond(200, {"replied_by_email": replied, "mode": "read_only_reply_check", "send_triggered": False})
 
 
-def _probe_reply_mailbox(expected_address: str) -> None:
-    """Verify that the configured IMAP mailbox matches the Cidea sender and is readable."""
+def _probe_reply_mailbox(expected_address: str, mark_stage=lambda stage: None) -> None:
+    """Verify that the configured IMAP mailbox matches the Cidea sender and is readable.
+
+    Same steps as OpenOutSend's _connect, split so a failure names its stage (connect, login,
+    select_inbox) without logging the provider's exception text.
+    """
     import django
 
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "cold_outreach.settings")
     django.setup()
+    from imapclient import IMAPClient
     from cold_outreach.emails.models import Mailbox
-    from cold_outreach.emails.sync import _connect
+    from cold_outreach.emails.sync import IMAP_TIMEOUT_SECONDS
 
     mailbox = Mailbox.objects.filter(from_address__iexact=expected_address).first()
     if mailbox is None:
         raise RuntimeError("REPLY_MONITOR_MAILBOX_NOT_CONFIGURED")
-    with _connect(mailbox) as client:
+    mark_stage("connect")
+    client = IMAPClient(mailbox.imap_host, port=mailbox.imap_port, ssl=True, timeout=IMAP_TIMEOUT_SECONDS)
+    try:
+        mark_stage("login")
+        client.login(mailbox.username, mailbox.password)
+        mark_stage("select_inbox")
         client.select_folder("INBOX", readonly=True)
+    finally:
+        try:
+            client.logout()
+        except Exception:
+            pass
 
 
 def run_reply_monitor_once(
@@ -414,8 +429,17 @@ def run_reply_monitor_once(
         )
         return reply_monitor_state()
 
+    stage = {"name": "probe"}
+
+    def mark_stage(name: str) -> None:
+        stage["name"] = name
+
     try:
-        (mailbox_probe or _probe_reply_mailbox)(configured)
+        if mailbox_probe is None:
+            _probe_reply_mailbox(configured, mark_stage)
+        else:
+            mailbox_probe(configured)
+        mark_stage("mail_pass")
         if mail_pass_runner is None:
             import django
             os.environ.setdefault("DJANGO_SETTINGS_MODULE", "cold_outreach.settings")
@@ -427,14 +451,14 @@ def run_reply_monitor_once(
         _update_reply_monitor_state(
             status="running", last_check_at=completed, last_success_at=completed,
             last_counts={"mirrored": mirrored, "classified": classified, "projected": projected},
-            last_error_code=None
+            last_error_code=None, last_error_stage=None
         )
     except Exception as exc:
         # Never write exception text to logs or health responses; providers can include
         # addresses, hostnames, and other mailbox details in exception messages.
         _update_reply_monitor_state(
             status="degraded", last_check_at=datetime.now(timezone.utc).isoformat(),
-            last_error_code=type(exc).__name__
+            last_error_code=type(exc).__name__, last_error_stage=stage["name"]
         )
     return reply_monitor_state()
 
@@ -449,7 +473,8 @@ def _reply_monitor_loop() -> None:
     while not _REPLY_MONITOR_STOP.is_set():
         state = run_reply_monitor_once()
         print("reply-monitor status=" + str(state.get("status")) +
-              " error=" + str(state.get("last_error_code") or "none"))
+              " error=" + str(state.get("last_error_code") or "none") +
+              " stage=" + str(state.get("last_error_stage") or "none"))
         _REPLY_MONITOR_STOP.wait(interval)
 
 
