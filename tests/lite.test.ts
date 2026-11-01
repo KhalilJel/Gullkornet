@@ -591,3 +591,28 @@ test("reply check retries a transient 503 twice, then fails closed", async () =>
   await assert.rejects(withTransientRetry(flaky, async () => undefined), /HTTP 503/);
   await assert.rejects(withTransientRetry(async () => { throw new Error("HTTP 401"); }, async () => assert.fail("no retry on other errors")), /401/);
 });
+
+test("an address the reply service cannot search is never sent, leaves the queue, and the run goes on", async () => {
+  const run = dryRunDeps(SATURDAY_10_OSLO, [liteRecord("recA", { Email: "post@a.example" }), liteRecord("recB", { Email: "post@b.example" })]);
+  const stale: string[] = [];
+  run.deps.markStale = async (id, reason) => { stale.push(`${id}:${reason}`); };
+  run.deps.assertNotReplied = async email => {
+    if (email === "post@a.example") throw new Error("OpenOutSend reply-status check failed with HTTP 503 (REPLY_LOOKUP_FAILED/UnicodeEncodeError). Refusing to send.");
+  };
+  const summary = await runLiteSend(run.deps, dryRunConfig());
+  assert.deepEqual(run.outbox.map(o => o.email.to), ["post@b.example"]);
+  assert.deepEqual(stale, ["recA:REPLY_CHECK_UNSUPPORTED_ADDRESS"]);
+  assert.equal(summary.skipped.stale, 1);
+  // Any other lookup failure still stops the whole run.
+  const other = dryRunDeps(SATURDAY_10_OSLO, [liteRecord("recA", { Email: "post@a.example" })]);
+  other.deps.assertNotReplied = async () => { throw new Error("OpenOutSend reply-status check failed with HTTP 503 (REPLY_LOOKUP_FAILED/TimeoutError). Refusing to send."); };
+  await assert.rejects(runLiteSend(other.deps, dryRunConfig()), /TimeoutError/);
+  assert.equal(other.outbox.length, 0);
+});
+
+test("an unsupported address is not retried as a transient 503", async () => {
+  await assert.rejects(
+    withTransientRetry(async () => { throw new Error("OpenOutSend reply-status check failed with HTTP 503 (REPLY_LOOKUP_FAILED/UnicodeEncodeError). Refusing to send."); }, async () => assert.fail("no retry")),
+    /UnicodeEncodeError/
+  );
+});
