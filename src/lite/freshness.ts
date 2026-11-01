@@ -21,7 +21,10 @@ export type FreshnessReason =
   | "NO_MAIL_SERVER"
   | "DNS_TEMPORARY"
   // The reply service cannot search the mailbox for this address (see isReplyCheckUnsupported).
-  | "REPLY_CHECK_UNSUPPORTED_ADDRESS";
+  | "REPLY_CHECK_UNSUPPORTED_ADDRESS"
+  // Resend cannot take the address (src/lite/send.ts).
+  | "NON_ASCII_ADDRESS"
+  | "RESEND_VALIDATION_ERROR";
 
 /** Only this reason is worth retrying later; the others are facts about the company or domain. */
 export const TEMPORARY_FRESHNESS_REASONS: ReadonlySet<FreshnessReason> = new Set(["DNS_TEMPORARY"]);

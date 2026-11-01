@@ -616,3 +616,23 @@ test("an unsupported address is not retried as a transient 503", async () => {
     /UnicodeEncodeError/
   );
 });
+
+test("a non-ASCII address leaves the queue unsent and the run goes on", async () => {
+  const run = dryRunDeps(SATURDAY_10_OSLO, [liteRecord("recA", { Email: "post@bøler.example" }), liteRecord("recB", { Email: "post@b.example" })]);
+  const stale: string[] = [];
+  run.deps.markStale = async (id, reason) => { stale.push(`${id}:${reason}`); };
+  await runLiteSend(run.deps, dryRunConfig());
+  assert.deepEqual(run.outbox.map(o => o.email.to), ["post@b.example"]);
+  assert.deepEqual(stale, ["recA:NON_ASCII_ADDRESS"]);
+});
+
+test("a Resend 422 validation_error takes that row out of the queue and stops the run", async () => {
+  const run = dryRunDeps(SATURDAY_10_OSLO, [liteRecord("recA", { Email: "post@a.example" }), liteRecord("recB", { Email: "post@b.example" })]);
+  const stale: string[] = [];
+  run.deps.markStale = async (id, reason) => { stale.push(`${id}:${reason}`); };
+  run.deps.send = async () => { throw new Error("Resend send failed (HTTP 422 validation_error)."); };
+  await assert.rejects(runLiteSend(run.deps, dryRunConfig()), /422 validation_error/);
+  assert.deepEqual(stale, ["recA:RESEND_VALIDATION_ERROR"]);
+  assert.notEqual(run.state.get("recA")?.fields["Lead Status"], "Lite Ready");
+  assert.equal(run.state.get("recB")?.fields["Lead Status"], "Lite Ready");
+});
