@@ -282,6 +282,7 @@ async function runLiteSendInto(summary: LiteRunSummary, deps: LiteSendDeps, cfg:
       try { await deps.assertNotReplied(email); }
       catch (error) {
         if (error instanceof Error && error.message.includes("Recipient has replied")) { summary.skipped.replied++; continue; }
+        if (isReplyCheckUnsupported(error)) { summary.skipped.stale++; continue; }
         throw error;
       }
       eligible++; continue;
@@ -300,6 +301,17 @@ async function runLiteSendInto(summary: LiteRunSummary, deps: LiteSendDeps, cfg:
     try { await deps.assertNotReplied(email); }
     catch (error) {
       if (error instanceof Error && error.message.includes("Recipient has replied")) { summary.skipped.replied++; continue; }
+      if (isReplyCheckUnsupported(error)) {
+        // The reply service cannot search for this address at all (it fails the same way on every try),
+        // so it is never sent to: out of the queue, and the run goes on with the next recipient.
+        summary.skipped.stale++;
+        deps.log(`Skipped ${recordId}: ${REPLY_CHECK_UNSUPPORTED}`);
+        if (deps.markStale) {
+          try { await deps.markStale(recordId, REPLY_CHECK_UNSUPPORTED, freshNotes); }
+          catch (markError) { deps.log(`Could not take ${recordId} out of the queue: ${markError instanceof Error ? markError.message : "unknown error"}`); }
+        }
+        continue;
+      }
       throw error;
     }
     if (!inWindow()) { summary.stoppedBy = "outside_window"; break; }
@@ -344,6 +356,17 @@ async function runLiteSendInto(summary: LiteRunSummary, deps: LiteSendDeps, cfg:
   return summary;
 }
 
+export const REPLY_CHECK_UNSUPPORTED = "REPLY_CHECK_UNSUPPORTED_ADDRESS";
+
+/**
+ * The reply service answered that it cannot encode this address for the mailbox search
+ * (REPLY_LOOKUP_FAILED/UnicodeEncodeError, e.g. a non-ASCII address). That is about this one
+ * recipient, not the service: every other failure still stops the run.
+ */
+export function isReplyCheckUnsupported(error: unknown): boolean {
+  return error instanceof Error && /\(REPLY_LOOKUP_FAILED\/UnicodeEncodeError\)/.test(error.message);
+}
+
 /**
  * The reply service opens an IMAP connection per lookup and answers 503 now and then under a burst
  * of lookups, and a network call can fail once. Retry a 503 or a network error / timeout twice after
@@ -354,7 +377,8 @@ export async function withTransientRetry<T>(call: () => Promise<T>, wait: (ms: n
     try {
       return await call();
     } catch (error) {
-      const transient = error instanceof TypeError || (error instanceof Error && (/HTTP 503\b/.test(error.message) || error.name === "TimeoutError" || error.name === "AbortError"));
+      const transient = !isReplyCheckUnsupported(error) &&
+        (error instanceof TypeError || (error instanceof Error && (/HTTP 503\b/.test(error.message) || error.name === "TimeoutError" || error.name === "AbortError")));
       if (!transient) throw error;
       await wait(pause);
     }

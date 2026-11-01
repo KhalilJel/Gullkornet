@@ -12,7 +12,7 @@ import { dueRechecks, staleUpdate, writeLiteStatus } from "../lite/stale.js";
 import { LITE_RESEARCH_MAX_AGE_DAYS, loadResearchIndex } from "../lite/market-research.js";
 import { parseAllowedOrgForms } from "../lite/recipient-policy.js";
 import { countLedger, loadLiteSendConfig, MAX_SCHEDULED_LEAD_MS, resolveLiteSlot, SLOT_LEAD_MS } from "../lite/schedule.js";
-import { runLiteSend, withTransientRetry } from "../lite/send.js";
+import { isReplyCheckUnsupported, runLiteSend, withTransientRetry } from "../lite/send.js";
 
 // npm run send:lite            -> no-op with switch off; otherwise owner-confirmed operation up to 95/day,
 //                                 spread evenly over 11:00-12:00 Oslo (a run up to 30 min early waits for it).
@@ -154,7 +154,18 @@ async function main(): Promise<void> {
     },
     lookupRecords: timed("airtable_lookup", (email: string) => lookupLiteRecords(airtable, email)),
     assertNotReplied: timed("reply_check", async (email: string) => {
-      if (!preview) return withTransientRetry(() => assertRecipientHasNotReplied(email, env), sleep);
+      if (!preview) {
+        try {
+          return await withTransientRetry(() => assertRecipientHasNotReplied(email, env), sleep);
+        } catch (error) {
+          if (!isReplyCheckUnsupported(error)) throw error;
+          // The single lookup searches the mailbox for this address and cannot encode it; the batch
+          // lookup reads the mailbox's senders instead and answers for it. Any doubt still throws.
+          const replied = (await fetchRepliedBatch([email], env)).get(email.trim().toLowerCase());
+          if (replied) throw new Error("Recipient has replied. Follow-up/outreach is blocked.");
+          return;
+        }
+      }
       // Only a read-only preview may use this snapshot. Live sends always query afresh.
       const replied = previewReplies.get(email.trim().toLowerCase());
       if (replied === undefined) throw new Error("Preview reply-status batch left out an address.");

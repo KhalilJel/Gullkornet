@@ -19,7 +19,9 @@ export type FreshnessReason =
   | "ORG_FORM_CHANGED"
   | "EMAIL_NOT_REGISTERED"
   | "NO_MAIL_SERVER"
-  | "DNS_TEMPORARY";
+  | "DNS_TEMPORARY"
+  // The reply service cannot search the mailbox for this address (see isReplyCheckUnsupported).
+  | "REPLY_CHECK_UNSUPPORTED_ADDRESS";
 
 /** Only this reason is worth retrying later; the others are facts about the company or domain. */
 export const TEMPORARY_FRESHNESS_REASONS: ReadonlySet<FreshnessReason> = new Set(["DNS_TEMPORARY"]);
