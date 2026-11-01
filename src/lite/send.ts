@@ -248,6 +248,17 @@ async function runLiteSendInto(summary: LiteRunSummary, deps: LiteSendDeps, cfg:
 
     summary.scanned++;
     const email = emailOf(record);
+    if (email && !isAsciiAddress(email)) {
+      // Resend rejects such an address (422 validation_error) and the reply service cannot search for
+      // it, so it can never be sent: out of the queue instead of stopping every run at the same row.
+      summary.skipped.stale++;
+      deps.log(`Skipped ${record.id}: ${NON_ASCII_ADDRESS}`);
+      if (!options.preview && deps.markStale) {
+        try { await deps.markStale(record.id, NON_ASCII_ADDRESS, notesOf(record)); }
+        catch (error) { deps.log(`Could not take ${record.id} out of the queue: ${error instanceof Error ? error.message : "unknown error"}`); }
+      }
+      continue;
+    }
     let recordId: string;
     let freshNotes: string;
     try {
@@ -332,6 +343,13 @@ async function runLiteSendInto(summary: LiteRunSummary, deps: LiteSendDeps, cfg:
       if (!isDefiniteRejection(error)) {
         throw new Error("Send result is unknown; the row stays Sent. Check Resend and reset it by hand only if no email went out.");
       }
+      if (isValidationError(error) && deps.markStale) {
+        // Resend refused this email as invalid. Back to Lite Ready it would stop the next run at the same
+        // row, so it leaves the queue. The run still stops: one row per run at most, never a whole queue.
+        try { await deps.markStale(recordId, RESEND_VALIDATION_ERROR, freshNotes); }
+        catch { throw new Error("Resend refused the email as invalid and the row could not be taken out of the queue. It stays Sent; reconcile by hand."); }
+        throw error;
+      }
       try {
         await deps.markReady(recordId);
       } catch {
@@ -354,6 +372,17 @@ async function runLiteSendInto(summary: LiteRunSummary, deps: LiteSendDeps, cfg:
   if (options.preview) { summary.stoppedBy = "preview"; summary.eligibleInPreview = eligible; }
   else if (summary.sent >= maxThisRun) summary.stoppedBy = maxThisRun < cfg.maxPerRun ? "limit" : "max_per_run";
   return summary;
+}
+
+export const NON_ASCII_ADDRESS = "NON_ASCII_ADDRESS";
+export const RESEND_VALIDATION_ERROR = "RESEND_VALIDATION_ERROR";
+
+export function isAsciiAddress(email: string): boolean {
+  return /^[\x21-\x7e]+$/.test(email.trim());
+}
+
+export function isValidationError(error: unknown): boolean {
+  return error instanceof Error && /^Resend send failed \(HTTP 422 validation_error\)/.test(error.message);
 }
 
 export const REPLY_CHECK_UNSUPPORTED = "REPLY_CHECK_UNSUPPORTED_ADDRESS";
